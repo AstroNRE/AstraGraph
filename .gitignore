@@ -1,1 +1,28 @@
-plan
+## .NET build artifacts
+**/bin/
+**/obj/
+**/TestResults/
+[Bb]in/
+[Oo]bj/
+
+## IDE and editor files
+.vs/
+.vscode/
+.idea/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+
+## NuGet
+*.lock.json
+project.lock.json
+*.nuget.props
+*.nuget.targets
+
+## Crash logs & OS files
+.DS_Store
+Thumbs.db
+
+## Plan folder (if kept local)
+plan/
