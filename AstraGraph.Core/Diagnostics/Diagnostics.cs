@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace AstraGraph.Core;
 
-[JsonConverter(typeof(JsonStringEnumConverter))]
+[JsonConverter(typeof(JsonStringEnumConverter<DiagnosticSeverity>))]
 public enum DiagnosticSeverity
 {
     Info,

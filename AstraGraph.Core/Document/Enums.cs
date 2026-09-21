@@ -5,7 +5,7 @@ namespace AstraGraph.Core;
 /// <summary>
 /// Defines the architectural role of a graph.
 /// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter))]
+[JsonConverter(typeof(JsonStringEnumConverter<GraphKind>))]
 public enum GraphKind
 {
     System,
@@ -19,7 +19,7 @@ public enum GraphKind
 /// <summary>
 /// Execution side and authority for a graph.
 /// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter))]
+[JsonConverter(typeof(JsonStringEnumConverter<GraphSide>))]
 public enum GraphSide
 {
     Server,
@@ -31,7 +31,7 @@ public enum GraphSide
 /// <summary>
 /// Direction of data or execution flow through a pin.
 /// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter))]
+[JsonConverter(typeof(JsonStringEnumConverter<PinDirection>))]
 public enum PinDirection
 {
     Input,
@@ -41,7 +41,7 @@ public enum PinDirection
 /// <summary>
 /// Kind of pin: Execution (control flow) or Data (value flow).
 /// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter))]
+[JsonConverter(typeof(JsonStringEnumConverter<PinKind>))]
 public enum PinKind
 {
     Execution,
