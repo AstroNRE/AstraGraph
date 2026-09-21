@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AstraGraph.Persistence</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AstraGraph.Core\AstraGraph.Core.csproj" />
+    <ProjectReference Include="..\AstraGraph.State\AstraGraph.State.csproj" />
+    <ProjectReference Include="..\AstraGraph.VM\AstraGraph.VM.csproj" />
+  </ItemGroup>
+
+</Project>

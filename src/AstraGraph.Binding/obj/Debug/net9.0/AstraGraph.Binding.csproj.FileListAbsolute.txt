@@ -1,0 +1,16 @@
+/workspaces/AstraGraph/src/AstraGraph.Binding/bin/Debug/net9.0/AstraGraph.Binding.deps.json
+/workspaces/AstraGraph/src/AstraGraph.Binding/bin/Debug/net9.0/AstraGraph.Binding.dll
+/workspaces/AstraGraph/src/AstraGraph.Binding/bin/Debug/net9.0/AstraGraph.Binding.pdb
+/workspaces/AstraGraph/src/AstraGraph.Binding/bin/Debug/net9.0/AstraGraph.Core.dll
+/workspaces/AstraGraph/src/AstraGraph.Binding/bin/Debug/net9.0/AstraGraph.Core.pdb
+/workspaces/AstraGraph/src/AstraGraph.Binding/obj/Debug/net9.0/AstraGraph.Binding.csproj.AssemblyReference.cache
+/workspaces/AstraGraph/src/AstraGraph.Binding/obj/Debug/net9.0/AstraGraph.Binding.GeneratedMSBuildEditorConfig.editorconfig
+/workspaces/AstraGraph/src/AstraGraph.Binding/obj/Debug/net9.0/AstraGraph.Binding.AssemblyInfoInputs.cache
+/workspaces/AstraGraph/src/AstraGraph.Binding/obj/Debug/net9.0/AstraGraph.Binding.AssemblyInfo.cs
+/workspaces/AstraGraph/src/AstraGraph.Binding/obj/Debug/net9.0/AstraGraph.Binding.csproj.CoreCompileInputs.cache
+/workspaces/AstraGraph/src/AstraGraph.Binding/obj/Debug/net9.0/AstraGraph.Binding.sourcelink.json
+/workspaces/AstraGraph/src/AstraGraph.Binding/obj/Debug/net9.0/AstraGra.1F9E0477.Up2Date
+/workspaces/AstraGraph/src/AstraGraph.Binding/obj/Debug/net9.0/AstraGraph.Binding.dll
+/workspaces/AstraGraph/src/AstraGraph.Binding/obj/Debug/net9.0/refint/AstraGraph.Binding.dll
+/workspaces/AstraGraph/src/AstraGraph.Binding/obj/Debug/net9.0/AstraGraph.Binding.pdb
+/workspaces/AstraGraph/src/AstraGraph.Binding/obj/Debug/net9.0/ref/AstraGraph.Binding.dll

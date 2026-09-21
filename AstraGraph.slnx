@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AstraGraph.Binding/AstraGraph.Binding.csproj" />
+    <Project Path="src/AstraGraph.Core/AstraGraph.Core.csproj" />
+    <Project Path="src/AstraGraph.HotReload/AstraGraph.HotReload.csproj" />
+    <Project Path="src/AstraGraph.Persistence/AstraGraph.Persistence.csproj" />
+    <Project Path="src/AstraGraph.Runtime/AstraGraph.Runtime.csproj" />
+    <Project Path="src/AstraGraph.State/AstraGraph.State.csproj" />
+    <Project Path="src/AstraGraph.VM/AstraGraph.VM.csproj" />
+    <Project Path="src/AstraGraph.JIT/AstraGraph.JIT.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AstraGraph.Tests/AstraGraph.Tests.csproj" />
+  </Folder>
+</Solution>

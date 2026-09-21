@@ -1,0 +1,127 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v9.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v9.0": {
+      "AstraGraph.HotReload/1.0.0": {
+        "dependencies": {
+          "AstraGraph.Core": "1.0.0",
+          "AstraGraph.Persistence": "1.0.0",
+          "AstraGraph.Runtime": "1.0.0",
+          "AstraGraph.State": "1.0.0"
+        },
+        "runtime": {
+          "AstraGraph.HotReload.dll": {}
+        }
+      },
+      "AstraGraph.Binding/1.0.0": {
+        "dependencies": {
+          "AstraGraph.Core": "1.0.0"
+        },
+        "runtime": {
+          "AstraGraph.Binding.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "AstraGraph.Core/1.0.0": {
+        "runtime": {
+          "AstraGraph.Core.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "AstraGraph.Persistence/1.0.0": {
+        "dependencies": {
+          "AstraGraph.Core": "1.0.0",
+          "AstraGraph.State": "1.0.0",
+          "AstraGraph.VM": "1.0.0"
+        },
+        "runtime": {
+          "AstraGraph.Persistence.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "AstraGraph.Runtime/1.0.0": {
+        "dependencies": {
+          "AstraGraph.Binding": "1.0.0",
+          "AstraGraph.Core": "1.0.0",
+          "AstraGraph.State": "1.0.0",
+          "AstraGraph.VM": "1.0.0"
+        },
+        "runtime": {
+          "AstraGraph.Runtime.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "AstraGraph.State/1.0.0": {
+        "dependencies": {
+          "AstraGraph.Core": "1.0.0"
+        },
+        "runtime": {
+          "AstraGraph.State.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "AstraGraph.VM/1.0.0": {
+        "dependencies": {
+          "AstraGraph.Core": "1.0.0"
+        },
+        "runtime": {
+          "AstraGraph.VM.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "AstraGraph.HotReload/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AstraGraph.Binding/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AstraGraph.Core/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AstraGraph.Persistence/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AstraGraph.Runtime/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AstraGraph.State/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AstraGraph.VM/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AstraGraph.VM</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AstraGraph.Core\AstraGraph.Core.csproj" />
+  </ItemGroup>
+
+</Project>

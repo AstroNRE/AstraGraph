@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AstraGraph.HotReload</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AstraGraph.Core\AstraGraph.Core.csproj" />
+    <ProjectReference Include="..\AstraGraph.State\AstraGraph.State.csproj" />
+    <ProjectReference Include="..\AstraGraph.Runtime\AstraGraph.Runtime.csproj" />
+    <ProjectReference Include="..\AstraGraph.Persistence\AstraGraph.Persistence.csproj" />
+  </ItemGroup>
+
+</Project>

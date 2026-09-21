@@ -1,0 +1,16 @@
+/workspaces/AstraGraph/src/AstraGraph.VM/bin/Debug/net9.0/AstraGraph.VM.deps.json
+/workspaces/AstraGraph/src/AstraGraph.VM/bin/Debug/net9.0/AstraGraph.VM.dll
+/workspaces/AstraGraph/src/AstraGraph.VM/bin/Debug/net9.0/AstraGraph.VM.pdb
+/workspaces/AstraGraph/src/AstraGraph.VM/bin/Debug/net9.0/AstraGraph.Core.dll
+/workspaces/AstraGraph/src/AstraGraph.VM/bin/Debug/net9.0/AstraGraph.Core.pdb
+/workspaces/AstraGraph/src/AstraGraph.VM/obj/Debug/net9.0/AstraGraph.VM.csproj.AssemblyReference.cache
+/workspaces/AstraGraph/src/AstraGraph.VM/obj/Debug/net9.0/AstraGraph.VM.GeneratedMSBuildEditorConfig.editorconfig
+/workspaces/AstraGraph/src/AstraGraph.VM/obj/Debug/net9.0/AstraGraph.VM.AssemblyInfoInputs.cache
+/workspaces/AstraGraph/src/AstraGraph.VM/obj/Debug/net9.0/AstraGraph.VM.AssemblyInfo.cs
+/workspaces/AstraGraph/src/AstraGraph.VM/obj/Debug/net9.0/AstraGraph.VM.csproj.CoreCompileInputs.cache
+/workspaces/AstraGraph/src/AstraGraph.VM/obj/Debug/net9.0/AstraGraph.VM.sourcelink.json
+/workspaces/AstraGraph/src/AstraGraph.VM/obj/Debug/net9.0/AstraGra.24550F5D.Up2Date
+/workspaces/AstraGraph/src/AstraGraph.VM/obj/Debug/net9.0/AstraGraph.VM.dll
+/workspaces/AstraGraph/src/AstraGraph.VM/obj/Debug/net9.0/refint/AstraGraph.VM.dll
+/workspaces/AstraGraph/src/AstraGraph.VM/obj/Debug/net9.0/AstraGraph.VM.pdb
+/workspaces/AstraGraph/src/AstraGraph.VM/obj/Debug/net9.0/ref/AstraGraph.VM.dll

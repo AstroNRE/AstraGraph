@@ -1,0 +1,18 @@
+<Project>
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <NoWarn>$(NoWarn);CA1720;CA1711;CA1305</NoWarn>
+    <Deterministic>true</Deterministic>
+    <Authors>Astro</Authors>
+    <Company>AstraGraph</Company>
+    <Product>AstraGraph Visual Gameplay Language</Product>
+    <Copyright>Copyright (c) 2026 Astro</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+</Project>

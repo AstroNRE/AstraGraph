@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AstraGraph.Runtime</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AstraGraph.Core\AstraGraph.Core.csproj" />
+    <ProjectReference Include="..\AstraGraph.State\AstraGraph.State.csproj" />
+    <ProjectReference Include="..\AstraGraph.VM\AstraGraph.VM.csproj" />
+    <ProjectReference Include="..\AstraGraph.Binding\AstraGraph.Binding.csproj" />
+  </ItemGroup>
+
+</Project>
