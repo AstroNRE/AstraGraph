@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using AstraGraph.Core;
 using AstraGraph.Editor.Core;
+using AstraGraph.Editor.Core.Debugging;
+using AstraGraph.Editor.Core.Profiling;
 using AstraGraph.Editor.Core.Search;
 
 namespace AstraGraph.Editor.UI;
@@ -21,6 +23,8 @@ public sealed class CanvasInteractionController
     public CanvasModel Model { get; }
     public CanvasCommandStack CommandStack { get; }
     public NodePaletteIndexer PaletteIndexer { get; }
+    public VisualDebuggerSession? DebuggerSession { get; set; }
+    public VisualProfilerOverlay? ProfilerOverlay { get; set; }
 
     public InteractionState State { get; private set; } = InteractionState.Idle;
 
@@ -297,6 +301,49 @@ public sealed class CanvasInteractionController
             }
 
             OnRepaintRequested?.Invoke();
+            return;
+        }
+
+        if (key == EditorKeyCode.F9)
+        {
+            var selectedNodes = Model.GetSelectedNodes();
+            var selected = selectedNodes.Count > 0 ? selectedNodes[0] : null;
+            if (selected != null && DebuggerSession != null)
+            {
+                DebuggerSession.ToggleBreakpoint(selected.Id);
+                OnRepaintRequested?.Invoke();
+                return;
+            }
+        }
+
+        if (key == EditorKeyCode.F5)
+        {
+            if (DebuggerSession != null && DebuggerSession.IsPaused)
+            {
+                DebuggerSession.Resume();
+                OnRepaintRequested?.Invoke();
+                return;
+            }
+        }
+
+        if (key == EditorKeyCode.F10)
+        {
+            if (DebuggerSession != null && DebuggerSession.IsPaused)
+            {
+                DebuggerSession.StepOver();
+                OnRepaintRequested?.Invoke();
+                return;
+            }
+        }
+
+        if (key == EditorKeyCode.F11)
+        {
+            if (DebuggerSession != null && DebuggerSession.IsPaused)
+            {
+                DebuggerSession.StepInto();
+                OnRepaintRequested?.Invoke();
+                return;
+            }
         }
     }
 
@@ -319,7 +366,11 @@ public sealed class CanvasInteractionController
                 var p2Screen = Model.Viewport.WorldToScreen(p2World);
 
                 var curve = WireRouter.CalculateCubicBezier(p1Screen, p2Screen);
-                renderer.DrawBezier(curve, CanvasColor.LightGray, 2f);
+
+                var isHot = ProfilerOverlay?.IsActive == true && ProfilerOverlay.IsHotConnection(conn);
+                var wireColor = isHot ? CanvasColor.Orange : CanvasColor.LightGray;
+                var wireThickness = isHot ? 3.5f : 2f;
+                renderer.DrawBezier(curve, wireColor, wireThickness);
             }
         }
 
@@ -349,13 +400,59 @@ public sealed class CanvasInteractionController
             // Node body
             renderer.FillRectangle(nodeRect, CanvasColor.DarkGray);
 
-            // Node border (highlighted if selected)
-            var borderColor = node.IsSelected ? CanvasColor.Blue : CanvasColor.Gray;
-            var borderThickness = node.IsSelected ? 2.5f : 1f;
+            // Node border (highlighted if suspended, selected, or hot)
+            var borderColor = CanvasColor.Gray;
+            var borderThickness = 1f;
+
+            if (DebuggerSession?.SuspendedNodeId == node.Id)
+            {
+                borderColor = CanvasColor.Yellow;
+                borderThickness = 3f;
+            }
+            else if (node.IsSelected)
+            {
+                borderColor = CanvasColor.Blue;
+                borderThickness = 2.5f;
+            }
+            else if (ProfilerOverlay?.IsActive == true)
+            {
+                var heat = ProfilerOverlay.GetNodeHeat(node.Id);
+                if (heat != null && heat.Level >= HeatLevel.Warm)
+                {
+                    borderColor = heat.Level switch
+                    {
+                        HeatLevel.Critical => CanvasColor.Red,
+                        HeatLevel.Hot => CanvasColor.Orange,
+                        _ => CanvasColor.Yellow
+                    };
+                    borderThickness = 2f;
+                }
+            }
+
             renderer.DrawRectangle(nodeRect, borderColor, borderThickness);
 
+            // Breakpoint circle indicator on top-left
+            var hasBp = DebuggerSession?.HasBreakpoint(node.Id) == true;
+            if (hasBp)
+            {
+                var bpCenter = new CanvasPoint(screenPos.X + 8f * Model.Viewport.Zoom, screenPos.Y + 10f * Model.Viewport.Zoom);
+                renderer.FillCircle(bpCenter, 5f * Model.Viewport.Zoom, CanvasColor.Red);
+            }
+
             // Header title
-            renderer.DrawText(node.Name, new CanvasPoint(screenPos.X + 8f, screenPos.Y + 6f), CanvasColor.White, 12f * Model.Viewport.Zoom);
+            var textX = screenPos.X + (hasBp ? 18f * Model.Viewport.Zoom : 8f * Model.Viewport.Zoom);
+            renderer.DrawText(node.Name, new CanvasPoint(textX, screenPos.Y + 6f), CanvasColor.White, 12f * Model.Viewport.Zoom);
+
+            // Heat badge
+            if (ProfilerOverlay?.IsActive == true)
+            {
+                var heat = ProfilerOverlay.GetNodeHeat(node.Id);
+                if (heat != null && heat.HitCount > 0)
+                {
+                    var badgePos = new CanvasPoint(screenPos.X + screenWidth - (65f * Model.Viewport.Zoom), screenPos.Y + 6f);
+                    renderer.DrawText(heat.FormattedText, badgePos, CanvasColor.Yellow, 10f * Model.Viewport.Zoom);
+                }
+            }
 
             // Pins
             foreach (var pin in node.Pins)

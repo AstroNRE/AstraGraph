@@ -17,7 +17,11 @@ public enum EditorKeyCode
     C,
     V,
     Z,
-    Y
+    Y,
+    F5,
+    F9,
+    F10,
+    F11
 }
 
 public readonly record struct ModifierKeys(bool Ctrl = false, bool Shift = false, bool Alt = false)
