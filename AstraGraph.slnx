@@ -11,5 +11,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AstraGraph.Tests/AstraGraph.Tests.csproj" />
+    <Project Path="tests/AstraGraph.Benchmarks/AstraGraph.Benchmarks.csproj" />
   </Folder>
 </Solution>
