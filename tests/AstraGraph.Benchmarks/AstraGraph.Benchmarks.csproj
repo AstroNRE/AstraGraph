@@ -12,14 +12,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\AstraGraph.Core\AstraGraph.Core.csproj" />
-    <ProjectReference Include="..\..\src\AstraGraph.Binding\AstraGraph.Binding.csproj" />
-    <ProjectReference Include="..\..\src\AstraGraph.VM\AstraGraph.VM.csproj" />
-    <ProjectReference Include="..\..\src\AstraGraph.State\AstraGraph.State.csproj" />
-    <ProjectReference Include="..\..\src\AstraGraph.Runtime\AstraGraph.Runtime.csproj" />
-    <ProjectReference Include="..\..\src\AstraGraph.JIT\AstraGraph.JIT.csproj" />
-    <ProjectReference Include="..\..\src\AstraGraph.HotReload\AstraGraph.HotReload.csproj" />
-    <ProjectReference Include="..\..\src\AstraGraph.Persistence\AstraGraph.Persistence.csproj" />
+    <ProjectReference Include="..\..\AstraGraph.Core\AstraGraph.Core.csproj" />
+    <ProjectReference Include="..\..\AstraGraph.Binding\AstraGraph.Binding.csproj" />
+    <ProjectReference Include="..\..\AstraGraph.VM\AstraGraph.VM.csproj" />
+    <ProjectReference Include="..\..\AstraGraph.State\AstraGraph.State.csproj" />
+    <ProjectReference Include="..\..\AstraGraph.Runtime\AstraGraph.Runtime.csproj" />
+    <ProjectReference Include="..\..\AstraGraph.JIT\AstraGraph.JIT.csproj" />
+    <ProjectReference Include="..\..\AstraGraph.HotReload\AstraGraph.HotReload.csproj" />
+    <ProjectReference Include="..\..\AstraGraph.Persistence\AstraGraph.Persistence.csproj" />
   </ItemGroup>
 
 </Project>
