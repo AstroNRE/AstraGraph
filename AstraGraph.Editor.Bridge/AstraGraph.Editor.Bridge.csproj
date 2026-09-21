@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AstraGraph.Editor.Bridge</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AstraGraph.Core\AstraGraph.Core.csproj" />
+    <ProjectReference Include="..\AstraGraph.Editor.Protocol\AstraGraph.Editor.Protocol.csproj" />
+  </ItemGroup>
+
+</Project>
