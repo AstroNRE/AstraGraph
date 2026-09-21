@@ -69,6 +69,19 @@ public sealed class ConstantPool
         return idx;
     }
 
+    public int GetOrAddBool(bool value)
+    {
+        for (var i = 0; i < _entries.Count; i++)
+        {
+            if (_entries[i].Kind == ConstantKind.Bool && (bool)_entries[i].Value! == value)
+                return i;
+        }
+
+        var idx = _entries.Count;
+        _entries.Add(new ConstantEntry(ConstantKind.Bool, value));
+        return idx;
+    }
+
     public void AddEntry(ConstantEntry entry)
     {
         _entries.Add(entry);

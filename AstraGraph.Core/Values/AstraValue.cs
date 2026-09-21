@@ -146,7 +146,7 @@ public readonly struct AstraValue : IEquatable<AstraValue>
 
     public int AsEntityUid()
     {
-        if (Type != AstraValueType.EntityUid) ThrowTypeMismatch(AstraValueType.EntityUid);
+        if (Type != AstraValueType.EntityUid && Type != AstraValueType.Int64) ThrowTypeMismatch(AstraValueType.EntityUid);
         return (int)_intPayload;
     }
 
