@@ -8,6 +8,7 @@
     <Project Path="src/AstraGraph.State/AstraGraph.State.csproj" />
     <Project Path="src/AstraGraph.VM/AstraGraph.VM.csproj" />
     <Project Path="src/AstraGraph.JIT/AstraGraph.JIT.csproj" />
+    <Project Path="src/AstraGraph.Editor.Protocol/AstraGraph.Editor.Protocol.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AstraGraph.Tests/AstraGraph.Tests.csproj" />

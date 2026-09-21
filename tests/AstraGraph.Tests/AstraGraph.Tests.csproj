@@ -26,6 +26,7 @@
     <ProjectReference Include="..\..\src\AstraGraph.Persistence\AstraGraph.Persistence.csproj" />
     <ProjectReference Include="..\..\src\AstraGraph.HotReload\AstraGraph.HotReload.csproj" />
     <ProjectReference Include="..\..\src\AstraGraph.JIT\AstraGraph.JIT.csproj" />
+    <ProjectReference Include="..\..\src\AstraGraph.Editor.Protocol\AstraGraph.Editor.Protocol.csproj" />
   </ItemGroup>
 
 </Project>

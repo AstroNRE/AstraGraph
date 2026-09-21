@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AstraGraph.Editor.Protocol</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AstraGraph.Core\AstraGraph.Core.csproj" />
+    <ProjectReference Include="..\AstraGraph.Binding\AstraGraph.Binding.csproj" />
+    <ProjectReference Include="..\AstraGraph.Runtime\AstraGraph.Runtime.csproj" />
+    <ProjectReference Include="..\AstraGraph.Persistence\AstraGraph.Persistence.csproj" />
+    <ProjectReference Include="..\AstraGraph.HotReload\AstraGraph.HotReload.csproj" />
+  </ItemGroup>
+
+</Project>
