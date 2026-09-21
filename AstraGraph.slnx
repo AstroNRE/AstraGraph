@@ -11,6 +11,7 @@
   <Project Path="AstraGraph.Editor.Core/AstraGraph.Editor.Core.csproj" />
   <Project Path="AstraGraph.Editor.UI/AstraGraph.Editor.UI.csproj" />
   <Project Path="AstraGraph.Editor.Bridge/AstraGraph.Editor.Bridge.csproj" />
+  <Project Path="AstraGraph.Editor.InGame/AstraGraph.Editor.InGame.csproj" />
   <Folder Name="/tests/">
     <Project Path="tests/AstraGraph.Tests/AstraGraph.Tests.csproj" />
     <Project Path="tests/AstraGraph.Benchmarks/AstraGraph.Benchmarks.csproj" />
