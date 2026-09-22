@@ -55,7 +55,7 @@ public sealed class ContinuationFrame
     public Guid ResumePointId { get; }
     public int InstructionPointer { get; set; }
     public ContinuationCondition Condition { get; set; }
-    public int? TargetEntity { get; }
+    public AstraEntityId? TargetEntity { get; }
     public bool IsCancelled { get; private set; }
 
     public ContinuationFrame(
@@ -66,7 +66,7 @@ public sealed class ContinuationFrame
         Guid resumePointId,
         int instructionPointer,
         ContinuationCondition condition,
-        int? targetEntity = null)
+        AstraEntityId? targetEntity = null)
     {
         GraphId = graphId;
         Program = program;

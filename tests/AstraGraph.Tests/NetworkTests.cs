@@ -132,7 +132,7 @@ public sealed class NetworkTests
         // Collect deltas: should contain exactly 1 packet with 1 field
         var deltas2 = DeltaReplicationManager.CollectDirtyDeltas(serverStore);
         Assert.That(deltas2.Count, Is.EqualTo(1));
-        Assert.That(deltas2[0].EntityUid, Is.EqualTo(entity1));
+        Assert.That(deltas2[0].EntityUid, Is.EqualTo(new AstraEntityId(entity1)));
         Assert.That(deltas2[0].DirtyFields.Count, Is.EqualTo(1));
         Assert.That(deltas2[0].DirtyFields[0].FieldId, Is.EqualTo(fHealth));
         Assert.That(deltas2[0].DirtyFields[0].Value.AsDouble(), Is.EqualTo(75.5));

@@ -158,12 +158,12 @@ public sealed class DeepLinkAndInGameTests
     }
 
     [Test]
-    public void RuntimeStatusReporter_RecordsAndClearsError()
+    public async Task RuntimeStatusReporter_RecordsAndClearsError()
     {
         var nonceMgr = new SessionNonceManager();
         var security = new BridgeSecurityPolicy();
 
-        using var bridge = new AstraLocalBridge(
+        await using var bridge = new AstraLocalBridge(
             nonceMgr, security, new NullAssetProvider(),
             (ctx, ct) => Task.CompletedTask);
 
@@ -239,12 +239,12 @@ public sealed class DeepLinkAndInGameTests
     }
 
     [Test]
-    public void InGameLauncher_ThrowsWhenBridgeNotRunning()
+    public async Task InGameLauncher_ThrowsWhenBridgeNotRunning()
     {
         var nonceMgr = new SessionNonceManager();
         var security = new BridgeSecurityPolicy();
 
-        using var bridge = new AstraLocalBridge(
+        await using var bridge = new AstraLocalBridge(
             nonceMgr, security, new NullAssetProvider(),
             (ctx, ct) => Task.CompletedTask);
 

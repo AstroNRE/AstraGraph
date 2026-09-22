@@ -1,0 +1,107 @@
+using AstraGraph.Binding;
+using AstraGraph.Core;
+using AstraGraph.Persistence.Discovery;
+using AstraGraph.Runtime;
+using AstraGraph.Runtime.Security;
+using AstraGraph.State;
+
+namespace AstraGraph.HotReload;
+
+/// <summary>
+/// Composition root Content and the Robust host systems call into.
+/// </summary>
+public sealed class AstraGraphFacade :
+    IAstraGraphManager,
+    IAstraRuntime,
+    IAstraTypeRegistry,
+    IAstraBindingRegistry,
+    IAstraStateStore,
+    IAstraComponentStore,
+    IAstraEventRouter,
+    IAstraHotReload
+{
+    private readonly BootstrapLoader? _bootstrap;
+    private bool _initialized;
+
+    public AstraGraphFacade(
+        AstraGraphHost host,
+        HotReloadManager hotReload,
+        BindingCatalog catalog,
+        IAstraPermissionProvider permissions,
+        BootstrapLoader? bootstrap = null)
+    {
+        Host = host ?? throw new ArgumentNullException(nameof(host));
+        Reloader = hotReload ?? throw new ArgumentNullException(nameof(hotReload));
+        Catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        Permissions = permissions ?? throw new ArgumentNullException(nameof(permissions));
+        _bootstrap = bootstrap;
+    }
+
+    public AstraGraphHost Host { get; }
+    public HotReloadManager Reloader { get; }
+    public BindingCatalog Catalog { get; }
+    public IAstraPermissionProvider Permissions { get; }
+
+    public IAstraRuntime Runtime => this;
+    public IAstraTypeRegistry Types => this;
+    public IAstraBindingRegistry Bindings => this;
+    public IAstraStateStore State => this;
+    public IAstraComponentStore Components => this;
+    public IAstraEventRouter Events => this;
+    public IAstraHotReload HotReload => this;
+
+    public TypeRegistry Registry { get; } = TypeRegistry.Default;
+    public AstraStateStore Store => Host.State;
+    public DynamicComponentStore ComponentStore => Host.Components;
+    DynamicComponentStore IAstraComponentStore.Components => Host.Components;
+    public GraphEventRouter Router => Host.EventRouter;
+
+    public void Initialize()
+    {
+        _bootstrap?.RecoverOnStartup();
+        _bootstrap?.DiscoverAll();
+        _initialized = true;
+    }
+
+    public void Update(double timeSeconds, int tick)
+    {
+        if (!_initialized)
+        {
+            Initialize();
+        }
+
+        Host.Update(timeSeconds, tick);
+    }
+
+    public void Shutdown()
+    {
+        _initialized = false;
+    }
+
+    public BytecodeProgram? GetProgram(GraphId graphId) => Host.GetProgram(graphId);
+
+    public void RegisterProgram(BytecodeProgram program) => Host.RegisterProgram(program);
+
+    public void UnregisterProgram(GraphId graphId) => Host.UnregisterProgram(graphId);
+
+    public void IndexAssembly(System.Reflection.Assembly assembly, Func<Type, bool>? filter = null) =>
+        Catalog.IndexAssembly(assembly, filter);
+
+    public void RemoveEntity(AstraEntityId entityId)
+    {
+        Host.Components.ClearEntity(entityId);
+        Host.Continuations.CancelByEntity(entityId);
+    }
+
+    public bool Dispatch(object? component, object eventObject) =>
+        Host.EventRouter.DispatchEvent(component, eventObject);
+
+    public PublishOutcome Publish(GraphDocument draft, string author, string message, IReadOnlyList<SchemaType>? schemas = null)
+    {
+        SchemaType? declaredSchema = schemas is { Count: > 0 } ? schemas[0] : null;
+        var result = Reloader.Publish(draft, author, message, declaredSchema);
+        return new PublishOutcome(result.Success, result.PublishedRevisionId, result.ErrorMessage);
+    }
+
+    public bool Rollback(GraphId graphId) => Reloader.Rollback(graphId).Success;
+}

@@ -92,12 +92,21 @@ public sealed class GraphScheduler
         }
     }
 
+    public Exception? LastUpdateError { get; private set; }
+
     public void Update(double currentTimeSeconds, int currentTick)
     {
         var systems = GetOrderedSystems();
         foreach (var sys in systems)
         {
-            sys.UpdateCallback?.Invoke(currentTimeSeconds, currentTick);
+            try
+            {
+                sys.UpdateCallback?.Invoke(currentTimeSeconds, currentTick);
+            }
+            catch (Exception ex)
+            {
+                LastUpdateError = ex;
+            }
         }
     }
 

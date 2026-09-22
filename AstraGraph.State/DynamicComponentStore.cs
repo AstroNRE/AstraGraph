@@ -25,7 +25,7 @@ public sealed class DynamicComponentStore
     private readonly ConcurrentDictionary<int, HashSet<SchemaId>> _schemasByEntity = new();
     private readonly Lock _lock = new();
 
-    public PackedFieldStorage AddComponent(int entityUid, SchemaType schema, AstraValue[]? initialValues = null)
+    public PackedFieldStorage AddComponent(AstraEntityId entityUid, SchemaType schema, AstraValue[]? initialValues = null)
     {
         ArgumentNullException.ThrowIfNull(schema);
         if (entityUid < 0) throw new ArgumentOutOfRangeException(nameof(entityUid), "EntityUid must be non-negative.");
@@ -46,7 +46,7 @@ public sealed class DynamicComponentStore
         }
     }
 
-    public bool RemoveComponent(int entityUid, SchemaId schemaId)
+    public bool RemoveComponent(AstraEntityId entityUid, SchemaId schemaId)
     {
         lock (_lock)
         {
@@ -67,7 +67,7 @@ public sealed class DynamicComponentStore
         }
     }
 
-    public bool HasComponent(int entityUid, SchemaId schemaId)
+    public bool HasComponent(AstraEntityId entityUid, SchemaId schemaId)
     {
         lock (_lock)
         {
@@ -79,7 +79,7 @@ public sealed class DynamicComponentStore
         }
     }
 
-    public bool TryGetComponent(int entityUid, SchemaId schemaId, out PackedFieldStorage? storage)
+    public bool TryGetComponent(AstraEntityId entityUid, SchemaId schemaId, out PackedFieldStorage? storage)
     {
         lock (_lock)
         {
@@ -92,7 +92,7 @@ public sealed class DynamicComponentStore
         }
     }
 
-    public PackedFieldStorage GetComponent(int entityUid, SchemaId schemaId)
+    public PackedFieldStorage GetComponent(AstraEntityId entityUid, SchemaId schemaId)
     {
         if (TryGetComponent(entityUid, schemaId, out var storage) && storage is not null)
         {
@@ -101,13 +101,19 @@ public sealed class DynamicComponentStore
         throw new KeyNotFoundException($"Component with SchemaId '{schemaId}' not found on Entity {entityUid}.");
     }
 
-    public IReadOnlyList<int> GetEntitiesWithComponent(SchemaId schemaId)
+    public IReadOnlyList<AstraEntityId> GetEntitiesWithComponent(SchemaId schemaId)
     {
         lock (_lock)
         {
             if (_poolsBySchema.TryGetValue(schemaId, out var pool))
             {
-                return pool.Presence.Dense.ToArray();
+                var dense = pool.Presence.Dense;
+                var result = new AstraEntityId[dense.Length];
+                for (var i = 0; i < dense.Length; i++)
+                {
+                    result[i] = new AstraEntityId(dense[i]);
+                }
+                return result;
             }
             return [];
         }
@@ -124,7 +130,7 @@ public sealed class DynamicComponentStore
     /// <summary>
     /// Deterministically cleans up all dynamic components when an entity is deleted from the world.
     /// </summary>
-    public void ClearEntity(int entityUid)
+    public void ClearEntity(AstraEntityId entityUid)
     {
         lock (_lock)
         {

@@ -426,12 +426,12 @@ public sealed class MockVmHostServices : IVmHostServices
         StateStore?.SetVariable(ActiveGraphId, variableId, name, value, isPersistent: true);
     }
 
-    public AstraValue GetComponent(int entityUid, string componentTypeName)
+    public AstraValue GetComponent(AstraEntityId entityUid, string componentTypeName)
     {
         return AstraValue.Null;
     }
 
-    public bool HasComponent(int entityUid, string componentTypeName)
+    public bool HasComponent(AstraEntityId entityUid, string componentTypeName)
     {
         if (componentTypeName == "Doll")
         {
@@ -440,7 +440,7 @@ public sealed class MockVmHostServices : IVmHostServices
         return false;
     }
 
-    public void SetComponentField(int entityUid, string schemaIdAndFieldId, AstraValue value)
+    public void SetComponentField(AstraEntityId entityUid, string schemaIdAndFieldId, AstraValue value)
     {
     }
 }

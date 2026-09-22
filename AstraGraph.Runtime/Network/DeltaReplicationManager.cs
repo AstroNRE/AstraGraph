@@ -8,7 +8,7 @@ namespace AstraGraph.Runtime.Network;
 public sealed record FieldDeltaValue(FieldId FieldId, int SlotIndex, AstraValue Value);
 
 public sealed record ComponentDeltaPacket(
-    int EntityUid,
+    AstraEntityId EntityUid,
     SchemaId SchemaId,
     IReadOnlyList<FieldDeltaValue> DirtyFields);
 

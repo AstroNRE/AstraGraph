@@ -1,3 +1,4 @@
+using AstraGraph.Core;
 using AstraGraph.Runtime;
 using Robust.Shared.GameObjects;
 
@@ -16,28 +17,28 @@ public sealed class RobustEcsQueryBridge : IEcsQueryBridge
         _entityManager = entityManager ?? throw new ArgumentNullException(nameof(entityManager));
     }
 
-    public bool HasNativeComponent(int entityUid, Type clrComponentType)
+    public bool HasNativeComponent(AstraEntityId entityUid, Type clrComponentType)
     {
         ArgumentNullException.ThrowIfNull(clrComponentType);
-        var uid = new EntityUid(entityUid);
+        var uid = new EntityUid(entityUid.Value);
         return _entityManager.HasComponent(uid, clrComponentType);
     }
 
-    public object? GetNativeComponent(int entityUid, Type clrComponentType)
+    public object? GetNativeComponent(AstraEntityId entityUid, Type clrComponentType)
     {
         ArgumentNullException.ThrowIfNull(clrComponentType);
-        var uid = new EntityUid(entityUid);
+        var uid = new EntityUid(entityUid.Value);
         return _entityManager.TryGetComponent(uid, clrComponentType, out var comp) ? comp : null;
     }
 
-    public IReadOnlyList<int> GetEntitiesWithNativeComponent(Type clrComponentType)
+    public IReadOnlyList<AstraEntityId> GetEntitiesWithNativeComponent(Type clrComponentType)
     {
         ArgumentNullException.ThrowIfNull(clrComponentType);
-        var result = new List<int>();
+        var result = new List<AstraEntityId>();
         var enumerator = _entityManager.AllEntityQueryEnumerator(clrComponentType);
         while (enumerator.MoveNext(out var uid, out _))
         {
-            result.Add((int)uid);
+            result.Add(new AstraEntityId((int)uid));
         }
         return result;
     }

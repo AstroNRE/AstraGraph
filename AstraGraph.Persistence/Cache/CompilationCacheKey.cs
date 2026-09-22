@@ -15,14 +15,15 @@ public sealed record CompilationCacheKey(
     string RuntimeVersion,
     string BindingCatalogHash,
     string TargetSide,
-    string BackendVersion = "VM-1.0")
+    string BackendVersion = "VM-1.0",
+    string EngineApiVersion = "1")
 {
     /// <summary>
     /// Computes the cryptographic SHA-256 hex string identifying this exact compilation context.
     /// </summary>
     public string ComputeKeyString()
     {
-        var canonical = $"{SemanticHash}|{CompilerVersion}|{RuntimeVersion}|{BindingCatalogHash}|{TargetSide}|{BackendVersion}";
+        var canonical = $"{SemanticHash}|{CompilerVersion}|{RuntimeVersion}|{BindingCatalogHash}|{TargetSide}|{BackendVersion}|{EngineApiVersion}";
         var bytes = Encoding.UTF8.GetBytes(canonical);
         var hash = SHA256.HashData(bytes);
         return Convert.ToHexString(hash).ToLowerInvariant();

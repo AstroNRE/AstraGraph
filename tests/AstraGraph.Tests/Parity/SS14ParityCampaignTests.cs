@@ -600,7 +600,7 @@ public sealed class ParityVmHostServices : IVmHostServices
 
     public AstraValue GetVariable(SymbolId variableId, string name) => AstraValue.Null;
     public void SetVariable(SymbolId variableId, string name, AstraValue value) { }
-    public AstraValue GetComponent(int entityUid, string componentTypeName) => AstraValue.Null;
-    public bool HasComponent(int entityUid, string componentTypeName) => false;
-    public void SetComponentField(int entityUid, string schemaIdAndFieldId, AstraValue value) { }
+    public AstraValue GetComponent(AstraEntityId entityUid, string componentTypeName) => AstraValue.Null;
+    public bool HasComponent(AstraEntityId entityUid, string componentTypeName) => false;
+    public void SetComponentField(AstraEntityId entityUid, string schemaIdAndFieldId, AstraValue value) { }
 }

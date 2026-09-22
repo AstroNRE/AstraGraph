@@ -16,11 +16,11 @@ public sealed record QueryDescriptor(
 /// </summary>
 public interface IEcsQueryBridge
 {
-    bool HasNativeComponent(int entityUid, Type clrComponentType);
+    bool HasNativeComponent(AstraEntityId entityUid, Type clrComponentType);
 
-    object? GetNativeComponent(int entityUid, Type clrComponentType);
+    object? GetNativeComponent(AstraEntityId entityUid, Type clrComponentType);
 
-    IReadOnlyList<int> GetEntitiesWithNativeComponent(Type clrComponentType);
+    IReadOnlyList<AstraEntityId> GetEntitiesWithNativeComponent(Type clrComponentType);
 }
 
 /// <summary>
@@ -28,11 +28,11 @@ public interface IEcsQueryBridge
 /// </summary>
 public sealed class InMemoryEcsQueryBridge : IEcsQueryBridge
 {
-    private readonly Dictionary<(int Entity, Type CompType), object> _components = [];
-    private readonly Dictionary<Type, HashSet<int>> _entitiesByType = [];
+    private readonly Dictionary<(AstraEntityId Entity, Type CompType), object> _components = [];
+    private readonly Dictionary<Type, HashSet<AstraEntityId>> _entitiesByType = [];
     private readonly Lock _lock = new();
 
-    public void AddComponent(int entityUid, object component)
+    public void AddComponent(AstraEntityId entityUid, object component)
     {
         ArgumentNullException.ThrowIfNull(component);
         var type = component.GetType();
@@ -49,7 +49,7 @@ public sealed class InMemoryEcsQueryBridge : IEcsQueryBridge
         }
     }
 
-    public void RemoveComponent(int entityUid, Type clrComponentType)
+    public void RemoveComponent(AstraEntityId entityUid, Type clrComponentType)
     {
         lock (_lock)
         {
@@ -61,17 +61,17 @@ public sealed class InMemoryEcsQueryBridge : IEcsQueryBridge
         }
     }
 
-    public bool HasNativeComponent(int entityUid, Type clrComponentType)
+    public bool HasNativeComponent(AstraEntityId entityUid, Type clrComponentType)
     {
         lock (_lock) return _components.ContainsKey((entityUid, clrComponentType));
     }
 
-    public object? GetNativeComponent(int entityUid, Type clrComponentType)
+    public object? GetNativeComponent(AstraEntityId entityUid, Type clrComponentType)
     {
         lock (_lock) return _components.GetValueOrDefault((entityUid, clrComponentType));
     }
 
-    public IReadOnlyList<int> GetEntitiesWithNativeComponent(Type clrComponentType)
+    public IReadOnlyList<AstraEntityId> GetEntitiesWithNativeComponent(Type clrComponentType)
     {
         lock (_lock)
         {

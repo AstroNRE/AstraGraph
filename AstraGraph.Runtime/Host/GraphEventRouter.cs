@@ -38,6 +38,8 @@ public sealed class GraphEventRouter
     private readonly Dictionary<(Type?, Type), List<EventSubscriptionBinding>> _subscriptions = [];
     private readonly Lock _lock = new();
 
+    public Exception? LastDispatchError { get; private set; }
+
     public void Subscribe(
         Type? componentType,
         Type eventType,
@@ -224,13 +226,53 @@ public sealed class GraphEventRouter
 
         foreach (var sub in matched)
         {
-            sub.UntypedHandler?.Invoke(component, eventObject);
+            try
+            {
+                sub.UntypedHandler?.Invoke(component, eventObject);
+            }
+            catch (Exception ex)
+            {
+                LastDispatchError = ex;
+            }
         }
 
+        return ReadHandled(eventObject);
+    }
+
+    public static bool TryWriteHandled(object eventObject, bool handled)
+    {
+        ArgumentNullException.ThrowIfNull(eventObject);
+        var eventType = eventObject.GetType();
         var handledProp = eventType.GetProperty("Handled", BindingFlags.Public | BindingFlags.Instance);
-        if (handledProp != null && handledProp.PropertyType == typeof(bool))
+        if (handledProp is { CanWrite: true } && handledProp.PropertyType == typeof(bool))
+        {
+            handledProp.SetValue(eventObject, handled);
+            return true;
+        }
+
+        var handledField = eventType.GetField("Handled", BindingFlags.Public | BindingFlags.Instance);
+        if (handledField != null && handledField.FieldType == typeof(bool))
+        {
+            handledField.SetValue(eventObject, handled);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool ReadHandled(object eventObject)
+    {
+        var eventType = eventObject.GetType();
+        var handledProp = eventType.GetProperty("Handled", BindingFlags.Public | BindingFlags.Instance);
+        if (handledProp is { CanRead: true } && handledProp.PropertyType == typeof(bool))
         {
             return (bool)(handledProp.GetValue(eventObject) ?? false);
+        }
+
+        var handledField = eventType.GetField("Handled", BindingFlags.Public | BindingFlags.Instance);
+        if (handledField != null && handledField.FieldType == typeof(bool))
+        {
+            return (bool)(handledField.GetValue(eventObject) ?? false);
         }
 
         return false;

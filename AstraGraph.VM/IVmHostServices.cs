@@ -13,11 +13,11 @@ public interface IVmHostServices
 
     AstraValue CallNative(string methodDescriptor, IReadOnlyList<AstraValue> arguments);
 
-    AstraValue GetComponent(int entityUid, string componentTypeName);
+    AstraValue GetComponent(AstraEntityId entityUid, string componentTypeName);
 
-    bool HasComponent(int entityUid, string componentTypeName);
+    bool HasComponent(AstraEntityId entityUid, string componentTypeName);
 
-    void SetComponentField(int entityUid, string schemaIdAndFieldId, AstraValue value);
+    void SetComponentField(AstraEntityId entityUid, string schemaIdAndFieldId, AstraValue value);
 }
 
 /// <summary>
@@ -27,7 +27,7 @@ public sealed class DefaultVmHostServices : IVmHostServices
 {
     private readonly Dictionary<string, AstraValue> _variables = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Func<IReadOnlyList<AstraValue>, AstraValue>> _nativeHandlers = new(StringComparer.Ordinal);
-    private readonly Dictionary<(int Entity, string Comp), AstraValue> _components = [];
+    private readonly Dictionary<(AstraEntityId Entity, string Comp), AstraValue> _components = [];
 
     public void RegisterNativeMethod(string descriptor, Func<IReadOnlyList<AstraValue>, AstraValue> handler)
     {
@@ -53,16 +53,16 @@ public sealed class DefaultVmHostServices : IVmHostServices
         throw new MissingMethodException($"Native method '{methodDescriptor}' is not registered in VM host services.");
     }
 
-    public AstraValue GetComponent(int entityUid, string componentTypeName) =>
+    public AstraValue GetComponent(AstraEntityId entityUid, string componentTypeName) =>
         _components.GetValueOrDefault((entityUid, componentTypeName), AstraValue.Null);
 
-    public bool HasComponent(int entityUid, string componentTypeName) =>
+    public bool HasComponent(AstraEntityId entityUid, string componentTypeName) =>
         _components.ContainsKey((entityUid, componentTypeName));
 
-    public void SetComponent(int entityUid, string componentTypeName, AstraValue component) =>
+    public void SetComponent(AstraEntityId entityUid, string componentTypeName, AstraValue component) =>
         _components[(entityUid, componentTypeName)] = component;
 
-    public void SetComponentField(int entityUid, string schemaIdAndFieldId, AstraValue value)
+    public void SetComponentField(AstraEntityId entityUid, string schemaIdAndFieldId, AstraValue value)
     {
         // Standalone in-memory slot
         _components[(entityUid, schemaIdAndFieldId)] = value;

@@ -149,7 +149,7 @@ public sealed class ContinuationScheduler
         }
     }
 
-    public void CancelByGraph(GraphId graphId)
+public void CancelByGraph(GraphId graphId)
     {
         lock (_lock)
         {
@@ -164,7 +164,7 @@ public sealed class ContinuationScheduler
         }
     }
 
-    public void CancelByEntity(int entityUid)
+    public void CancelByEntity(AstraEntityId entityUid)
     {
         lock (_lock)
         {

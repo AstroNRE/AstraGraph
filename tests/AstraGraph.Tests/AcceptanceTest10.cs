@@ -170,7 +170,7 @@ public sealed class AcceptanceTest10
         // Step 5 & 6: Mixed ECS query & Native System Invocation
         // =============================================================
         var entities = dynamicStore.GetEntitiesWithComponent(schemaId);
-        Assert.That(entities, Contains.Item(doorEntity));
+        Assert.That(entities, Contains.Item(new AstraEntityId(doorEntity)));
 
         var vmHost = new DefaultVmHostServices();
         var nativeCalled = false;

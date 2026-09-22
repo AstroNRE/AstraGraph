@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Astra Studio</title>
+  <link rel="stylesheet" href="/studio.css" />
+</head>
+<body>
+  <header>
+    <strong>Astra Studio</strong>
+    <span id="status">offline</span>
+    <button id="compile" type="button">Compile</button>
+    <button id="publish" type="button">Publish</button>
+    <button id="rollback" type="button">Rollback</button>
+  </header>
+  <div id="layout">
+    <aside id="palette"></aside>
+    <canvas id="canvas" width="960" height="640"></canvas>
+    <section id="problems" aria-live="polite"></section>
+  </div>
+  <script src="/studio.js"></script>
+</body>
+</html>

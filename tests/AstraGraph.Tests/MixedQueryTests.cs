@@ -58,7 +58,7 @@ public sealed class MixedQueryTests
         // Expected: 10, 20, 40, 50 (30 is excluded because it is Dead)
         Assert.That(results.Count, Is.EqualTo(4));
         var matchedIds = results.Select(r => r.EntityUid).OrderBy(id => id).ToList();
-        Assert.That(matchedIds, Is.EqualTo((int[])[10, 20, 40, 50]));
+        Assert.That(matchedIds, Is.EqualTo(new AstraEntityId[] { 10, 20, 40, 50 }));
 
         // Verify dynamic component access
         var entity10 = results.First(r => r.EntityUid == 10);

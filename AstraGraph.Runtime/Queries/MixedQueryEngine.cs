@@ -4,7 +4,7 @@ using AstraGraph.State;
 namespace AstraGraph.Runtime;
 
 public sealed record MixedQueryResult(
-    int EntityUid,
+    AstraEntityId EntityUid,
     IReadOnlyDictionary<SchemaId, PackedFieldStorage> AstraComponents);
 
 /// <summary>
@@ -33,7 +33,7 @@ public sealed class MixedQueryEngine
         }
 
         // 1. Select the most selective index (smallest candidate count)
-        IReadOnlyList<int>? primaryCandidates = null;
+        IReadOnlyList<AstraEntityId>? primaryCandidates = null;
         var minCount = int.MaxValue;
 
         foreach (var schemaId in query.RequiredAstraSchemas)

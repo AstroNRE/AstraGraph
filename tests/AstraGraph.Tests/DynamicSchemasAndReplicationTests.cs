@@ -52,7 +52,7 @@ public sealed class DynamicSchemasAndReplicationTests
 
         Assert.That(replicatedDeltas.Count, Is.EqualTo(1));
         var packet = replicatedDeltas[0];
-        Assert.That(packet.EntityUid, Is.EqualTo(entity1));
+        Assert.That(packet.EntityUid, Is.EqualTo(new AstraEntityId(entity1)));
         Assert.That(packet.SchemaId, Is.EqualTo(schemaId));
 
         // Only NetHealth (slot 0) should be included!
@@ -104,13 +104,13 @@ public sealed class DynamicSchemasAndReplicationTests
         var deserialized = DeltaReplicationManager.DeserializeDeltas(bytes);
         Assert.That(deserialized.Count, Is.EqualTo(2));
 
-        Assert.That(deserialized[0].EntityUid, Is.EqualTo(10));
+        Assert.That(deserialized[0].EntityUid, Is.EqualTo(new AstraEntityId(10)));
         Assert.That(deserialized[0].SchemaId, Is.EqualTo(schemaId));
         Assert.That(deserialized[0].DirtyFields.Count, Is.EqualTo(2));
         Assert.That(deserialized[0].DirtyFields[0].Value.AsDouble(), Is.EqualTo(3.14159).Within(0.00001));
         Assert.That(deserialized[0].DirtyFields[1].Value.AsString(), Is.EqualTo("ActiveState"));
 
-        Assert.That(deserialized[1].EntityUid, Is.EqualTo(20));
+        Assert.That(deserialized[1].EntityUid, Is.EqualTo(new AstraEntityId(20)));
         Assert.That(deserialized[1].SchemaId, Is.EqualTo(schemaId));
         Assert.That(deserialized[1].DirtyFields.Count, Is.EqualTo(1));
         Assert.That(deserialized[1].DirtyFields[0].Value.AsDouble(), Is.EqualTo(2.71828).Within(0.00001));
