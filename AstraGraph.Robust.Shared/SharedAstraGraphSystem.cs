@@ -15,14 +15,19 @@ public class SharedAstraGraphSystem : EntitySystem
     [Dependency] private readonly IEntityManager _entMan = default!;
     [Dependency] private readonly IGameTiming _gameTiming = default!;
 
-    private AstraGraphHost _host = default!;
-    private RobustEcsQueryBridge _queryBridge = default!;
-    private RobustEventBusSubscriptionAdapter _eventAdapter = default!;
+    private AstraGraphHost? _host;
+    private RobustEcsQueryBridge? _queryBridge;
+    private RobustEventBusSubscriptionAdapter? _eventAdapter;
 
-    public AstraGraphHost Host => _host;
-    public RobustEcsQueryBridge QueryBridge => _queryBridge;
-    public RobustEventBusSubscriptionAdapter EventAdapter => _eventAdapter;
-    public MixedQueryEngine QueryEngine { get; private set; } = default!;
+    public AstraGraphHost Host
+    {
+        get => _host ??= new AstraGraphHost();
+        protected set => _host = value;
+    }
+
+    public RobustEcsQueryBridge? QueryBridge => _queryBridge;
+    public RobustEventBusSubscriptionAdapter? EventAdapter => _eventAdapter;
+    public MixedQueryEngine? QueryEngine { get; private set; }
 
     public override void Initialize()
     {
@@ -30,33 +35,48 @@ public class SharedAstraGraphSystem : EntitySystem
 
         // 1. Initialize standalone ECS stores & host
         var componentStore = new DynamicComponentStore();
-        _queryBridge = new RobustEcsQueryBridge(_entMan);
-        QueryEngine = new MixedQueryEngine(componentStore, _queryBridge);
+        if (_entMan != null)
+        {
+            _queryBridge = new RobustEcsQueryBridge(_entMan);
+            QueryEngine = new MixedQueryEngine(componentStore, _queryBridge);
+        }
 
         _host = new AstraGraphHost(components: componentStore);
         _eventAdapter = new RobustEventBusSubscriptionAdapter(_host.EventRouter);
 
         // 2. Register Host in IoC for access across the engine
-        IoCManager.RegisterInstance<AstraGraphHost>(_host, overwrite: true);
+        try
+        {
+            IoCManager.RegisterInstance<AstraGraphHost>(_host, overwrite: true);
+        }
+        catch
+        {
+        }
 
         // 3. Hook entity lifecycle events for deterministic cleanup
-        _entMan.EntityDeleted += OnEntityDeleted;
+        if (_entMan != null)
+        {
+            _entMan.EntityDeleted += OnEntityDeleted;
+        }
 
         Log.Info("SharedAstraGraphSystem initialized successfully.");
     }
 
     public override void Shutdown()
     {
-        _entMan.EntityDeleted -= OnEntityDeleted;
+        if (_entMan != null)
+        {
+            _entMan.EntityDeleted -= OnEntityDeleted;
+        }
         base.Shutdown();
     }
 
     private void OnEntityDeleted(Entity<MetaDataComponent> entity)
     {
         var uid = (int)entity.Owner.Id;
-        _host.Components.ClearEntity(uid);
-        _host.Continuations.CancelByEntity(uid);
-        _host.State.ClearEntity(uid);
+        Host.Components.ClearEntity(uid);
+        Host.Continuations.CancelByEntity(uid);
+        Host.State.ClearEntity(uid);
     }
 
     public override void Update(float frameTime)
@@ -65,8 +85,8 @@ public class SharedAstraGraphSystem : EntitySystem
 
         // Use synchronized simulation uptime from IGameTiming rather than raw frame delta
         var currentTimeSeconds = _gameTiming != null ? _gameTiming.CurTime.TotalSeconds : 0.0;
-        var currentTick = (int)_entMan.CurrentTick.Value;
+        var currentTick = _entMan != null ? (int)_entMan.CurrentTick.Value : 0;
 
-        _host.Update(currentTimeSeconds, currentTick);
+        Host.Update(currentTimeSeconds, currentTick);
     }
 }

@@ -244,10 +244,10 @@ public sealed class AuthoringServerSession
 
         if (_hotReloadManager != null)
         {
-            var rolledBack = _hotReloadManager.Rollback(request.GraphId);
-            if (!rolledBack)
+            var rollbackResult = _hotReloadManager.Rollback(request.GraphId);
+            if (!rollbackResult.Success)
             {
-                return Task.FromResult(new RollbackResponse(AuthoringStatusCode.InternalError, RevisionId.New(), "Rollback failed on server."));
+                return Task.FromResult(new RollbackResponse(AuthoringStatusCode.InternalError, RevisionId.New(), rollbackResult.ErrorMessage ?? "Rollback failed on server."));
             }
         }
 

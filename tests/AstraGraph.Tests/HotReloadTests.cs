@@ -78,7 +78,7 @@ public sealed class HotReloadTests
 
         // 3. Rollback to LKG
         var rolledBack = manager.Rollback(graphId);
-        Assert.That(rolledBack, Is.True);
+        Assert.That(rolledBack.Success, Is.True);
 
         var activeAfterRollback = host.GetProgram(graphId);
         Assert.That(activeAfterRollback!.Revision, Is.EqualTo(activeV1.Revision));
