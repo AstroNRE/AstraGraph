@@ -15,10 +15,16 @@ public abstract class AuthoringMessage
     public DateTimeOffset Timestamp { get; init; } = DateTimeOffset.UtcNow;
 }
 
+public static class AuthoringProtocol
+{
+    public const int Version = 1;
+}
+
 public sealed class AuthHandshakeRequestMsg : AuthoringMessage
 {
     public override string Kind => "auth.handshake.request";
     public string ClientVersion { get; init; } = string.Empty;
+    public int ProtocolVersion { get; init; }
     public string AuthorToken { get; init; } = string.Empty;
     public string AuthorName { get; init; } = string.Empty;
 }
@@ -30,6 +36,7 @@ public sealed class AuthHandshakeResponseMsg : AuthoringMessage
     public string SessionId { get; init; } = string.Empty;
     public AstraPermission Permissions { get; init; }
     public string? ErrorMessage { get; init; }
+    public int ProtocolVersion { get; init; }
     public bool CanCompile { get; init; }
     public bool CanPublish { get; init; }
     public bool CanDebug { get; init; }
@@ -122,7 +129,124 @@ public sealed class GraphFetchResponseMsg : AuthoringMessage
     public override string Kind => "graph.fetch.response";
     public AuthoringStatusCode Status { get; init; }
     public string DraftJson { get; init; } = string.Empty;
+    public RevisionId BaseRevisionId { get; init; }
+    public RevisionId ActiveRevisionId { get; init; }
+    public bool FromDraft { get; init; }
     public string? ErrorMessage { get; init; }
+}
+
+public sealed class GraphCreateRequestMsg : AuthoringMessage
+{
+    public override string Kind => "graph.create.request";
+    public string SessionId { get; init; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
+    [JsonPropertyName("kind")]
+    public GraphKind DocumentKind { get; init; } = GraphKind.System;
+    public GraphSide Side { get; init; } = GraphSide.Server;
+}
+
+public sealed class GraphCreateResponseMsg : AuthoringMessage
+{
+    public override string Kind => "graph.create.response";
+    public AuthoringStatusCode Status { get; init; }
+    public GraphSummaryDto? Graph { get; init; }
+    public string SourceJson { get; init; } = string.Empty;
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class GraphRenameRequestMsg : AuthoringMessage
+{
+    public override string Kind => "graph.rename.request";
+    public string SessionId { get; init; } = string.Empty;
+    public GraphId GraphId { get; init; }
+    public string Name { get; init; } = string.Empty;
+}
+
+public sealed class GraphRenameResponseMsg : AuthoringMessage
+{
+    public override string Kind => "graph.rename.response";
+    public AuthoringStatusCode Status { get; init; }
+    public GraphSummaryDto? Graph { get; init; }
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class GraphDeleteRequestMsg : AuthoringMessage
+{
+    public override string Kind => "graph.delete.request";
+    public string SessionId { get; init; } = string.Empty;
+    public GraphId GraphId { get; init; }
+}
+
+public sealed class GraphDeleteResponseMsg : AuthoringMessage
+{
+    public override string Kind => "graph.delete.response";
+    public AuthoringStatusCode Status { get; init; }
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class BindingMaterializeRequestMsg : AuthoringMessage
+{
+    public override string Kind => "binding.materialize.request";
+    public string SessionId { get; init; } = string.Empty;
+    public string BindingId { get; init; } = string.Empty;
+}
+
+public sealed class BindingMaterializeResponseMsg : AuthoringMessage
+{
+    public override string Kind => "binding.materialize.response";
+    public AuthoringStatusCode Status { get; init; }
+    public string NodeJson { get; init; } = string.Empty;
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class ConnectionValidateRequestMsg : AuthoringMessage
+{
+    public override string Kind => "connection.validate.request";
+    public string SessionId { get; init; } = string.Empty;
+    public PinWire? Source { get; init; }
+    public PinWire? Target { get; init; }
+    public IReadOnlyList<WireEnds> Connections { get; init; } = [];
+}
+
+public sealed class ConnectionValidateResponseMsg : AuthoringMessage
+{
+    public override string Kind => "connection.validate.response";
+    public AuthoringStatusCode Status { get; init; }
+    public bool Valid { get; init; }
+    public string? Reason { get; init; }
+}
+
+public sealed class ConnectionCompatibleRequestMsg : AuthoringMessage
+{
+    public override string Kind => "connection.compatible.request";
+    public string SessionId { get; init; } = string.Empty;
+    public PinWire? Source { get; init; }
+    public IReadOnlyList<PinWire> Candidates { get; init; } = [];
+    public IReadOnlyList<WireEnds> Connections { get; init; } = [];
+}
+
+public sealed class ConnectionCompatibleResponseMsg : AuthoringMessage
+{
+    public override string Kind => "connection.compatible.response";
+    public AuthoringStatusCode Status { get; init; }
+    public IReadOnlyList<PinCompatibilityDto> Pins { get; init; } = [];
+    public string? Reason { get; init; }
+}
+
+public sealed class ConnectionSuggestRequestMsg : AuthoringMessage
+{
+    public override string Kind => "connection.suggest.request";
+    public string SessionId { get; init; } = string.Empty;
+    public PinWire? Pin { get; init; }
+    public string? Query { get; init; }
+}
+
+public sealed class ConnectionSuggestResponseMsg : AuthoringMessage
+{
+    public override string Kind => "connection.suggest.response";
+    public AuthoringStatusCode Status { get; init; }
+    public IReadOnlyList<ConnectionSuggestionDto> Suggestions { get; init; } = [];
+    public string? Reason { get; init; }
 }
 
 public sealed class CatalogQueryRequestMsg : AuthoringMessage
@@ -140,6 +264,23 @@ public sealed class CatalogQueryResponseMsg : AuthoringMessage
     public string? ErrorMessage { get; init; }
 }
 
+public sealed class HistoryDiffRequestMsg : AuthoringMessage
+{
+    public override string Kind => "history.diff.request";
+    public string SessionId { get; init; } = string.Empty;
+    public GraphId GraphId { get; init; }
+    public RevisionId RevisionId { get; init; }
+    public string DraftJson { get; init; } = string.Empty;
+}
+
+public sealed class HistoryDiffResponseMsg : AuthoringMessage
+{
+    public override string Kind => "history.diff.response";
+    public AuthoringStatusCode Status { get; init; }
+    public IReadOnlyList<SemanticChangeDto> Changes { get; init; } = [];
+    public string? ErrorMessage { get; init; }
+}
+
 public sealed class HistoryListRequestMsg : AuthoringMessage
 {
     public override string Kind => "history.list.request";
@@ -152,6 +293,7 @@ public sealed class HistoryListResponseMsg : AuthoringMessage
     public override string Kind => "history.list.response";
     public AuthoringStatusCode Status { get; init; }
     public IReadOnlyList<string> Revisions { get; init; } = [];
+    public IReadOnlyList<RevisionSummaryDto> Records { get; init; } = [];
     public string? ErrorMessage { get; init; }
 }
 
@@ -161,6 +303,16 @@ public sealed class HistoryRollbackRequestMsg : AuthoringMessage
     public string SessionId { get; init; } = string.Empty;
     public GraphId GraphId { get; init; }
     public RevisionId TargetRevisionId { get; init; }
+}
+
+public sealed class HistoryRollbackResponseMsg : AuthoringMessage
+{
+    public override string Kind => "history.rollback.response";
+    public AuthoringStatusCode Status { get; init; }
+    public GraphId GraphId { get; init; }
+    public RevisionId ActiveRevision { get; init; }
+    public RevisionId ActivatedRevision { get; init; }
+    public string? ErrorMessage { get; init; }
 }
 
 public sealed class SessionUpdatedMsg : AuthoringMessage

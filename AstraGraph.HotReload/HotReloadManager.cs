@@ -319,6 +319,16 @@ public sealed class HotReloadManager
     /// <summary>
     /// Performs a full, multi-aspect rollback restoring previous Code, Schema, and Subscriptions.
     /// </summary>
+    public void Deactivate(GraphId graphId)
+    {
+        lock (_lock)
+        {
+            _host.EventRouter.UnsubscribeGraph(graphId);
+            _host.UnregisterProgram(graphId);
+            _frozenGraphs.TryRemove(graphId, out _);
+        }
+    }
+
     public PublishResult Rollback(GraphId graphId, RevisionId? targetRevisionId = null)
     {
         var hasMemory = _history.TryGetValue(graphId, out var existing) && existing.Count > 0;

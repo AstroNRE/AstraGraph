@@ -1,10 +1,13 @@
 export interface CatalogEntry {
   signature: string;
+  bindingId: string;
   category: string;
   isPure: boolean;
   isPredictionSafe: boolean;
   side: string;
   documentation: string;
+  parameters: { name: string; typeName: string; direction: string }[];
+  returnType: string;
 }
 
 const generated = new Set(["Equals", "GetHashCode", "ToString", "Deconstruct", "PrintMembers", "GetType", "MemberwiseClone"]);
@@ -35,13 +38,23 @@ export function readCatalog(value: unknown): CatalogEntry[] {
     const entry = item as Record<string, unknown>;
     const signature = String(entry.signature ?? "");
     if (!signature || !isAuthoringBinding(signature)) return [];
+    const parameters = Array.isArray(entry.parameters)
+      ? entry.parameters.flatMap((pin) => {
+          if (!pin || typeof pin !== "object") return [];
+          const row = pin as Record<string, unknown>;
+          return [{ name: String(row.name ?? ""), typeName: String(row.typeName ?? ""), direction: String(row.direction ?? "") }];
+        })
+      : [];
     return [{
       signature,
+      bindingId: String(entry.bindingId ?? signature),
       category: String(entry.category ?? "Bindings"),
       isPure: entry.isPure === true,
       isPredictionSafe: entry.isPredictionSafe === true,
       side: sideLabel(entry.side),
-      documentation: String(entry.documentation ?? "")
+      documentation: String(entry.documentation ?? ""),
+      parameters,
+      returnType: String(entry.returnType ?? "")
     }];
   });
 }

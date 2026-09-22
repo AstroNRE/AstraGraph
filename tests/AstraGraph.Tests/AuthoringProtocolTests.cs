@@ -256,4 +256,122 @@ public sealed class AuthoringProtocolTests
         Assert.That(removeBpResult.Status, Is.EqualTo(AuthoringStatusCode.Success));
         Assert.That(_debugger.HasBreakpoint(targetNode), Is.False);
     }
+
+    [Test]
+    public async Task LiveGraph_OpensPublishedSource_PublishesNextRevision_AndRollsBackToTheChosenOne()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var created = _server.HandleGraphCreate(new GraphCreateRequest(_client.SessionId!, "Versioned", GraphKind.System, GraphSide.Server));
+        Assert.That(created.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        var graphId = created.Graph!.Id;
+
+        var v1Json = GraphSerializer.Serialize(CreateTestGraphDocument(graphId, "Versioned"));
+        var published1 = await _client.PublishDraftAsync(graphId, RevisionId.Empty, v1Json, "v1");
+        Assert.That(published1.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        var rev1 = published1.PublishedRevision!.Value;
+        var program1 = _host.GetProgram(graphId)!.Revision;
+
+        var opened = _server.HandleGraphFetch(new GraphFetchRequest(_client.SessionId!, graphId));
+        Assert.That(opened.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        Assert.That(opened.FromDraft, Is.False);
+        Assert.That(opened.DraftJson, Does.Contain("Versioned"));
+        Assert.That(opened.BaseRevisionId, Is.EqualTo(rev1));
+
+        var v2Json = GraphSerializer.Serialize(CreateTestGraphDocument(graphId, "Versioned v2"));
+        var published2 = await _client.PublishDraftAsync(graphId, rev1, v2Json, "v2");
+        Assert.That(published2.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        Assert.That(_host.GetProgram(graphId)!.Revision, Is.Not.EqualTo(program1));
+
+        var rolled = await _client.RollbackAsync(graphId, rev1);
+        Assert.That(rolled.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        Assert.That(rolled.ActivatedRevision, Is.EqualTo(rev1));
+        Assert.That(_host.GetProgram(graphId)!.Revision, Is.EqualTo(program1));
+
+        var restored = _server.HandleGraphFetch(new GraphFetchRequest(_client.SessionId!, graphId));
+        Assert.That(restored.FromDraft, Is.False);
+        Assert.That(GraphSerializer.Deserialize(restored.DraftJson).Name, Is.EqualTo("Versioned"));
+        Assert.That(restored.ActiveRevisionId, Is.EqualTo(rolled.CurrentRevision));
+    }
+
+    [Test]
+    public async Task Handshake_RejectsAnUnknownProtocolVersion()
+    {
+        var response = await _server.HandleAsync(new AuthHandshakeRequestMsg
+        {
+            ProtocolVersion = 99,
+            ClientVersion = "1.0.0",
+            AuthorToken = "token_admin",
+            AuthorName = "AdminUser"
+        }, CancellationToken.None);
+
+        var handshake = response as AuthHandshakeResponseMsg;
+        Assert.That(handshake, Is.Not.Null);
+        Assert.That(handshake!.Status, Is.EqualTo(AuthoringStatusCode.IncompatibleVersion));
+        Assert.That(handshake.ErrorMessage, Does.Contain("protocol 99"));
+    }
+
+    [Test]
+    public async Task GraphDelete_RemovesTheGraphFromTheProject()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var created = _server.HandleGraphCreate(new GraphCreateRequest(_client.SessionId!, "Disposable", GraphKind.System, GraphSide.Server));
+        var deleted = _server.HandleGraphDelete(new GraphDeleteRequest(_client.SessionId!, created.Graph!.Id));
+        Assert.That(deleted.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        var listed = await _client.ListGraphsAsync();
+        Assert.That(listed.Graphs.Any(graph => graph.Id == created.Graph.Id), Is.False);
+    }
+
+    [Test]
+    public async Task BindingMaterialize_CreatesTypedPins_AndRejectsMismatchedWires()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var catalog = await _client.QueryCatalogAsync("Compute");
+        var entry = catalog.Entries.First(item => item.MethodName == "Compute");
+        Assert.That(entry.BindingId, Does.Contain("Compute"));
+        Assert.That(entry.Parameters.Any(pin => pin.Name is "a" or "b"), Is.True);
+
+        var json = _server.MaterializeBinding(entry.BindingId);
+        Assert.That(json, Is.Not.Null);
+        var node = GraphSerializer.Deserialize(json!).Nodes[0];
+        Assert.That(node.Pins.Any(pin => pin.Kind == PinKind.Data && pin.Name == "a"), Is.True);
+        Assert.That(node.Pins.Any(pin => pin.Kind == PinKind.Data && pin.Name == "Result"), Is.True);
+        Assert.That(node.Properties["bindingId"], Is.EqualTo(entry.BindingId));
+
+        var resultPin = node.Pins.First(pin => pin.Name == "Result");
+        var mismatch = AuthoringServerSession.ValidateWire(
+            new PinWire(resultPin.Id.ToString(), node.Id.ToString(), resultPin.Name, "output", "data", resultPin.DataType),
+            new PinWire(Guid.NewGuid().ToString(), Guid.NewGuid().ToString(), "in", "input", "data", "System.String"),
+            []);
+        Assert.That(mismatch.IsValid, Is.False);
+        Assert.That(mismatch.ErrorReason, Does.Contain("Type mismatch"));
+
+        var same = AuthoringServerSession.ValidateWire(
+            new PinWire(resultPin.Id.ToString(), node.Id.ToString(), resultPin.Name, "output", "data", resultPin.DataType),
+            new PinWire(Guid.NewGuid().ToString(), Guid.NewGuid().ToString(), "in", "input", "data", resultPin.DataType),
+            []);
+        Assert.That(same.IsValid, Is.True);
+
+        var suggestions = _server.SuggestConnections(
+            new PinWire(resultPin.Id.ToString(), node.Id.ToString(), resultPin.Name, "output", "data", resultPin.DataType),
+            "Compute");
+        Assert.That(suggestions.Any(item => item.PinName is "a" or "b" && item.BindingId == entry.BindingId), Is.True);
+    }
+
+    [Test]
+    public async Task HistoryDiff_ShowsANodeAddedSinceThePublishedRevision()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var graphId = GraphId.New();
+        var baseRev = RevisionId.New();
+        _server.RegisterGraph(new GraphSummaryDto(graphId, "DiffGraph", GraphKind.System, GraphSide.Server, baseRev, 1));
+        var publishedJson = GraphSerializer.Serialize(CreateTestGraphDocument(graphId, "DiffGraph"));
+        var published = await _client.PublishDraftAsync(graphId, baseRev, publishedJson, "v1");
+        Assert.That(published.PublishedRevision, Is.Not.Null);
+
+        var draft = GraphSerializer.Deserialize(publishedJson);
+        draft.Nodes.Add(new NodeDocument { Id = NodeId.New(), Name = "Added", NodeType = "Flow.Branch" });
+        var changes = _server.DiffDraft(graphId, published.PublishedRevision!.Value, GraphSerializer.Serialize(draft));
+        Assert.That(changes.Any(change => change.Kind == "node.added" && change.Detail == "Added"), Is.True);
+        Assert.That(changes.Any(change => change.Kind == "node.removed"), Is.False);
+    }
 }

@@ -42,7 +42,7 @@ export interface GraphDocument {
 export interface FlowNode {
   id: string;
   position: { x: number; y: number };
-  data: { label: string; nodeType: string; inputs: PinDocument[]; outputs: PinDocument[] };
+  data: { label: string; nodeType: string; inputs: PinDocument[]; outputs: PinDocument[]; pure?: boolean; side?: string };
 }
 
 export interface FlowEdge {
@@ -124,6 +124,21 @@ export function nextVariableName(variables: { name: string }[]): string {
   return `Value${variables.length + 1}`;
 }
 
+export function insertNode(document: GraphDocument, node: NodeDocument): GraphDocument {
+  const count = document.nodes.length;
+  return {
+    ...document,
+    nodes: [...document.nodes, node],
+    editorLayout: {
+      ...document.editorLayout,
+      nodePositions: {
+        ...document.editorLayout.nodePositions,
+        [node.id]: { x: 96 + (count % 4) * 40, y: 72 + count * 24 }
+      }
+    }
+  };
+}
+
 export function addNode(document: GraphDocument, nodeType: string, name: string): GraphDocument {
   const id = crypto.randomUUID();
   const input = crypto.randomUUID();
@@ -157,7 +172,9 @@ export function toFlow(document: GraphDocument): { nodes: FlowNode[]; edges: Flo
         label: node.name,
         nodeType: node.nodeType,
         inputs: node.pins.filter((pin) => pin.direction === "input"),
-        outputs: node.pins.filter((pin) => pin.direction === "output")
+        outputs: node.pins.filter((pin) => pin.direction === "output"),
+        pure: node.properties.pure === "true",
+        side: node.properties.side ?? ""
       }
     })),
     edges: document.connections.map((connection) => ({
@@ -209,4 +226,74 @@ export function redo<T>(stack: UndoStack<T>): UndoStack<T> {
 
 export function edit<T>(stack: UndoStack<T>, next: T): UndoStack<T> {
   return { past: [...stack.past, stack.present].slice(-50), present: next, future: [] };
+}
+
+export function connectPins(document: GraphDocument, fromNode: string, fromPin: string, toNode: string, toPin: string): GraphDocument {
+  if (document.connections.some((wire) => wire.fromPin === fromPin && wire.toPin === toPin)) return document;
+  return { ...document, connections: [...document.connections, { fromNode, fromPin, toNode, toPin }] };
+}
+
+export function removeNodes(document: GraphDocument, ids: string[]): GraphDocument {
+  const idSet = new Set(ids);
+  const positions = { ...document.editorLayout.nodePositions };
+  for (const id of ids) delete positions[id];
+  return {
+    ...document,
+    nodes: document.nodes.filter((node) => !idSet.has(node.id)),
+    connections: document.connections.filter((wire) => !idSet.has(wire.fromNode) && !idSet.has(wire.toNode)),
+    editorLayout: { ...document.editorLayout, nodePositions: positions }
+  };
+}
+
+export function duplicateNodes(document: GraphDocument, ids: string[]): GraphDocument {
+  const idSet = new Set(ids);
+  const nodeMap = new Map<string, string>();
+  const pinMap = new Map<string, string>();
+  const clones: NodeDocument[] = [];
+  const positions = { ...document.editorLayout.nodePositions };
+  for (const node of document.nodes) {
+    if (!idSet.has(node.id)) continue;
+    const nextId = crypto.randomUUID();
+    nodeMap.set(node.id, nextId);
+    const pins = node.pins.map((pin) => {
+      const pinId = crypto.randomUUID();
+      pinMap.set(pin.id, pinId);
+      return { ...pin, id: pinId };
+    });
+    clones.push({ ...node, id: nextId, name: node.name, pins, properties: { ...node.properties } });
+    const position = positions[node.id] ?? { x: 80, y: 80 };
+    positions[nextId] = { x: position.x + 32, y: position.y + 32 };
+  }
+  const copied = document.connections
+    .filter((wire) => idSet.has(wire.fromNode) && idSet.has(wire.toNode))
+    .map((wire) => ({
+      fromNode: nodeMap.get(wire.fromNode) ?? wire.fromNode,
+      toNode: nodeMap.get(wire.toNode) ?? wire.toNode,
+      fromPin: pinMap.get(wire.fromPin) ?? wire.fromPin,
+      toPin: pinMap.get(wire.toPin) ?? wire.toPin
+    }));
+  return {
+    ...document,
+    nodes: [...document.nodes, ...clones],
+    connections: [...document.connections, ...copied],
+    editorLayout: { ...document.editorLayout, nodePositions: positions }
+  };
+}
+
+export function nudgeNodes(document: GraphDocument, ids: string[], dx: number, dy: number): GraphDocument {
+  const positions = { ...document.editorLayout.nodePositions };
+  for (const id of ids) {
+    const position = positions[id] ?? { x: 80, y: 80 };
+    positions[id] = { x: position.x + dx, y: position.y + dy };
+  }
+  return { ...document, editorLayout: { ...document.editorLayout, nodePositions: positions } };
+}
+
+export function setNodeProperty(document: GraphDocument, nodeId: string, key: string, value: string): GraphDocument {
+  return {
+    ...document,
+    nodes: document.nodes.map((node) => node.id === nodeId
+      ? { ...node, properties: { ...node.properties, [key]: value } }
+      : node)
+  };
 }

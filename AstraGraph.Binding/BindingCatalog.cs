@@ -43,7 +43,7 @@ public sealed class BindingCatalog
         var methods = type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly);
         foreach (var method in methods)
         {
-            if (method.IsSpecialName) continue; // skip property getters/setters
+            if (method.IsSpecialName && !method.Name.StartsWith("op_", StringComparison.Ordinal)) continue;
             if (method.GetCustomAttribute<AstraHiddenAttribute>() != null) continue;
 
             try

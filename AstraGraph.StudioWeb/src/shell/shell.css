@@ -46,6 +46,18 @@
 }
 .section-label:first-child { margin-top: 6px; }
 .list { list-style: none; margin: 0; padding: 0; }
+.graph-row { display: flex; align-items: center; }
+.graph-row > button:first-child { flex: 1; min-width: 0; }
+.blocked {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: var(--surface-panel);
+  padding: 24px;
+}
+.blocked div { max-width: 460px; }
 .list button {
   width: 100%;
   text-align: left;
@@ -157,3 +169,32 @@ summary { cursor: pointer; font-size: 12px; color: var(--text-secondary); paddin
 }
 .react-flow__handle.connecting,
 .react-flow__handle.valid { background: var(--accent); }
+.react-flow__handle.pin.execution { border-radius: 2px; width: 11px; height: 8px; }
+.react-flow__handle.pin.data { border-radius: 99px; }
+.react-flow__handle.pin.event { width: 9px; height: 9px; border-radius: 1px; transform: rotate(45deg); }
+.react-flow__handle.pin.compatible { background: var(--accent); opacity: 1; }
+.react-flow__handle.pin.incompatible { background: var(--text-muted); opacity: 0.28; }
+.react-flow__handle.pin.alert { box-shadow: 0 0 0 2px #d45b5b; }
+.node-badge {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.dialog-back {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 28%);
+  z-index: 20;
+}
+.dialog {
+  width: min(420px, 92vw);
+  background: var(--surface-elevated);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 16px 48px rgb(0 0 0 / 28%);
+}
+.dialog h2 { margin: 0 0 8px; font-size: 15px; }
+.dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }

@@ -44,7 +44,12 @@ export class AuthoringClient {
 
   graphs = {
     list: () => this.roundtrip("graph.list.request", {}, "graph.list.response"),
-    fetch: (graphId: string) => this.roundtrip("graph.fetch.request", { graphId }, "graph.fetch.response")
+    fetch: (graphId: string) => this.roundtrip("graph.fetch.request", { graphId }, "graph.fetch.response"),
+    create: (name: string, kind = "System", side = "Server") =>
+      this.roundtrip("graph.create.request", { name, kind, side }, "graph.create.response"),
+    rename: (graphId: string, name: string) =>
+      this.roundtrip("graph.rename.request", { graphId, name }, "graph.rename.response"),
+    delete: (graphId: string) => this.roundtrip("graph.delete.request", { graphId }, "graph.delete.response")
   };
 
   drafts = {
@@ -54,28 +59,48 @@ export class AuthoringClient {
       this.roundtrip("draft.compile.request", { graphId, draftJson }, "draft.compile.response")
   };
 
-  publish(graphId: string, baseRevisionId: string, draftJson: string) {
-    return this.roundtrip("draft.publish.request", { graphId, baseRevisionId, draftJson, publishMessage: "Studio publish" }, "draft.publish.response");
+  publish(graphId: string, baseRevisionId: string, draftJson: string, publishMessage = "Studio publish") {
+    return this.roundtrip("draft.publish.request", { graphId, baseRevisionId, draftJson, publishMessage }, "draft.publish.response");
   }
 
   history = {
     list: (graphId: string) => this.roundtrip("history.list.request", { graphId }, "history.list.response"),
     rollback: (graphId: string, targetRevisionId: string) =>
-      this.roundtrip("history.rollback.request", { graphId, targetRevisionId }, "history.list.response")
+      this.roundtrip("history.rollback.request", { graphId, targetRevisionId }, "history.rollback.response"),
+    diff: (graphId: string, revisionId: string, draftJson: string) =>
+      this.roundtrip("history.diff.request", { graphId, revisionId, draftJson }, "history.diff.response")
   };
 
   catalog = {
     query: (searchFilter = "") => this.roundtrip("catalog.query.request", { searchFilter }, "catalog.query.response")
   };
 
+  bindings = {
+    materialize: (bindingId: string) => this.roundtrip("binding.materialize.request", { bindingId }, "binding.materialize.response")
+  };
+
+  connections = {
+    validate: (source: Record<string, string>, target: Record<string, string>, connections: { sourcePinId: string; targetPinId: string }[]) =>
+      this.roundtrip("connection.validate.request", { source, target, connections }, "connection.validate.response"),
+    compatible: (source: Record<string, string>, candidates: Record<string, string>[], connections: { sourcePinId: string; targetPinId: string }[]) =>
+      this.roundtrip("connection.compatible.request", { source, candidates, connections }, "connection.compatible.response"),
+    suggest: (pin: Record<string, string>, query = "") =>
+      this.roundtrip("connection.suggest.request", { pin, query }, "connection.suggest.response")
+  };
+
   debug = {
     setBreakpoint: (graphId: string, targetNode: string) =>
       this.roundtrip("debugger.command.request", { graphId, action: 0, targetNode }, "debugger.command.response"),
-    pause: (graphId: string) => this.roundtrip("debugger.command.request", { graphId, action: 2 }, "debugger.command.response")
+    pause: (graphId: string) => this.roundtrip("debugger.command.request", { graphId, action: 2 }, "debugger.command.response"),
+    resume: (graphId: string) => this.roundtrip("debugger.command.request", { graphId, action: 3 }, "debugger.command.response"),
+    stepOver: (graphId: string) => this.roundtrip("debugger.command.request", { graphId, action: 4 }, "debugger.command.response"),
+    stepInto: (graphId: string) => this.roundtrip("debugger.command.request", { graphId, action: 5 }, "debugger.command.response"),
+    removeBreakpoint: (graphId: string, targetNode: string) =>
+      this.roundtrip("debugger.command.request", { graphId, action: 1, targetNode }, "debugger.command.response")
   };
 
   handshake(authorToken: string, authorName: string) {
-    return this.roundtrip("auth.handshake.request", { clientVersion: "1.0.0", authorToken, authorName }, "auth.handshake.response");
+    return this.roundtrip("auth.handshake.request", { clientVersion: "1.0.0", protocolVersion: 1, authorToken, authorName }, "auth.handshake.response");
   }
 
   sessionId = "";

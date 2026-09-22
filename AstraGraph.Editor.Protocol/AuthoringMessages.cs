@@ -10,7 +10,8 @@ public enum AuthoringStatusCode
     Conflict,
     ValidationError,
     NotFound,
-    InternalError
+    InternalError,
+    IncompatibleVersion
 }
 
 public enum DebuggerAction
@@ -96,7 +97,79 @@ public sealed record RollbackRequest(
 public sealed record RollbackResponse(
     AuthoringStatusCode Status,
     RevisionId CurrentRevision,
+    string? ErrorMessage = null,
+    RevisionId? ActivatedRevision = null);
+
+public sealed record GraphCreateRequest(
+    string SessionId,
+    string Name,
+    GraphKind Kind,
+    GraphSide Side);
+
+public sealed record GraphCreateResponse(
+    AuthoringStatusCode Status,
+    GraphSummaryDto? Graph,
+    string SourceJson,
     string? ErrorMessage = null);
+
+public sealed record GraphRenameRequest(
+    string SessionId,
+    GraphId GraphId,
+    string Name);
+
+public sealed record GraphDeleteRequest(
+    string SessionId,
+    GraphId GraphId);
+
+public sealed record GraphMutationResponse(
+    AuthoringStatusCode Status,
+    GraphSummaryDto? Graph,
+    string? ErrorMessage = null);
+
+public sealed record GraphFetchRequest(
+    string SessionId,
+    GraphId GraphId);
+
+public sealed record GraphFetchResponse(
+    AuthoringStatusCode Status,
+    string DraftJson,
+    RevisionId BaseRevisionId,
+    RevisionId ActiveRevisionId,
+    bool FromDraft,
+    string? ErrorMessage = null);
+
+public sealed record PinWire(
+    string Id,
+    string NodeId,
+    string Name,
+    string Direction,
+    string Kind,
+    string DataType);
+
+public sealed record WireEnds(string SourcePinId, string TargetPinId);
+
+public sealed record PinCompatibilityDto(string PinId, bool Valid, string? Reason);
+
+public sealed record ConnectionSuggestionDto(
+    string BindingId,
+    string NodeType,
+    string DisplayName,
+    string PinName,
+    int Score);
+
+public sealed record SemanticChangeDto(string Kind, string Detail);
+
+public sealed record RevisionSummaryDto(
+    string RevisionId,
+    string Author,
+    string Timestamp,
+    string Message,
+    string SemanticHash);
+
+public sealed record CatalogParameterDto(
+    string Name,
+    string TypeName,
+    string Direction);
 
 public sealed record CatalogEntryDto(
     string Signature,
@@ -104,7 +177,15 @@ public sealed record CatalogEntryDto(
     bool IsPure,
     bool IsPredictionSafe,
     GraphSide Side,
-    string Documentation);
+    string Documentation,
+    string BindingId,
+    string DeclaringType,
+    string MethodName,
+    IReadOnlyList<CatalogParameterDto> Parameters,
+    string ReturnType,
+    string SecurityProfile,
+    int Cost,
+    bool IsObsolete);
 
 public sealed record CatalogQueryRequest(
     string SessionId,

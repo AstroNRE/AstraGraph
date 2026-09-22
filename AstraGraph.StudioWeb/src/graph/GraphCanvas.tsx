@@ -6,33 +6,68 @@ import {
   MiniMap,
   Position,
   ReactFlow,
+  ReactFlowProvider,
   useEdgesState,
   useNodesState,
+  useReactFlow,
   type Connection,
   type Node,
   type NodeProps
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import "./canvas.css";
-import { applyFlow, toFlow, type FlowEdge, type GraphDocument } from "../documents/graph";
+import { applyFlow, toFlow, type FlowEdge, type GraphDocument, type PinDocument } from "../documents/graph";
+
+type PinMark = "compatible" | "incompatible";
 
 type AstraData = {
   label: string;
   nodeType: string;
-  inputs: { id: string }[];
-  outputs: { id: string }[];
+  inputs: PinDocument[];
+  outputs: PinDocument[];
+  pure?: boolean;
+  side?: string;
+  marks?: Record<string, PinMark>;
+  reasons?: Record<string, string>;
+  alertPin?: string;
 };
 
+function pinShape(pin: { name: string; kind: string }) {
+  if (pin.kind === "data") return "data";
+  return pin.name === "Then" ? "event" : "execution";
+}
+
 function AstraNodeView({ data }: NodeProps<Node<AstraData, "astra">>) {
+  const eventNode = data.nodeType.startsWith("Event") || data.outputs.some((pin) => pin.name === "Then");
   return (
-    <div className={data.nodeType.startsWith("Event") ? "astra-node event" : "astra-node"}>
+    <div className={eventNode ? "astra-node event" : "astra-node"}>
       {data.inputs.map((pin, index) => (
-        <Handle key={pin.id} id={pin.id} type="target" position={Position.Left} style={{ top: 28 + index * 16 }} />
+        <Handle
+          key={pin.id}
+          id={pin.id}
+          className={`pin ${pinShape(pin)} ${data.marks?.[pin.id] ?? ""} ${data.alertPin === pin.id ? "alert" : ""}`}
+          type="target"
+          position={Position.Left}
+          title={data.reasons?.[pin.id] || `${pin.name}: ${pin.dataType || pin.kind}`}
+          style={{ top: 28 + index * 16 }}
+        />
       ))}
-      <div className="astra-node-title">{data.label}</div>
+      <div className="astra-node-title">
+        {data.label}
+        {data.pure ? <span className="node-badge">pure</span> : null}
+        {data.side ? <span className="node-badge">{data.side}</span> : null}
+      </div>
       <div className="astra-node-type">{data.nodeType}</div>
       {data.outputs.map((pin, index) => (
-        <Handle key={pin.id} id={pin.id} type="source" position={Position.Right} style={{ top: 28 + index * 16 }} />
+        <Handle
+          key={pin.id}
+          id={pin.id}
+          className={`pin ${pinShape(pin)} ${data.marks?.[pin.id] ?? ""} ${data.alertPin === pin.id ? "alert" : ""}`}
+          type="source"
+          position={Position.Right}
+          title={data.reasons?.[pin.id] || `${pin.name}: ${pin.dataType || pin.kind}`}
+          style={{ top: 28 + index * 16 }}
+        />
       ))}
     </div>
   );
@@ -52,23 +87,87 @@ function useFlowColorMode(): "dark" | "light" {
   return mode;
 }
 
-export function GraphCanvas(props: { document: GraphDocument; onChange: (next: GraphDocument) => void }) {
+export function GraphCanvas(props: {
+  document: GraphDocument;
+  selectedId?: string;
+  focusToken?: number;
+  alertPin?: string;
+  pinMarks?: Record<string, PinMark>;
+  pinReasons?: Record<string, string>;
+  onChange: (next: GraphDocument) => void;
+  onSelect?: (id: string) => void;
+  onReject?: (reason: string) => void;
+  onWireStart?: (nodeId: string, pinId: string) => void;
+  onWireDrop?: (nodeId: string, pinId: string) => void;
+  authorizeConnection?: (source: PinDocument & { nodeId: string }, target: PinDocument & { nodeId: string }, existing: GraphDocument["connections"]) => Promise<{ ok: boolean; reason?: string }>;
+}) {
+  return (
+    <ReactFlowProvider>
+      <CanvasSurface {...props} />
+    </ReactFlowProvider>
+  );
+}
+
+function CanvasSurface(props: {
+  document: GraphDocument;
+  selectedId?: string;
+  focusToken?: number;
+  alertPin?: string;
+  pinMarks?: Record<string, PinMark>;
+  pinReasons?: Record<string, string>;
+  onChange: (next: GraphDocument) => void;
+  onSelect?: (id: string) => void;
+  onReject?: (reason: string) => void;
+  onWireStart?: (nodeId: string, pinId: string) => void;
+  onWireDrop?: (nodeId: string, pinId: string) => void;
+  authorizeConnection?: (source: PinDocument & { nodeId: string }, target: PinDocument & { nodeId: string }, existing: GraphDocument["connections"]) => Promise<{ ok: boolean; reason?: string }>;
+}) {
   const colorMode = useFlowColorMode();
+  const { fitView } = useReactFlow();
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<AstraData, "astra">>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<FlowEdge>([]);
 
   useEffect(() => {
     const flow = toFlow(props.document);
-    setNodes(flow.nodes.map((node) => ({ ...node, type: "astra" as const })));
+    setNodes(flow.nodes.map((node) => ({
+      ...node,
+      type: "astra" as const,
+      selected: node.id === props.selectedId,
+      data: {
+        ...node.data,
+        marks: props.pinMarks,
+        reasons: props.pinReasons,
+        alertPin: props.alertPin
+      }
+    })));
     setEdges(flow.edges);
-  }, [props.document, setEdges, setNodes]);
+  }, [props.alertPin, props.document, props.pinMarks, props.pinReasons, props.selectedId, setEdges, setNodes]);
+
+  useEffect(() => {
+    if (!props.focusToken || !props.selectedId) return;
+    void fitView({ nodes: [{ id: props.selectedId }], duration: 180, padding: 0.45 });
+  }, [fitView, props.focusToken, props.selectedId]);
 
   function commit(nextNodes: { id: string; position: { x: number; y: number } }[], nextEdges: FlowEdge[]) {
     props.onChange(applyFlow(props.document, nextNodes, nextEdges));
   }
 
-  function onConnect(connection: Connection) {
+  async function onConnect(connection: Connection) {
     if (!connection.source || !connection.target || !connection.sourceHandle || !connection.targetHandle) return;
+    const sourceNode = props.document.nodes.find((node) => node.id === connection.source);
+    const targetNode = props.document.nodes.find((node) => node.id === connection.target);
+    const sourcePin = sourceNode?.pins.find((pin) => pin.id === connection.sourceHandle);
+    const targetPin = targetNode?.pins.find((pin) => pin.id === connection.targetHandle);
+    if (props.authorizeConnection && sourcePin && targetPin) {
+      const verdict = await props.authorizeConnection(
+        { ...sourcePin, nodeId: connection.source },
+        { ...targetPin, nodeId: connection.target },
+        props.document.connections);
+      if (!verdict.ok) {
+        props.onReject?.(verdict.reason || "Connection refused");
+        return;
+      }
+    }
     const next = [...edges, {
       id: `${connection.sourceHandle}-${connection.targetHandle}`,
       source: connection.source,
@@ -89,7 +188,29 @@ export function GraphCanvas(props: { document: GraphDocument; onChange: (next: G
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}
-      onNodeDragStop={(_, node) => commit(nodes.map((item) => item.id === node.id ? { ...item, position: node.position } : item), edges)}
+      onConnectStart={(_event, params) => {
+        if (params.nodeId && params.handleId) props.onWireStart?.(params.nodeId, params.handleId);
+      }}
+      onConnectEnd={(_event, state) => {
+        if (state.toNode || !state.fromNode?.id || !state.fromHandle?.id) return;
+        props.onWireDrop?.(state.fromNode.id, state.fromHandle.id);
+      }}
+      isValidConnection={(connection) => {
+        const handle = connection.targetHandle ?? connection.sourceHandle;
+        if (!handle || !props.pinMarks || Object.keys(props.pinMarks).length === 0) return true;
+        return props.pinMarks[handle] !== "incompatible";
+      }}
+      onNodeClick={(_event, node) => props.onSelect?.(node.id)}
+      onPaneClick={() => props.onSelect?.("")}
+      onNodeDragStop={(_, node) => {
+        const snapped = { x: Math.round(node.position.x / 16) * 16, y: Math.round(node.position.y / 16) * 16 };
+        commit(nodes.map((item) => item.id === node.id ? { ...item, position: snapped } : item), edges);
+      }}
+      deleteKeyCode={null}
+      selectionOnDrag
+      multiSelectionKeyCode="Shift"
+      snapToGrid
+      snapGrid={[16, 16]}
       fitView
     >
       <Background gap={18} size={1} />

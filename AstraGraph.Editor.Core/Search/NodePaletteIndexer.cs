@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using AstraGraph.Binding;
 using AstraGraph.Core;
+using AstraGraph.Editor.Core;
 
 namespace AstraGraph.Editor.Core.Search;
 
@@ -48,32 +49,10 @@ public sealed class NodePaletteIndexer
         {
             foreach (var desc in catalog.Search(string.Empty))
             {
-                var pins = new List<VisualPinDefinition>();
-
-                // Execution pins for non-pure methods
-                if (!desc.IsPure)
-                {
-                    pins.Add(new VisualPinDefinition("In", PinDirection.Input, PinKind.Execution, "Flow"));
-                    pins.Add(new VisualPinDefinition("Out", PinDirection.Output, PinKind.Execution, "Flow"));
-                }
-
-                // If instance method, add target pin
-                if (!desc.Method.IsStatic)
-                {
-                    pins.Add(new VisualPinDefinition("Target", PinDirection.Input, PinKind.Data, desc.DeclaringTypeName));
-                }
-
-                // Method parameters
-                foreach (var param in desc.Parameters)
-                {
-                    pins.Add(new VisualPinDefinition(param.Name, PinDirection.Input, PinKind.Data, param.Type.TypeName));
-                }
-
-                // Return value
-                if (desc.Method.ReturnType != typeof(void))
-                {
-                    pins.Add(new VisualPinDefinition("Result", PinDirection.Output, PinKind.Data, desc.ReturnType.TypeName));
-                }
+                var materialized = BindingNodeFactory.Create(desc);
+                var pins = materialized.Pins
+                    .Select(pin => new VisualPinDefinition(pin.Name, pin.Direction, pin.Kind, pin.DataType))
+                    .ToList();
 
                 var item = new NodePaletteItem(
                     id: $"Native:{desc.Descriptor}",
