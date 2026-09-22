@@ -24,6 +24,8 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
     private readonly BindingCatalog? _bindingCatalog;
 
     private readonly ConcurrentDictionary<string, ActiveSession> _sessions = new();
+    private readonly ConcurrentDictionary<int, Action<AuthoringMessage>> _outbound = new();
+    private int _outboundId;
     private readonly ConcurrentDictionary<GraphId, (RevisionId HeadRevision, string DraftJson)> _activeDrafts = new();
     private readonly ConcurrentDictionary<GraphId, GraphSummaryDto> _graphs = new();
 
@@ -70,6 +72,14 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         return new AuthHandshakeResponse(AuthoringStatusCode.Success, sessionId, user.Permissions);
     }
 
+    public IDisposable SubscribeOutbound(Action<AuthoringMessage> listener)
+    {
+        ArgumentNullException.ThrowIfNull(listener);
+        var id = Interlocked.Increment(ref _outboundId);
+        _outbound[id] = listener;
+        return new OutboundSubscription(() => _outbound.TryRemove(id, out _));
+    }
+
     public void ReplaceUser(string userId, AstraUser? updated)
     {
         foreach (var pair in _sessions.ToArray())
@@ -82,11 +92,31 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             if (updated == null)
             {
                 _sessions.TryRemove(pair.Key, out _);
-                continue;
+            }
+            else
+            {
+                _sessions[pair.Key] = pair.Value with { User = updated };
             }
 
-            _sessions[pair.Key] = pair.Value with { User = updated };
+            PublishOutbound(new SessionUpdatedMsg
+            {
+                SessionId = pair.Key,
+                Permissions = updated?.Permissions ?? AstraPermission.None
+            });
         }
+    }
+
+    private void PublishOutbound(AuthoringMessage message)
+    {
+        foreach (var listener in _outbound.Values)
+        {
+            listener(message);
+        }
+    }
+
+    private sealed class OutboundSubscription(Action dispose) : IDisposable
+    {
+        public void Dispose() => dispose();
     }
 
     public GraphListResponse HandleGraphList(GraphListRequest request)
@@ -369,6 +399,21 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             GraphListRequestMsg req =>
                 HandleGraphListMsg(req),
 
+            DraftSaveRequestMsg req =>
+                HandleDraftSaveMsg(req),
+
+            GraphFetchRequestMsg req =>
+                HandleGraphFetchMsg(req),
+
+            CatalogQueryRequestMsg req =>
+                HandleCatalogQueryMsg(req),
+
+            HistoryListRequestMsg req =>
+                HandleHistoryListMsg(req),
+
+            HistoryRollbackRequestMsg req =>
+                await HandleHistoryRollbackMsgAsync(req),
+
             DraftCompileRequestMsg req =>
                 HandleDraftCompileMsg(req),
 
@@ -404,6 +449,73 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         {
             Status = resp.Status,
             Graphs = resp.Graphs,
+            ErrorMessage = resp.ErrorMessage
+        };
+    }
+
+    private DraftSaveResponseMsg HandleDraftSaveMsg(DraftSaveRequestMsg req)
+    {
+        var resp = HandleDraftSave(new DraftSaveRequest(req.SessionId, req.GraphId, req.BaseRevisionId, req.DraftJson, req.AuthorMessage));
+        return new DraftSaveResponseMsg
+        {
+            Status = resp.Status,
+            DraftRevisionId = resp.DraftRevisionId,
+            HasConflict = resp.HasConflict,
+            ErrorMessage = resp.ErrorMessage
+        };
+    }
+
+    private GraphFetchResponseMsg HandleGraphFetchMsg(GraphFetchRequestMsg req)
+    {
+        if (!_sessions.ContainsKey(req.SessionId))
+        {
+            return new GraphFetchResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Invalid session." };
+        }
+
+        if (!_activeDrafts.TryGetValue(req.GraphId, out var draft))
+        {
+            return new GraphFetchResponseMsg { Status = AuthoringStatusCode.NotFound, ErrorMessage = "No saved draft." };
+        }
+
+        return new GraphFetchResponseMsg { Status = AuthoringStatusCode.Success, DraftJson = draft.DraftJson };
+    }
+
+    private CatalogQueryResponseMsg HandleCatalogQueryMsg(CatalogQueryRequestMsg req)
+    {
+        var resp = HandleCatalogQuery(new CatalogQueryRequest(req.SessionId, req.SearchFilter));
+        return new CatalogQueryResponseMsg
+        {
+            Status = resp.Status,
+            Entries = resp.Entries,
+            ErrorMessage = resp.ErrorMessage
+        };
+    }
+
+    private HistoryListResponseMsg HandleHistoryListMsg(HistoryListRequestMsg req)
+    {
+        if (!_sessions.ContainsKey(req.SessionId))
+        {
+            return new HistoryListResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Invalid session." };
+        }
+
+        if (_hotReloadManager == null)
+        {
+            return new HistoryListResponseMsg { Status = AuthoringStatusCode.Success, Revisions = [] };
+        }
+
+        var revisions = _hotReloadManager.GetRevisionHistory(req.GraphId)
+            .Select(record => record.RevisionId + "|" + record.Message)
+            .ToArray();
+        return new HistoryListResponseMsg { Status = AuthoringStatusCode.Success, Revisions = revisions };
+    }
+
+    private async Task<AuthoringMessage> HandleHistoryRollbackMsgAsync(HistoryRollbackRequestMsg req)
+    {
+        var resp = await HandleRollbackAsync(new RollbackRequest(req.SessionId, req.GraphId, req.TargetRevisionId));
+        return new HistoryListResponseMsg
+        {
+            Status = resp.Status,
+            Revisions = [resp.CurrentRevision.ToString()],
             ErrorMessage = resp.ErrorMessage
         };
     }

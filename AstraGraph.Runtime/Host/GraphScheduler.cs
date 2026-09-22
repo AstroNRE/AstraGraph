@@ -92,6 +92,13 @@ public sealed class GraphScheduler
         }
     }
 
+    private readonly GraphFaultLog? _faults;
+
+    public GraphScheduler(GraphFaultLog? faults = null)
+    {
+        _faults = faults;
+    }
+
     public Exception? LastUpdateError { get; private set; }
 
     public void Update(double currentTimeSeconds, int currentTick)
@@ -99,6 +106,11 @@ public sealed class GraphScheduler
         var systems = GetOrderedSystems();
         foreach (var sys in systems)
         {
+            if (_faults?.IsOpen(sys.GraphId) == true)
+            {
+                continue;
+            }
+
             try
             {
                 sys.UpdateCallback?.Invoke(currentTimeSeconds, currentTick);
@@ -106,6 +118,7 @@ public sealed class GraphScheduler
             catch (Exception ex)
             {
                 LastUpdateError = ex;
+                _faults?.Record(sys.GraphId, RevisionId.Empty, ex, currentTick);
             }
         }
     }
@@ -115,9 +128,19 @@ public sealed class GraphScheduler
         var systems = GetOrderedSystems();
         foreach (var sys in systems)
         {
-            if (sys.Phase == phase)
+            if (sys.Phase != phase || _faults?.IsOpen(sys.GraphId) == true)
+            {
+                continue;
+            }
+
+            try
             {
                 sys.UpdateCallback?.Invoke(currentTimeSeconds, currentTick);
+            }
+            catch (Exception ex)
+            {
+                LastUpdateError = ex;
+                _faults?.Record(sys.GraphId, RevisionId.Empty, ex, currentTick);
             }
         }
     }

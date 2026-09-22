@@ -159,12 +159,17 @@ public sealed class EmbeddedWebAssetProvider : IWebAssetProvider
             return provider;
         }
 
-        PopulateDefaultAssets(provider);
         return provider;
     }
 
     public static string? FindStudioWebRoot()
     {
+        var bundled = Path.Combine(AppContext.BaseDirectory, "wwwroot", "index.html");
+        if (File.Exists(bundled))
+        {
+            return Path.GetDirectoryName(bundled);
+        }
+
         var cursor = new DirectoryInfo(AppContext.BaseDirectory);
         for (var depth = 0; depth < 8 && cursor != null; depth++)
         {
@@ -178,22 +183,5 @@ public sealed class EmbeddedWebAssetProvider : IWebAssetProvider
         }
 
         return null;
-    }
-
-    internal static void PopulateDefaultAssets(EmbeddedWebAssetProvider provider)
-    {
-        // Default index.html shell
-        provider.RegisterTextAsset("/index.html", "text/html; charset=utf-8", StudioAssets.IndexHtml);
-        provider.RegisterTextAsset("/css/studio.css", "text/css; charset=utf-8", StudioAssets.StudioCss);
-        provider.RegisterTextAsset("/js/transport.js", "application/javascript; charset=utf-8", StudioAssets.TransportJs);
-        provider.RegisterTextAsset("/js/canvas.js", "application/javascript; charset=utf-8", StudioAssets.CanvasJs);
-        provider.RegisterTextAsset("/js/wire-renderer.js", "application/javascript; charset=utf-8", StudioAssets.WireRendererJs);
-        provider.RegisterTextAsset("/js/palette.js", "application/javascript; charset=utf-8", StudioAssets.PaletteJs);
-        provider.RegisterTextAsset("/js/inspector.js", "application/javascript; charset=utf-8", StudioAssets.InspectorJs);
-        provider.RegisterTextAsset("/js/problems.js", "application/javascript; charset=utf-8", StudioAssets.ProblemsJs);
-        provider.RegisterTextAsset("/js/debugger.js", "application/javascript; charset=utf-8", StudioAssets.DebuggerJs);
-        provider.RegisterTextAsset("/js/profiler.js", "application/javascript; charset=utf-8", StudioAssets.ProfilerJs);
-        provider.RegisterTextAsset("/js/toolbar.js", "application/javascript; charset=utf-8", StudioAssets.ToolbarJs);
-        provider.RegisterTextAsset("/js/studio.js", "application/javascript; charset=utf-8", StudioAssets.StudioJs);
     }
 }

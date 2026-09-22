@@ -69,8 +69,10 @@ public class SharedAstraGraphSystem : EntitySystem
         {
             IoCManager.RegisterInstance<AstraGraphHost>(_host, overwrite: true);
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Error($"AstraGraph host registration failed: {ex}");
+            throw;
         }
 
         // 3. Hook entity lifecycle events for deterministic cleanup

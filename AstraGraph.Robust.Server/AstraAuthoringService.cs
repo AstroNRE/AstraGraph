@@ -20,9 +20,11 @@ public sealed class AstraAuthoringService : IAstraAuthoringService
     private readonly BootstrapLoader? _bootstrapLoader;
     private readonly AuthoringServerSession _serverSession;
     private readonly GraphDebugger? _debugger;
+    private readonly GraphProfiler? _profiler;
     private readonly ConcurrentDictionary<string, (AstraUser User, DateTimeOffset ExpiresAtUtc)> _issuedTokens = new();
 
     public AuthoringServerSession Session => _serverSession;
+    public string? DiscoveryWarning { get; private set; }
     public IAuthoringMessageHandler MessageHandler => _serverSession;
 
     public AstraAuthoringService(
@@ -41,6 +43,7 @@ public sealed class AstraAuthoringService : IAstraAuthoringService
         _bootstrapLoader = bootstrapLoader;
 
         _debugger = debugger;
+        _profiler = profiler;
         _permissionProvider.OnPermissionsChanged += RecomputeSession;
 
         _serverSession = new AuthoringServerSession(
@@ -124,6 +127,7 @@ public sealed class AstraAuthoringService : IAstraAuthoringService
         if (user == null || !AstraAuthorizationService.HasPermission(user, AstraPermission.Debug))
         {
             _debugger?.ClearBreakpoints();
+            _profiler?.Reset();
         }
     }
 
@@ -152,9 +156,9 @@ public sealed class AstraAuthoringService : IAstraAuthoringService
                     1));
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // best-effort discovery
+            DiscoveryWarning = ex.Message;
         }
     }
 }

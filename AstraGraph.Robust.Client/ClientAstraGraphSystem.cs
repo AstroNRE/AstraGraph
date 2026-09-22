@@ -41,8 +41,10 @@ public sealed class ClientAstraGraphSystem : SharedAstraGraphSystem
             IoCManager.RegisterInstance<RobustUiControlFactory>(_controlFactory, overwrite: true);
             IoCManager.RegisterInstance<RobustUiReconciler>(_reconciler, overwrite: true);
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Error($"AstraGraph client registration failed: {ex}");
+            throw;
         }
 
         Log.Info("ClientAstraGraphSystem initialized with native RobustUiControlFactory.");

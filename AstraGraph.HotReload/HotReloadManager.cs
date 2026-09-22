@@ -211,16 +211,7 @@ public sealed class HotReloadManager
                     {
                         foreach (var sub in tx.Subscriptions)
                         {
-                            var subscription = sub;
-                            void Run() => ExecuteEntry(subscription);
-                            if (subscription.ByRef && subscription.ComponentType == null)
-                            {
-                                _host.EventRouter.SubscribeRefInvoke(subscription, Run);
-                            }
-                            else
-                            {
-                                _host.EventRouter.Subscribe(subscription, (_, _) => Run());
-                            }
+                            AttachSubscription(sub);
                         }
                     }
                     else
@@ -397,7 +388,7 @@ public sealed class HotReloadManager
                 {
                     foreach (var sub in targetRecord.Subscriptions)
                     {
-                        _host.EventRouter.Subscribe(sub);
+                        AttachSubscription(sub);
                     }
                 }
 
@@ -425,7 +416,19 @@ public sealed class HotReloadManager
         }
     }
 
-    private void ExecuteEntry(GraphEventSubscription subscription)
+    private void AttachSubscription(GraphEventSubscription subscription)
+    {
+        void Run(object ev) => ExecuteEntry(subscription, ev);
+        if (subscription.ByRef && subscription.ComponentType == null)
+        {
+            _host.EventRouter.SubscribeRefInvoke(subscription, Run);
+            return;
+        }
+
+        _host.EventRouter.Subscribe(subscription, (_, ev) => Run(ev));
+    }
+
+    private void ExecuteEntry(GraphEventSubscription subscription, object? eventObject = null)
     {
         if (!IsDispatchAllowed(subscription.GraphId))
         {
@@ -439,8 +442,76 @@ public sealed class HotReloadManager
             return;
         }
 
+        if (eventObject != null)
+        {
+            CopyEventToVariables(eventObject);
+        }
+
         _host.Vm.Execute(program, entry, hostServices: _host.HostServices);
+        if (eventObject != null)
+        {
+            CopyVariablesToEvent(eventObject);
+        }
+
         _host.NoteEntryExecuted();
+    }
+
+    private void CopyEventToVariables(object eventObject)
+    {
+        foreach (var property in WritableProperties(eventObject))
+        {
+            _host.HostServices.SetVariable(SymbolId.Empty, property.Name, AstraValue.FromObject(property.GetValue(eventObject)));
+        }
+    }
+
+    private void CopyVariablesToEvent(object eventObject)
+    {
+        foreach (var property in WritableProperties(eventObject))
+        {
+            var value = _host.HostServices.GetVariable(SymbolId.Empty, property.Name);
+            if (value.Type == AstraValueType.Null || !TryConvert(value, property.PropertyType, out var converted))
+            {
+                continue;
+            }
+
+            property.SetValue(eventObject, converted);
+        }
+    }
+
+    private static IEnumerable<System.Reflection.PropertyInfo> WritableProperties(object eventObject)
+    {
+        return eventObject.GetType().GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+            .Where(property => property.CanRead && property.CanWrite && property.GetIndexParameters().Length == 0);
+    }
+
+    private static bool TryConvert(AstraValue value, Type target, out object? converted)
+    {
+        converted = null;
+        if (target == typeof(bool) && (value.Type == AstraValueType.Bool || value.Type == AstraValueType.Int64))
+        {
+            converted = value.Type == AstraValueType.Bool ? value.AsBool() : value.AsInt64() != 0;
+            return true;
+        }
+
+        if (target == typeof(string))
+        {
+            converted = value.AsString();
+            return true;
+        }
+
+        if (target == typeof(int) || target == typeof(long) || target == typeof(short) || target == typeof(byte))
+        {
+            converted = Convert.ChangeType(value.AsInt64(), target);
+            return true;
+        }
+
+        if (target == typeof(float) || target == typeof(double))
+        {
+            converted = Convert.ChangeType(value.AsDouble(), target);
+            return true;
+        }
+
+        return false;
     }
 
     private string CatalogHash()
@@ -490,6 +561,12 @@ public sealed class HotReloadManager
         }
 
         return list;
+    }
+
+    public PublishResult? TryRestorePrevious(GraphId graphId)
+    {
+        var previous = _archive?.TryLoadPrevious(graphId);
+        return previous == null ? null : Publish(previous, "Bootstrap", "Live override fallback");
     }
 
     public bool IsDispatchAllowed(GraphId graphId) => !_frozenGraphs.ContainsKey(graphId);

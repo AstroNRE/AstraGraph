@@ -58,8 +58,10 @@ public sealed class ServerAstraGraphSystem : SharedAstraGraphSystem
             IoCManager.RegisterInstance<BootstrapLoader>(_bootstrapLoader, overwrite: true);
             IoCManager.RegisterInstance<IAstraAuthoringService>(_authoringService, overwrite: true);
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Error($"AstraGraph server registration failed: {ex}");
+            throw;
         }
 
         // Execute Server Restart Bootstrap Pipeline

@@ -22,6 +22,7 @@ public sealed class AstraGraphHost
     public IVmHostServices HostServices { get; }
     public int ExecutedEntryPoints { get; private set; }
     public Debugging.GraphDebugger Debugger { get; }
+    public GraphFaultLog Faults { get; }
 
     public AstraGraphHost(
         AstraVm? vm = null,
@@ -35,8 +36,9 @@ public sealed class AstraGraphHost
         State = state ?? new AstraStateStore();
         HostServices = hostServices ?? new DefaultVmHostServices();
         Debugger = debugger ?? new Debugging.GraphDebugger();
-        Scheduler = new GraphScheduler();
-        EventRouter = new GraphEventRouter();
+        Faults = new GraphFaultLog();
+        Scheduler = new GraphScheduler(Faults);
+        EventRouter = new GraphEventRouter(Faults);
         Continuations = new ContinuationScheduler(Vm, HostServices);
     }
 

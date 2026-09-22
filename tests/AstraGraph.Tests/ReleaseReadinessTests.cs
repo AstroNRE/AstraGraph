@@ -160,7 +160,9 @@ public sealed class ReleaseReadinessTests
     {
         var left = new AstraGraph.Persistence.Cache.CompilationCacheKey("s", "c", "r", "b", "Server", EngineApiVersion: "1");
         var right = left with { EngineApiVersion = "2" };
+        var profile = left with { CompatibilityProfile = "other", RobustCommit = "abc", SchemaSetHash = "Hp:int" };
         Assert.That(left.ComputeKeyString(), Is.Not.EqualTo(right.ComputeKeyString()));
+        Assert.That(left.ComputeKeyString(), Is.Not.EqualTo(profile.ComputeKeyString()));
     }
 
     private static GraphDocument EntryDocument(GraphId graphId, string name) => new()

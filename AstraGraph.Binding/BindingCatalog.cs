@@ -52,9 +52,8 @@ public sealed class BindingCatalog
                 _methodsByDescriptor[desc.Descriptor] = desc;
                 typeDesc.Methods.Add(desc);
             }
-            catch
+            catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException or ArgumentException)
             {
-                // Skip methods with unsupported generic constraints or ref struct types
             }
         }
     }

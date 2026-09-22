@@ -6,10 +6,13 @@ const palette = [
 ];
 
 const nodes = [];
+const connections = [];
 let selected = null;
 let socket = null;
 let sessionId = "";
 let graphId = "";
+let baseRevisionId = "00000000-0000-0000-0000-000000000000";
+let draftRevisionId = "";
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 const problems = document.getElementById("problems");
@@ -22,13 +25,19 @@ document.getElementById("palette").addEventListener("click", (event) => {
   const row = event.target.closest(".palette-item");
   if (!row) return;
   const item = palette[Number(row.dataset.index)];
-  nodes.push({ id: crypto.randomUUID(), type: item.type, name: item.name, x: 80 + nodes.length * 24, y: 80 + nodes.length * 16 });
+  nodes.push(makeNode(item));
   draw();
 });
 
 canvas.addEventListener("mousedown", (event) => {
   const point = pointFromEvent(event);
-  selected = nodes.findLast(node => point.x >= node.x && point.x <= node.x + 140 && point.y >= node.y && point.y <= node.y + 48) ?? null;
+  const hit = nodes.findLast(node => point.x >= node.x && point.x <= node.x + 140 && point.y >= node.y && point.y <= node.y + 48) ?? null;
+  if (selected && hit && hit !== selected) {
+    const from = selected.pins.find(pin => pin.direction === "Output");
+    const to = hit.pins.find(pin => pin.direction === "Input");
+    if (from && to) connections.push({ fromNode: selected.id, fromPin: from.id, toNode: hit.id, toPin: to.id });
+  }
+  selected = hit;
   draw();
 });
 
@@ -45,11 +54,15 @@ document.getElementById("compile").addEventListener("click", () => {
     renderProblems(["Authoring backend unavailable"]);
     return;
   }
-  send("draft.compile.request", {
+  const draftJson = JSON.stringify(graphDocument());
+  send("draft.save.request", {
     sessionId,
     graphId,
-    draftJson: JSON.stringify(graphDocument())
+    baseRevisionId,
+    draftJson,
+    authorMessage: "Studio save"
   });
+  send("draft.compile.request", { sessionId, graphId, draftJson });
 });
 
 document.getElementById("publish").addEventListener("click", () => {
@@ -60,7 +73,7 @@ document.getElementById("publish").addEventListener("click", () => {
   send("draft.publish.request", {
     sessionId,
     graphId,
-    baseRevisionId: "00000000-0000-0000-0000-000000000000",
+    baseRevisionId,
     draftJson: JSON.stringify(graphDocument()),
     publishMessage: "Studio publish"
   });
@@ -71,7 +84,16 @@ document.getElementById("rollback").addEventListener("click", () => {
     renderProblems(["Authoring backend unavailable"]);
     return;
   }
-  send("debugger.command.request", { sessionId, graphId, action: "Rollback" });
+  const target = document.getElementById("history").dataset.revision || "";
+  send("history.rollback.request", { sessionId, graphId, targetRevisionId: target || baseRevisionId });
+});
+
+document.getElementById("debug").addEventListener("click", () => {
+  if (!sessionId) {
+    renderProblems(["Authoring backend unavailable"]);
+    return;
+  }
+  send("debugger.command.request", { sessionId, graphId, action: 3 });
 });
 
 connect();
@@ -102,15 +124,48 @@ function connect() {
     if (!message) return;
     if (message.kind === "auth.handshake.response" && message.body.status === 0) {
       sessionId = message.body.sessionId;
+      applyPermissions(message.body.permissions);
       send("graph.list.request", { sessionId });
+      send("catalog.query.request", { sessionId });
+      return;
+    }
+    if (message.kind === "session.updated") {
+      applyPermissions(message.body.permissions);
+      if (!permissionBits(message.body.permissions)) {
+        sessionId = "";
+        renderProblems(["Authoring backend unavailable"]);
+      }
       return;
     }
     if (message.kind === "graph.list.response" && message.body.graphs?.length) {
       graphId = message.body.graphs[0].id;
+      baseRevisionId = message.body.graphs[0].activeRevision || baseRevisionId;
+      send("graph.fetch.request", { sessionId, graphId });
+      send("history.list.request", { sessionId, graphId });
+    }
+    if (message.kind === "catalog.query.response") {
+      for (const entry of message.body.entries ?? []) {
+        palette.push({ type: "Native.Call", name: entry.signature, method: entry.signature });
+      }
+      renderPalette();
+    }
+    if (message.kind === "history.list.response") {
+      renderHistory(message.body.revisions ?? []);
+    }
+    if (message.kind === "draft.save.response" && message.body.draftRevisionId) {
+      draftRevisionId = message.body.draftRevisionId;
+    }
+    if (message.kind === "graph.fetch.response" && message.body.draftJson) {
+      loadDraft(message.body.draftJson);
+    }
+    if (message.kind === "draft.save.response" && message.body.errorMessage) {
+      renderProblems([message.body.errorMessage]);
     }
     if (message.kind === "draft.compile.response" || message.kind === "draft.publish.response") {
       const lines = (message.body.diagnostics ?? []).map(item => item.message ?? item.Message ?? "diagnostic");
       if (message.body.errorMessage) lines.push(message.body.errorMessage);
+      if (message.body.publishedRevision) baseRevisionId = message.body.publishedRevision;
+      if (message.body.status === 2) lines.push("Stale draft conflict.");
       if (!lines.length) lines.push(message.kind === "draft.publish.response" ? `Published ${message.body.publishedRevision ?? ""}` : "Compile finished.");
       renderProblems(lines);
     }
@@ -123,6 +178,37 @@ function connect() {
     status.textContent = "offline";
     renderProblems(["Authoring backend unavailable"]);
   });
+}
+
+function permissionBits(value) {
+  const bits = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(bits) ? bits : 0;
+}
+
+function applyPermissions(value) {
+  const bits = permissionBits(value);
+  document.getElementById("compile").disabled = (bits & 4) === 0;
+  document.getElementById("publish").disabled = (bits & 8) === 0 && (bits & 16) === 0;
+  document.getElementById("rollback").disabled = (bits & 32) === 0;
+}
+
+function loadDraft(json) {
+  try {
+    const document = JSON.parse(json);
+    nodes.splice(0, nodes.length, ...(document.nodes ?? []).map(node => ({
+      id: node.id,
+      nodeType: node.nodeType,
+      name: node.name,
+      x: node.x ?? 80,
+      y: node.y ?? 80,
+      properties: node.properties ?? {},
+      pins: node.pins ?? []
+    })));
+    connections.splice(0, connections.length, ...(document.connections ?? []));
+    draw();
+  } catch {
+    renderProblems(["Saved draft could not be read."]);
+  }
 }
 
 function send(kind, body) {
@@ -154,11 +240,56 @@ function unframe(buffer) {
   return { kind, body: JSON.parse(payload) };
 }
 
+function makeNode(item) {
+  const id = crypto.randomUUID();
+  return {
+    id,
+    name: item.name,
+    nodeType: item.type,
+    x: 80 + nodes.length * 24,
+    y: 80 + nodes.length * 16,
+    properties: item.method ? { Method: item.method } : {},
+    pins: [
+      { id: crypto.randomUUID(), name: "In", direction: "Input", kind: "Execution" },
+      { id: crypto.randomUUID(), name: "Out", direction: "Output", kind: "Execution" }
+    ]
+  };
+}
+
+function renderPalette() {
+  document.getElementById("palette").innerHTML = palette.map((item, index) =>
+    `<div class="palette-item" data-index="${index}">${item.name}</div>`).join("");
+}
+
+function renderHistory(revisions) {
+  const history = document.getElementById("history");
+  history.innerHTML = revisions.map(line => {
+    const id = String(line).split("|")[0];
+    return `<div class="problem" data-revision="${id}">${line}</div>`;
+  }).join("");
+  history.onclick = (event) => {
+    const row = event.target.closest("[data-revision]");
+    if (row) history.dataset.revision = row.dataset.revision;
+  };
+}
+
 function graphDocument() {
   return {
+    id: graphId || undefined,
     name: "StudioDraft",
-    kind: "system",
-    nodes: nodes.map(node => ({ id: node.id, name: node.name, nodeType: node.type, x: node.x, y: node.y }))
+    kind: "System",
+    baseRevisionId,
+    draftRevisionId,
+    nodes: nodes.map(node => ({
+      id: node.id,
+      name: node.name,
+      nodeType: node.nodeType,
+      x: node.x,
+      y: node.y,
+      properties: node.properties,
+      pins: node.pins
+    })),
+    connections
   };
 }
 
@@ -176,6 +307,16 @@ function pointFromEvent(event) {
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = "#8ab4f8";
+  for (const connection of connections) {
+    const from = nodes.find(node => node.id === connection.fromNode);
+    const to = nodes.find(node => node.id === connection.toNode);
+    if (!from || !to) continue;
+    ctx.beginPath();
+    ctx.moveTo(from.x + 140, from.y + 24);
+    ctx.lineTo(to.x, to.y + 24);
+    ctx.stroke();
+  }
   for (const node of nodes) {
     ctx.fillStyle = node === selected ? "#3a6ea5" : "#262b3a";
     ctx.fillRect(node.x, node.y, 140, 48);

@@ -31,8 +31,27 @@ public sealed class BridgeWebSocketProxy : IAsyncDisposable
     {
         _ws = webSocket;
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        _receiveLoop = ProcessAsync(_ws, _cts.Token);
-        await _receiveLoop;
+        IDisposable? outbound = null;
+        if (_handler is AuthoringServerSession session)
+        {
+            outbound = session.SubscribeOutbound(message =>
+            {
+                if (_ws is { State: WebSocketState.Open })
+                {
+                    _ = SendAsync(message);
+                }
+            });
+        }
+
+        try
+        {
+            _receiveLoop = ProcessAsync(_ws, _cts.Token);
+            await _receiveLoop;
+        }
+        finally
+        {
+            outbound?.Dispose();
+        }
     }
 
     /// <summary>
@@ -105,8 +124,13 @@ public sealed class BridgeWebSocketProxy : IAsyncDisposable
         {
             "auth.handshake.request" => JsonSerializer.Deserialize<AuthHandshakeRequestMsg>(payload, AuthoringJsonContext.Default),
             "graph.list.request" => JsonSerializer.Deserialize<GraphListRequestMsg>(payload, AuthoringJsonContext.Default),
+            "draft.save.request" => JsonSerializer.Deserialize<DraftSaveRequestMsg>(payload, AuthoringJsonContext.Default),
             "draft.compile.request" => JsonSerializer.Deserialize<DraftCompileRequestMsg>(payload, AuthoringJsonContext.Default),
             "draft.publish.request" => JsonSerializer.Deserialize<DraftPublishRequestMsg>(payload, AuthoringJsonContext.Default),
+            "graph.fetch.request" => JsonSerializer.Deserialize<GraphFetchRequestMsg>(payload, AuthoringJsonContext.Default),
+            "catalog.query.request" => JsonSerializer.Deserialize<CatalogQueryRequestMsg>(payload, AuthoringJsonContext.Default),
+            "history.list.request" => JsonSerializer.Deserialize<HistoryListRequestMsg>(payload, AuthoringJsonContext.Default),
+            "history.rollback.request" => JsonSerializer.Deserialize<HistoryRollbackRequestMsg>(payload, AuthoringJsonContext.Default),
             "debugger.command.request" => JsonSerializer.Deserialize<DebuggerCommandRequestMsg>(payload, AuthoringJsonContext.Default),
             "ping" => JsonSerializer.Deserialize<PingMsg>(payload, AuthoringJsonContext.Default),
             _ => null

@@ -17,8 +17,12 @@ public sealed class EngineCompatibilityManifest
     public string TestedSs14Commit { get; init; } = "";
     public string TestedRobustCommit { get; init; } = "";
     public string EngineApiVersion { get; init; } = "1";
+    public string AdapterApiVersion { get; init; } = "1";
     public bool DynamicNativeSystemOrdering { get; init; }
     public string[] RequiredEngineHooks { get; init; } = [];
+    public string[] RequiredFeatures { get; init; } = [];
+    public string[] UnsupportedFeatures { get; init; } = [];
+    public string LastVerifiedDate { get; init; } = "";
 
     public const string NativeOrderingWarning =
         "DynamicNativeSystemOrdering is false. Before/After against native systems is recorded and not applied.";
@@ -78,6 +82,30 @@ public sealed class EngineCompatibilityService : IEngineCompatibilityService
     public void EnsureCompatible(EngineCompatibilityReport report)
     {
         ArgumentNullException.ThrowIfNull(report);
+        if (!string.Equals(Manifest.EngineFamily, "RobustToolbox", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new EngineCompatibilityException($"Engine family '{Manifest.EngineFamily}' is not RobustToolbox.");
+        }
+
+        if (string.IsNullOrWhiteSpace(Manifest.CompatibilityProfile))
+        {
+            throw new EngineCompatibilityException("Compatibility profile is missing.");
+        }
+
+        if (Manifest.DynamicNativeSystemOrdering)
+        {
+            throw new EngineCompatibilityException(EngineCompatibilityManifest.NativeOrderingWarning);
+        }
+
+        foreach (var feature in Manifest.UnsupportedFeatures)
+        {
+            if (Manifest.RequiredEngineHooks.Contains(feature, StringComparer.Ordinal) ||
+                Manifest.RequiredFeatures.Contains(feature, StringComparer.Ordinal))
+            {
+                throw new EngineCompatibilityException($"Feature '{feature}' is both required and unsupported.");
+            }
+        }
+
         if (!string.Equals(report.RobustCommit, Manifest.TestedRobustCommit, StringComparison.OrdinalIgnoreCase))
         {
             throw new EngineCompatibilityException(
@@ -90,12 +118,19 @@ public sealed class EngineCompatibilityService : IEngineCompatibilityService
                 $"Engine API '{report.EngineApiVersion}' does not match manifest API '{Manifest.EngineApiVersion}'.");
         }
 
-        foreach (var hook in Manifest.RequiredEngineHooks)
+        var missing = Manifest.RequiredEngineHooks
+            .Concat(Manifest.RequiredFeatures)
+            .Where(hook => !report.AvailableHooks.Contains(hook, StringComparer.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (missing.Length > 0)
         {
-            if (!report.AvailableHooks.Contains(hook, StringComparer.Ordinal))
-            {
-                throw new EngineCompatibilityException($"Required engine hook '{hook}' is not available.");
-            }
+            throw new EngineCompatibilityException(
+                "AstraGraph Compatibility Check\n\n" +
+                $"Profile: {Manifest.CompatibilityProfile}\n" +
+                "Engine API: unsupported\n\n" +
+                "Missing:\n- " + string.Join("\n- ", missing) +
+                "\n\nAstraGraph startup aborted.");
         }
     }
 

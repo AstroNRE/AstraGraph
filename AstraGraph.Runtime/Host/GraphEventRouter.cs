@@ -37,8 +37,14 @@ public sealed class GraphEventRouter
 {
     private readonly Dictionary<(Type?, Type), List<EventSubscriptionBinding>> _subscriptions = [];
     private readonly Lock _lock = new();
+    private readonly GraphFaultLog? _faults;
 
     public Exception? LastDispatchError { get; private set; }
+
+    public GraphEventRouter(GraphFaultLog? faults = null)
+    {
+        _faults = faults;
+    }
 
     public void Subscribe(
         Type? componentType,
@@ -76,7 +82,7 @@ public sealed class GraphEventRouter
         }
     }
 
-    public void SubscribeRefInvoke(GraphEventSubscription descriptor, Action invoke)
+    public void SubscribeRefInvoke(GraphEventSubscription descriptor, Action<object> invoke)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
         ArgumentNullException.ThrowIfNull(invoke);
@@ -85,9 +91,14 @@ public sealed class GraphEventRouter
         bind.MakeGenericMethod(descriptor.EventType).Invoke(this, [descriptor, invoke]);
     }
 
-    private void BindRefInvoke<TEvent>(GraphEventSubscription descriptor, Action invoke)
+    private void BindRefInvoke<TEvent>(GraphEventSubscription descriptor, Action<object> invoke)
     {
-        SubscribeRef<TEvent>(descriptor.GraphId, descriptor.EntryPointId, (ref TEvent _) => invoke());
+        SubscribeRef<TEvent>(descriptor.GraphId, descriptor.EntryPointId, (ref TEvent ev) =>
+        {
+            object box = ev!;
+            invoke(box);
+            ev = (TEvent)box;
+        });
     }
 
     public void SubscribeRef<TEvent>(
@@ -171,13 +182,26 @@ public sealed class GraphEventRouter
 
         foreach (var sub in matched)
         {
-            if (sub.RefHandler is RefEventDispatcher<TEvent> typedHandler)
+            if (_faults?.IsOpen(sub.Descriptor.GraphId) == true)
             {
-                typedHandler(ref ev);
+                continue;
             }
-            else if (sub.UntypedHandler != null)
+
+            try
             {
-                sub.UntypedHandler(null, ev!);
+                if (sub.RefHandler is RefEventDispatcher<TEvent> typedHandler)
+                {
+                    typedHandler(ref ev);
+                }
+                else if (sub.UntypedHandler != null)
+                {
+                    sub.UntypedHandler(null, ev!);
+                }
+            }
+            catch (Exception ex)
+            {
+                LastDispatchError = ex;
+                _faults?.Record(sub.Descriptor.GraphId, RevisionId.Empty, ex, tick: 0);
             }
         }
     }
@@ -247,6 +271,7 @@ public sealed class GraphEventRouter
             catch (Exception ex)
             {
                 LastDispatchError = ex;
+                _faults?.Record(sub.Descriptor.GraphId, RevisionId.Empty, ex, tick: 0);
             }
         }
 

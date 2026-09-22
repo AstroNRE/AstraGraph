@@ -83,6 +83,85 @@ public sealed class DraftPublishResponseMsg : AuthoringMessage
     public string? ErrorMessage { get; init; }
 }
 
+public sealed class DraftSaveRequestMsg : AuthoringMessage
+{
+    public override string Kind => "draft.save.request";
+    public string SessionId { get; init; } = string.Empty;
+    public GraphId GraphId { get; init; }
+    public RevisionId BaseRevisionId { get; init; }
+    public string DraftJson { get; init; } = string.Empty;
+    public string AuthorMessage { get; init; } = string.Empty;
+}
+
+public sealed class DraftSaveResponseMsg : AuthoringMessage
+{
+    public override string Kind => "draft.save.response";
+    public AuthoringStatusCode Status { get; init; }
+    public RevisionId? DraftRevisionId { get; init; }
+    public bool HasConflict { get; init; }
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class GraphFetchRequestMsg : AuthoringMessage
+{
+    public override string Kind => "graph.fetch.request";
+    public string SessionId { get; init; } = string.Empty;
+    public GraphId GraphId { get; init; }
+}
+
+public sealed class GraphFetchResponseMsg : AuthoringMessage
+{
+    public override string Kind => "graph.fetch.response";
+    public AuthoringStatusCode Status { get; init; }
+    public string DraftJson { get; init; } = string.Empty;
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class CatalogQueryRequestMsg : AuthoringMessage
+{
+    public override string Kind => "catalog.query.request";
+    public string SessionId { get; init; } = string.Empty;
+    public string? SearchFilter { get; init; }
+}
+
+public sealed class CatalogQueryResponseMsg : AuthoringMessage
+{
+    public override string Kind => "catalog.query.response";
+    public AuthoringStatusCode Status { get; init; }
+    public IReadOnlyList<CatalogEntryDto> Entries { get; init; } = [];
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class HistoryListRequestMsg : AuthoringMessage
+{
+    public override string Kind => "history.list.request";
+    public string SessionId { get; init; } = string.Empty;
+    public GraphId GraphId { get; init; }
+}
+
+public sealed class HistoryListResponseMsg : AuthoringMessage
+{
+    public override string Kind => "history.list.response";
+    public AuthoringStatusCode Status { get; init; }
+    public IReadOnlyList<string> Revisions { get; init; } = [];
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class HistoryRollbackRequestMsg : AuthoringMessage
+{
+    public override string Kind => "history.rollback.request";
+    public string SessionId { get; init; } = string.Empty;
+    public GraphId GraphId { get; init; }
+    public RevisionId TargetRevisionId { get; init; }
+}
+
+public sealed class SessionUpdatedMsg : AuthoringMessage
+{
+    public override string Kind => "session.updated";
+    public string SessionId { get; init; } = string.Empty;
+    public AstraPermission Permissions { get; init; }
+}
+
 public sealed class DebuggerCommandRequestMsg : AuthoringMessage
 {
     public override string Kind => "debugger.command.request";
