@@ -350,6 +350,17 @@ public sealed class GraphDefinedComponentTests
         Assert.That(deleted, Is.EqualTo(1));
     }
 
+    [Test]
+    public void WeaponMothroach_SerializesRunnableDocument()
+    {
+        var schema = MothroachSchema(out _, out _);
+        var document = WeaponGraph(schema).Document("WeaponMothroach");
+        var parsed = GraphSerializer.Deserialize(GraphSerializer.Serialize(document));
+        var analyzed = new SemanticAnalyzer(TypeRegistry.CreateDefault()).Analyze(parsed);
+        Assert.That(analyzed.Success, Is.True, analyzed.Diagnostics.ToString());
+        File.WriteAllText(Path.Combine(Path.GetTempPath(), "WeaponMothroach.agraph"), GraphSerializer.Serialize(document));
+    }
+
     private static AstraValue Count(Dictionary<string, int> counts, string name)
     {
         counts[name]++;
