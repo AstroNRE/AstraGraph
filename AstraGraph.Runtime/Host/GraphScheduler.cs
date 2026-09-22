@@ -29,6 +29,17 @@ public sealed class GraphScheduler
     private bool _dirty = true;
     private readonly Lock _lock = new();
 
+    public IReadOnlyCollection<SystemRegistration> Systems
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _systems.Values.ToList();
+            }
+        }
+    }
+
     public void RegisterSystem(SystemRegistration registration)
     {
         ArgumentNullException.ThrowIfNull(registration);
