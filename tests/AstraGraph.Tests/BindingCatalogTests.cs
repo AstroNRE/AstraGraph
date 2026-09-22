@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Reflection;
 using AstraGraph.Binding;
 using AstraGraph.Core;
+using AstraGraph.HotReload;
 using AstraGraph.VM;
 using NUnit.Framework;
 
@@ -98,4 +99,24 @@ public sealed class BindingCatalogTests
         Assert.That(AccessPolicy.IsAccessAllowed(SecurityProfile.Trusted, SecurityProfile.Engine), Is.True);
         Assert.That(AccessPolicy.IsAccessAllowed(SecurityProfile.Engine, SecurityProfile.Engine), Is.True);
     }
+
+    [Test]
+    public void IndexGameplaySurface_ResolvesEventAndComponentByShortName()
+    {
+        var catalog = new BindingCatalog();
+        catalog.IndexGameplaySurface(typeof(SampleHitEvent).Assembly);
+
+        Assert.That(catalog.TryGetNamedType(nameof(SampleHitEvent), out var hit), Is.True);
+        Assert.That(hit, Is.EqualTo(typeof(SampleHitEvent)));
+        Assert.That(catalog.TryGetNamedType(nameof(SampleTransformComponent), out var component), Is.True);
+        Assert.That(component, Is.EqualTo(typeof(SampleTransformComponent)));
+
+        var resolver = new CatalogEntryPointTypeResolver(catalog);
+        Assert.That(resolver.Resolve(nameof(SampleHitEvent)), Is.EqualTo(typeof(SampleHitEvent)));
+    }
+}
+
+public sealed class SampleHitEvent
+{
+    public int Id { get; set; }
 }

@@ -1,3 +1,4 @@
+using System.Reflection;
 using AstraGraph.Persistence;
 using AstraGraph.Runtime.Security;
 
@@ -21,6 +22,11 @@ public sealed record AstraServerHostOptions
     public IAstraPermissionProvider? PermissionProvider { get; init; }
 
     public uint RequiredAdminFlag { get; init; } = SS14AdminFlagsConstants.AdminFlagAstraGraph;
+
+    /// <summary>
+    /// Content assemblies whose public <c>*Event</c> and <c>*Component</c> types graphs may name.
+    /// </summary>
+    public IReadOnlyList<Assembly> EventAssemblies { get; init; } = [];
 
     public static AstraServerHostOptions CreateFallback() => new()
     {

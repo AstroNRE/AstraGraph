@@ -231,7 +231,7 @@ export function upsertSchema(document: GraphDocument, schema: GraphSchemaDocumen
 
 const gameplayPins: Record<string, { properties?: Record<string, string>; pins: { name: string; direction: "input" | "output"; kind: "execution" | "data"; dataType?: string; defaultValue?: string }[] }> = {
   "Event.Native": {
-    properties: { eventType: "" },
+    properties: { eventType: "", componentType: "" },
     pins: [
       { name: "Out", direction: "output", kind: "execution" },
       { name: "Entity", direction: "output", kind: "data", dataType: "EntityUid" },

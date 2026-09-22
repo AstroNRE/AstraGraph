@@ -12,6 +12,7 @@ public sealed class BindingCatalog
     private readonly ConcurrentDictionary<string, NativeMethodDescriptor> _methodsByDescriptor = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<Type, NativeTypeDescriptor> _types = new();
     private readonly ConcurrentDictionary<string, Type> _events = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, Type> _byName = new(StringComparer.Ordinal);
     private readonly TypeRegistry _typeRegistry;
 
     public BindingCatalog(TypeRegistry? typeRegistry = null)
@@ -62,10 +63,80 @@ public sealed class BindingCatalog
 
     public void IndexEventType(Type eventType)
     {
-        ArgumentNullException.ThrowIfNull(eventType);
-        var typeDesc = _types.GetOrAdd(eventType, t => new NativeTypeDescriptor(t, t.Name));
-        IndexMembers(eventType, typeDesc);
+        IndexSurface(eventType);
         _events[eventType.FullName ?? eventType.Name] = eventType;
+    }
+
+    /// <summary>
+    /// Indexes public event and component types so a graph can name them without an assembly-qualified string.
+    /// </summary>
+    public void IndexGameplaySurface(Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+        foreach (var type in ExportedTypes(assembly))
+        {
+            if (IsEventType(type))
+            {
+                IndexEventType(type);
+            }
+            else if (IsComponentType(type))
+            {
+                IndexSurface(type);
+            }
+        }
+    }
+
+    public bool TryGetNamedType(string name, out Type? type)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            type = null;
+            return false;
+        }
+
+        if (_byName.TryGetValue(name, out type) || TryGetEvent(name, out type))
+        {
+            return type != null;
+        }
+
+        type = null;
+        return false;
+    }
+
+    public static bool IsEventType(Type type) =>
+        IsSurfaceCandidate(type) && type.Name.EndsWith("Event", StringComparison.Ordinal);
+
+    public static bool IsComponentType(Type type) =>
+        IsSurfaceCandidate(type) && type.Name.EndsWith("Component", StringComparison.Ordinal);
+
+    private void IndexSurface(Type type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        var key = type.FullName ?? type.Name;
+        if (!_byName.TryAdd(key, type))
+        {
+            return;
+        }
+
+        _byName.TryAdd(type.Name, type);
+        var typeDesc = _types.GetOrAdd(type, t => new NativeTypeDescriptor(t, t.Name));
+        IndexMembers(type, typeDesc);
+    }
+
+    private static bool IsSurfaceCandidate(Type type) =>
+        type is { IsPublic: true, IsAbstract: false, IsGenericTypeDefinition: false, IsInterface: false, IsEnum: false }
+        && type.DeclaringType == null;
+
+    private static IEnumerable<Type> ExportedTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetExportedTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            return ex.Types.OfType<Type>();
+        }
     }
 
     public IEnumerable<Type> Events => _events.Values;

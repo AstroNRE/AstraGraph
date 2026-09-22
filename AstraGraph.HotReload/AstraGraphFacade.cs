@@ -1,3 +1,4 @@
+using System.Reflection;
 using AstraGraph.Binding;
 using AstraGraph.Core;
 using AstraGraph.Persistence;
@@ -60,19 +61,37 @@ public sealed class AstraGraphFacade :
         ArgumentNullException.ThrowIfNull(options);
         var permissions = options.PermissionProvider
             ?? throw new InvalidOperationException("PermissionProvider must be resolved before creating the server facade.");
-        return ForServer(host, options.Storage, permissions, options.CompatibilityManifestPath);
+        return ForServer(host, options.Storage, permissions, options.CompatibilityManifestPath, options.EventAssemblies);
     }
 
     private static AstraGraphFacade ForServer(
         AstraGraphHost host,
         StorageLayout layout,
         IAstraPermissionProvider permissions,
-        string? compatibilityManifestPath)
+        string? compatibilityManifestPath,
+        IReadOnlyList<Assembly>? eventAssemblies = null)
     {
         ArgumentNullException.ThrowIfNull(layout);
         layout.EnsureDirectories();
         var catalog = new BindingCatalog();
-        var hotReload = new HotReloadManager(host, archive: new RevisionArchive(layout), catalog: catalog);
+        if (eventAssemblies != null)
+        {
+            foreach (var assembly in eventAssemblies)
+            {
+                if (assembly == null)
+                {
+                    continue;
+                }
+
+                catalog.IndexGameplaySurface(assembly);
+            }
+        }
+
+        var hotReload = new HotReloadManager(
+            host,
+            archive: new RevisionArchive(layout),
+            catalog: catalog,
+            typeResolver: new CatalogEntryPointTypeResolver(catalog));
         var loader = new BootstrapLoader(layout);
         var state = new PersistentStateStore(layout);
         var pipeline = new AstraBootstrapService(host, hotReload, loader, state, compatibilityManifestPath);
