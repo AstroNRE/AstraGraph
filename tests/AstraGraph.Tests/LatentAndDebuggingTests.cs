@@ -273,6 +273,37 @@ public sealed class LatentAndDebuggingTests
     }
 
     [Test]
+    public void Debugger_StepOut_RunsUntilReturnThenPauses()
+    {
+        var pool = new ConstantPool();
+        var c1 = pool.GetOrAddInt64(10);
+        var c2 = pool.GetOrAddInt64(20);
+        var instructions = new List<BytecodeInstruction>
+        {
+            new((byte)IrOpCode.LoadConst, 0, c1, 0, 0),
+            new((byte)IrOpCode.LoadConst, 1, c2, 0, 0),
+            new((byte)IrOpCode.Add, 2, 0, 1, 0),
+            new((byte)IrOpCode.Return, BytecodeInstruction.NoRegister, 2, 0, 0)
+        };
+        var func = new BytecodeFunction(pool.GetOrAddString("StepOut"), 3, 0, instructions, [NodeId.New(), NodeId.New(), NodeId.New(), NodeId.New()]);
+        var program = new BytecodeProgram(GraphId.New(), RevisionId.New(), "hash", pool);
+        var debugger = new GraphDebugger();
+        debugger.StepOut();
+
+        var stopped = new AstraVm().Execute(program, func, debugHook: debugger);
+
+        Assert.That(stopped.IsSuspended, Is.True);
+        Assert.That(stopped.ResumeInstructionPointer, Is.EqualTo(3));
+        Assert.That(stopped.CapturedRegisters![2].AsInt64(), Is.EqualTo(30));
+        Assert.That(debugger.ExecutionMode, Is.EqualTo(DebuggerExecutionMode.Paused));
+
+        debugger.StepOut();
+        var finished = new AstraVm().Execute(program, func, stopped.CapturedRegisters!.ToArray(), stopped.ResumeInstructionPointer, debugHook: debugger);
+        Assert.That(finished.IsSuccess, Is.True);
+        Assert.That(finished.ReturnValue.AsInt64(), Is.EqualTo(30));
+    }
+
+    [Test]
     public void Debugger_PauseAndResume_HaltsImmediatelyAndContinues()
     {
         var pool = new ConstantPool();

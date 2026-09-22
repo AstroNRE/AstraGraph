@@ -64,6 +64,15 @@ public interface IVmDebugHook
         NodeId? nodeId,
         int instructionPointer,
         ReadOnlySpan<AstraValue> registers);
+
+    /// <summary>
+    /// Step Out stops on the current function's Return or Yield. Other hooks ignore it.
+    /// </summary>
+    bool StopForStepOut(
+        IrOpCode opcode,
+        NodeId? nodeId,
+        int instructionPointer,
+        ReadOnlySpan<AstraValue> registers) => false;
 }
 
 /// <summary>

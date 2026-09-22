@@ -1,7 +1,7 @@
 .shell {
   height: 100%;
   display: grid;
-  grid-template-rows: 40px minmax(0, 1fr) auto;
+  grid-template-rows: 40px minmax(0, 1fr) auto 22px;
   background: var(--surface-panel);
 }
 .topbar {
@@ -29,7 +29,24 @@
 .workspace {
   min-height: 0;
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr) 260px;
+  grid-template-columns: 44px 240px minmax(0, 1fr) 260px;
+}
+.activity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 4px;
+  background: var(--surface-panel);
+}
+.activity button { font-size: 10px; text-transform: capitalize; }
+.activity button.active { color: var(--accent); }
+.statusline {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 .panel {
   overflow: auto;
@@ -109,10 +126,10 @@ summary { cursor: pointer; font-size: 12px; color: var(--text-secondary); paddin
   font-size: 12px;
 }
 .dock-body {
-  display: grid;
-  grid-template-columns: 1.4fr 1fr;
-  max-height: 168px;
+  display: block;
+  max-height: 180px;
 }
+.dock-bar button.active { color: var(--accent); }
 .dock-body section { overflow: auto; padding: 0 14px 12px; min-width: 0; }
 .dock-body section + section { border-left: 1px solid var(--border-subtle); }
 .problem.error { color: var(--error); }

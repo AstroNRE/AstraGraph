@@ -249,6 +249,99 @@ public sealed class ConnectionSuggestResponseMsg : AuthoringMessage
     public string? Reason { get; init; }
 }
 
+public sealed class DebuggerInspectRequestMsg : AuthoringMessage
+{
+    public override string Kind => "debugger.inspect.request";
+    public string SessionId { get; init; } = string.Empty;
+    public GraphId GraphId { get; init; }
+}
+
+public sealed class DebuggerInspectResponseMsg : AuthoringMessage
+{
+    public override string Kind => "debugger.inspect.response";
+    public AuthoringStatusCode Status { get; init; }
+    public string? SuspendedNodeId { get; init; }
+    public IReadOnlyList<DebugValueDto> Locals { get; init; } = [];
+    public IReadOnlyList<DebugValueDto> Watches { get; init; } = [];
+    public IReadOnlyList<DebugTraceDto> Trace { get; init; } = [];
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class DebuggerWatchRequestMsg : AuthoringMessage
+{
+    public override string Kind => "debugger.watch.request";
+    public string SessionId { get; init; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
+    public string Expression { get; init; } = string.Empty;
+    public bool Remove { get; init; }
+}
+
+public sealed class DebuggerWatchResponseMsg : AuthoringMessage
+{
+    public override string Kind => "debugger.watch.response";
+    public AuthoringStatusCode Status { get; init; }
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class ProfilerSnapshotRequestMsg : AuthoringMessage
+{
+    public override string Kind => "profiler.snapshot.request";
+    public string SessionId { get; init; } = string.Empty;
+    public GraphId GraphId { get; init; }
+    public bool Reset { get; init; }
+}
+
+public sealed class ProfilerSnapshotResponseMsg : AuthoringMessage
+{
+    public override string Kind => "profiler.snapshot.response";
+    public AuthoringStatusCode Status { get; init; }
+    public ProfilerSnapshotDto? Snapshot { get; init; }
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class AuditQueryRequestMsg : AuthoringMessage
+{
+    public override string Kind => "audit.query.request";
+    public string SessionId { get; init; } = string.Empty;
+}
+
+public sealed class AuditQueryResponseMsg : AuthoringMessage
+{
+    public override string Kind => "audit.query.response";
+    public AuthoringStatusCode Status { get; init; }
+    public IReadOnlyList<AuditEntryDto> Entries { get; init; } = [];
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class SchemaListRequestMsg : AuthoringMessage
+{
+    public override string Kind => "schema.list.request";
+    public string SessionId { get; init; } = string.Empty;
+}
+
+public sealed class SchemaListResponseMsg : AuthoringMessage
+{
+    public override string Kind => "schema.list.response";
+    public AuthoringStatusCode Status { get; init; }
+    public IReadOnlyList<SchemaDto> Schemas { get; init; } = [];
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class SchemaSaveRequestMsg : AuthoringMessage
+{
+    public override string Kind => "schema.save.request";
+    public string SessionId { get; init; } = string.Empty;
+    public SchemaDto? Schema { get; init; }
+}
+
+public sealed class SchemaSaveResponseMsg : AuthoringMessage
+{
+    public override string Kind => "schema.save.response";
+    public AuthoringStatusCode Status { get; init; }
+    public SchemaDto? Schema { get; init; }
+    public string? ErrorMessage { get; init; }
+}
+
 public sealed class CatalogQueryRequestMsg : AuthoringMessage
 {
     public override string Kind => "catalog.query.request";

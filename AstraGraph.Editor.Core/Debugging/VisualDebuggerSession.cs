@@ -118,7 +118,7 @@ public sealed class VisualDebuggerSession
     public void StepOut()
     {
         CurrentSuspension = null;
-        _debugger.Resume();
+        _debugger.StepOut();
         OnResumed?.Invoke();
     }
 

@@ -42,7 +42,9 @@ public sealed class AstraVm
                 if (debugHook != null)
                 {
                     var sourceNode = function.GetSourceNodeId(ip);
-                    if (debugHook.ShouldSuspend(sourceNode, ip, registers))
+                    var upcoming = instructions[ip].AsOpCode;
+                    if (debugHook.StopForStepOut(upcoming, sourceNode, ip, registers) ||
+                        debugHook.ShouldSuspend(sourceNode, ip, registers))
                     {
                         return new VmExecutionResult(
                             VmExecutionStatus.Yielded,

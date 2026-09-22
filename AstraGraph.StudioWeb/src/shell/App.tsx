@@ -12,6 +12,7 @@ import {
   nudgeNodes,
   parseGraph,
   redo,
+  findVariableUses,
   removeNodes,
   serializeGraph,
   setNodeProperty,
@@ -24,6 +25,7 @@ import { GraphCanvas } from "../graph/GraphCanvas";
 import { readCatalog, type CatalogEntry } from "../bindings/catalog";
 import { BindingBrowser } from "./BindingBrowser";
 import { VariableEditor } from "./VariableEditor";
+import { SchemaEditor, type SchemaDocument } from "./SchemaEditor";
 
 const palette = [
   ["Event.Tick", "On Tick"],
@@ -32,7 +34,11 @@ const palette = [
   ["Core.VariableAssign", "Assign"]
 ] as const;
 
-interface GraphSummary { id: string; name: string; activeRevision?: string }
+interface GraphSummary { id: string; name: string; activeRevision?: string; kind?: string; side?: string }
+type Activity = "explorer" | "bindings" | "types" | "audit";
+type DockTab = "problems" | "watch" | "debug" | "profiler" | "history" | "output";
+const activities: Activity[] = ["explorer", "bindings", "types", "audit"];
+const dockTabs: DockTab[] = ["problems", "watch", "debug", "profiler", "history", "output"];
 interface Problem { severity: string; code: string; message: string; nodeId?: string; pinId?: string }
 interface RevisionRecord { revisionId: string; author: string; timestamp: string; message: string; semanticHash: string }
 interface Suggestion { bindingId: string; nodeType: string; displayName: string; pinName: string }
@@ -70,6 +76,19 @@ export function App() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [wireDrop, setWireDrop] = useState<{ nodeId: string; pinId: string } | null>(null);
   const [diffLines, setDiffLines] = useState<{ kind: string; detail: string }[]>([]);
+  const [activity, setActivity] = useState<Activity>(() => readStored(localStorage.getItem("astra-activity"), activities, "explorer"));
+  const [dockTab, setDockTab] = useState<DockTab>(() => readStored(localStorage.getItem("astra-dock"), dockTabs, "problems"));
+  const [schemas, setSchemas] = useState<SchemaDocument[]>([]);
+  const [auditEntries, setAuditEntries] = useState<{ action: string; author: string; message: string }[]>([]);
+  const [locals, setLocals] = useState<{ name: string; value: string }[]>([]);
+  const [watches, setWatches] = useState<{ name: string; expression: string; value: string }[]>([]);
+  const [trace, setTrace] = useState<{ nodeId: string; instructionPointer: number }[]>([]);
+  const [watchName, setWatchName] = useState("Value");
+  const [watchExpr, setWatchExpr] = useState("r0");
+  const [profile, setProfile] = useState<{ invocations?: number; averageMicroseconds?: number; instructions?: number; nativeCalls?: number; yields?: number; hottest?: { nodeId: string; hits: number }[] } | null>(null);
+  const [compileHash, setCompileHash] = useState("");
+  const [commandsOpen, setCommandsOpen] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [dockOpen, setDockOpen] = useState(false);
@@ -86,6 +105,16 @@ export function App() {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       const typing = target?.closest("input, textarea, select");
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "p") {
+        event.preventDefault();
+        setCommandsOpen(true);
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "p") {
+        event.preventDefault();
+        setQuickOpen(true);
+        return;
+      }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         setPaletteOpen(true);
@@ -223,6 +252,11 @@ export function App() {
     if (problems.length > 0 || revisions.length > 0) setDockOpen(true);
   }, [problems.length, revisions.length]);
 
+  useEffect(() => {
+    localStorage.setItem("astra-activity", activity);
+    localStorage.setItem("astra-dock", dockTab);
+  }, [activity, dockTab]);
+
   const publishAllowed = canPublish(bits, capabilities.publish) && !preview;
   const compileAllowed = canCompile(bits, capabilities.compile) && !preview;
   const rollbackAllowed = canRollback(bits) && !preview;
@@ -241,6 +275,7 @@ export function App() {
     if (!client) return;
     const response = await client.drafts.compile(graph.id, json);
     setProblems(readProblems(response.body.diagnostics, response.body.errorMessage));
+    setCompileHash(String(response.body.bytecodeHash ?? ""));
   }
 
   async function publish() {
@@ -429,7 +464,55 @@ export function App() {
     else await client.debug.setBreakpoint(graph.id, selectedNode.id);
   }
 
+  async function inspectDebug() {
+    if (!client) return;
+    const response = await client.debug.inspect(graph.id);
+    setLocals(readValues(response.body.locals));
+    setWatches(readValues(response.body.watches));
+    setTrace(Array.isArray(response.body.trace) ? response.body.trace as { nodeId: string; instructionPointer: number }[] : []);
+    const nodeId = String(response.body.suspendedNodeId ?? "");
+    if (nodeId) {
+      setSelected(nodeId);
+      setFocusToken((token) => token + 1);
+    }
+    setDockTab("debug");
+    setDockOpen(true);
+  }
+
+  async function addWatch() {
+    if (!client || !watchName) return;
+    await client.debug.watch(watchName, watchExpr);
+    await inspectDebug();
+  }
+
+  async function loadProfile() {
+    if (!client) return;
+    const response = await client.profiler.snapshot(graph.id);
+    setProfile((response.body.snapshot ?? null) as typeof profile);
+    setDockTab("profiler");
+    setDockOpen(true);
+  }
+
+  async function loadAudit() {
+    if (!client) return;
+    const response = await client.audit.query();
+    setAuditEntries(Array.isArray(response.body.entries) ? response.body.entries as { action: string; author: string; message: string }[] : []);
+  }
+
+  async function saveSchema(schema: SchemaDocument) {
+    if (!client) return;
+    const response = await client.schemas.save(schema);
+    if (Number(response.body.status) !== 0) {
+      setProblems([{ severity: "error", code: "SCHEMA", message: String(response.body.errorMessage ?? "Schema was not saved") }]);
+      return;
+    }
+    const listed = await client.schemas.list();
+    setSchemas(Array.isArray(listed.body.schemas) ? listed.body.schemas as SchemaDocument[] : []);
+  }
+
   const statusLabel = preview ? "Preview" : status === "bridge" ? "Connected" : "Offline";
+  const errorCount = problems.filter((problem) => problem.severity === "error").length;
+  const warningCount = problems.filter((problem) => problem.severity === "warning").length;
 
   return (
     <div className="shell">
@@ -457,6 +540,7 @@ export function App() {
         <button disabled={!debugAllowed} onClick={() => void client?.debug.resume(graph.id)}>Continue</button>
         <button disabled={!debugAllowed} onClick={() => void client?.debug.stepOver(graph.id)}>Step Over</button>
         <button disabled={!debugAllowed} onClick={() => void client?.debug.stepInto(graph.id)}>Step Into</button>
+        <button disabled={!debugAllowed} onClick={() => void client?.debug.stepOut(graph.id)}>Step Out</button>
         <div className="menu">
           <button aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>Theme</button>
           {menuOpen ? (
@@ -473,25 +557,52 @@ export function App() {
         </div>
       </header>
       <div className="workspace">
+        <nav className="activity" aria-label="Activity">
+          {activities.map((item) => (
+            <button key={item} className={item === activity ? "active" : ""} onClick={() => { setActivity(item); if (item === "audit") void loadAudit(); }}>{item}</button>
+          ))}
+        </nav>
         <aside className="panel">
-          <div className="section-label">Graphs</div>
-          <ul className="list">
-            {graphs.map((item) => (
-              <li key={item.id} className="graph-row">
-                <button className={item.id === graph.id ? "active" : ""} onClick={() => void openListed(item)}>{item.name}</button>
-                <button onClick={() => void deleteGraph(item.id)}>Delete</button>
-              </li>
-            ))}
-          </ul>
-          {graphs.length === 0 ? <p className="muted">No graphs yet</p> : null}
-          <button onClick={() => setCreateOpen(true)}>New graph</button>
-          <div className="section-label">Bindings</div>
-          <BindingBrowser
-            entries={catalog}
-            status={catalogStatus}
-            error={catalogError}
-            onInsert={(entry) => void insertBinding(entry)}
-          />
+          {activity === "explorer" ? (
+            <>
+              <div className="section-label">Live</div>
+              {graphKinds.map((kind) => {
+                const items = graphs.filter((item) => (item.kind ?? "System") === kind);
+                if (items.length === 0) return null;
+                return (
+                  <div key={kind}>
+                    <div className="section-label">{kind}</div>
+                    <ul className="list">
+                      {items.map((item) => (
+                        <li key={item.id} className="graph-row">
+                          <button className={item.id === graph.id ? "active" : ""} onClick={() => void openListed(item)}>{item.name}</button>
+                          <button onClick={() => void deleteGraph(item.id)}>Delete</button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+              {graphs.length === 0 ? <p className="muted">No graphs yet</p> : null}
+              {!graphs.some((item) => item.id === graph.id) ? <p className="muted">Drafts · {graph.name}</p> : null}
+              <button onClick={() => setCreateOpen(true)}>New graph</button>
+            </>
+          ) : null}
+          {activity === "bindings" ? (
+            <BindingBrowser
+              entries={catalog}
+              status={catalogStatus}
+              error={catalogError}
+              onInsert={(entry) => void insertBinding(entry)}
+            />
+          ) : null}
+          {activity === "types" ? <SchemaEditor schemas={schemas} onSave={(schema) => void saveSchema(schema)} /> : null}
+          {activity === "audit" ? (
+            <ul className="list">
+              {auditEntries.map((entry, index) => <li key={`${entry.action}-${index}`}>{entry.action} · {entry.author} · {entry.message}</li>)}
+              {auditEntries.length === 0 ? <li className="muted">No audit entries</li> : null}
+            </ul>
+          ) : null}
         </aside>
         <main className="canvas">
           {preview ? <div className="banner"><strong>Preview Mode</strong><span>No authoring backend connected</span></div> : null}
@@ -563,19 +674,26 @@ export function App() {
           <VariableEditor
             variables={graph.variables}
             onChange={(variables) => setStack((current) => edit(current, { ...current.present, variables }))}
+            onFind={(variable) => {
+              const uses = findVariableUses(graph, variable);
+              setProblems(uses.length > 0 ? uses.map((use) => ({ severity: "info", code: "REF", message: use.message, nodeId: use.nodeId })) : [{ severity: "info", code: "REF", message: `${variable.name} has no references` }]);
+              setDockTab("problems");
+              setDockOpen(true);
+            }}
           />
         </aside>
       </div>
       <footer className="dock">
-        <button className="dock-bar" onClick={() => setDockOpen((open) => !open)}>
-          <span>Problems {problems.length}</span>
-          <span>History {revisions.length}</span>
+        <div className="dock-bar">
+          {dockTabs.map((tab) => (
+            <button key={tab} className={tab === dockTab ? "active" : ""} onClick={() => { setDockTab(tab); setDockOpen(true); if (tab === "debug") void inspectDebug(); if (tab === "profiler") void loadProfile(); }}>{tab}</button>
+          ))}
           <span className="grow" />
-          <span className="muted">{statusLabel}</span>
-        </button>
+          <button onClick={() => setDockOpen((open) => !open)}>{dockOpen ? "Hide" : "Show"}</button>
+        </div>
         {dockOpen ? (
           <div className="dock-body">
-            <section>
+            {dockTab === "problems" ? <section>
               <ul className="list">
                 {problems.map((problem, index) => (
                   <li key={`${problem.code}-${index}`}>
@@ -589,8 +707,8 @@ export function App() {
                 ))}
                 {problems.length === 0 ? <li className="muted">No problems</li> : null}
               </ul>
-            </section>
-            <section>
+            </section> : null}
+            {dockTab === "history" ? <section>
               <ul className="list">
                 {revisions.map((revision) => (
                   <li key={revision.revisionId}>
@@ -603,9 +721,41 @@ export function App() {
                 {revisions.length === 0 ? <li className="muted">No revisions</li> : null}
                 {diffLines.map((line, index) => <li key={`${line.kind}-${index}`} className="muted">{line.kind}: {line.detail}</li>)}
               </ul>
-            </section>
+            </section> : null}
+            {dockTab === "watch" || dockTab === "debug" ? (
+              <section>
+                <ul className="list">
+                  {locals.map((item) => <li key={item.name}>{item.name}: {item.value}</li>)}
+                  {watches.map((item) => <li key={item.name}>{item.name} {item.expression}: {item.value}</li>)}
+                  {trace.map((item, index) => <li key={`${item.nodeId}-${index}`} className="muted">{item.nodeId} @{item.instructionPointer}</li>)}
+                  {locals.length === 0 && watches.length === 0 ? <li className="muted">No suspension</li> : null}
+                </ul>
+                <label className="field">Watch<input value={watchName} onChange={(event) => setWatchName(event.target.value)} /></label>
+                <label className="field">Expression<input value={watchExpr} onChange={(event) => setWatchExpr(event.target.value)} /></label>
+                <button disabled={!debugAllowed} onClick={() => void addWatch()}>Add watch</button>
+              </section>
+            ) : null}
+            {dockTab === "profiler" ? (
+              <section>
+                <p className="muted">invocations {profile?.invocations ?? 0} · avg {Math.round(profile?.averageMicroseconds ?? 0)} µs · instructions {profile?.instructions ?? 0} · native {profile?.nativeCalls ?? 0} · yields {profile?.yields ?? 0}</p>
+                <ul className="list">
+                  {(profile?.hottest ?? []).map((item) => <li key={item.nodeId}>{item.hits} · {item.nodeId}</li>)}
+                </ul>
+              </section>
+            ) : null}
+            {dockTab === "output" ? <section><p className="muted">{compileHash ? `SemanticHash ${compileHash}` : "Compile to see the semantic hash"} · {pipelineStage(problems)}</p></section> : null}
           </div>
         ) : null}
+      </footer>
+      <footer className="statusline">
+        <span>{statusLabel}</span>
+        <span>{graph.side}</span>
+        <span>{graph.kind}</span>
+        <span className="mono">{baseRevision.slice(0, 8)}</span>
+        <span>{errorCount} errors</span>
+        <span>{warningCount} warnings</span>
+        <span className="grow" />
+        <span>{target}</span>
       </footer>
       {createOpen ? (
         <div className="dialog-back" onClick={() => setCreateOpen(false)}>
@@ -658,6 +808,29 @@ export function App() {
           </form>
         </div>
       ) : null}
+      {quickOpen ? (
+        <div className="palette" onClick={() => setQuickOpen(false)}>
+          <form onClick={(event) => event.stopPropagation()}>
+            <input autoFocus placeholder="Open graph" onKeyDown={(event) => { if (event.key === "Escape") setQuickOpen(false); }} />
+            <ul className="list">
+              {graphs.map((item) => <li key={item.id}><button type="button" onClick={() => { setQuickOpen(false); void openListed(item); }}>{item.name}</button></li>)}
+            </ul>
+          </form>
+        </div>
+      ) : null}
+      {commandsOpen ? (
+        <div className="palette" onClick={() => setCommandsOpen(false)}>
+          <form onClick={(event) => event.stopPropagation()}>
+            <div className="section-label">Commands</div>
+            <ul className="list">
+              <li><button type="button" onClick={() => { setCommandsOpen(false); void save(); }}>Save draft</button></li>
+              <li><button type="button" onClick={() => { setCommandsOpen(false); void compile(); }}>Compile current</button></li>
+              <li><button type="button" onClick={() => { setCommandsOpen(false); setPublishOpen(true); }}>Publish</button></li>
+              <li><button type="button" onClick={() => { setCommandsOpen(false); void inspectDebug(); }}>Inspect debugger</button></li>
+            </ul>
+          </form>
+        </div>
+      ) : null}
       {paletteOpen ? (
         <div className="palette" onClick={() => setPaletteOpen(false)}>
           <form onClick={(event) => event.stopPropagation()}>
@@ -672,6 +845,27 @@ export function App() {
       ) : null}
     </div>
   );
+}
+
+function readStored<T extends string>(value: string | null, allowed: readonly T[], fallback: T): T {
+  return allowed.includes(value as T) ? value as T : fallback;
+}
+
+function readValues(value: unknown): { name: string; expression: string; value: string }[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => {
+    const row = item as { name?: unknown; expression?: unknown; value?: unknown };
+    return { name: String(row.name ?? ""), expression: String(row.expression ?? ""), value: String(row.value ?? "") };
+  });
+}
+
+function pipelineStage(problems: Problem[]): string {
+  const error = problems.find((problem) => problem.severity === "error");
+  if (!error) return "Parse → Type Check → Binding → Side → Verify";
+  if (error.code.startsWith("DOC")) return "Stopped at Parse";
+  if (error.code.startsWith("TYP")) return "Stopped at Type Check";
+  if (error.code.startsWith("POL")) return "Stopped at Side";
+  return "Stopped at Verify";
 }
 
 function readProblems(value: unknown, error: unknown): Problem[] {

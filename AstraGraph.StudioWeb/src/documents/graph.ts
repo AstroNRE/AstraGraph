@@ -29,7 +29,7 @@ export interface GraphDocument {
   side: string;
   nodes: NodeDocument[];
   connections: ConnectionDocument[];
-  variables: { id: string; name: string; typeName: string }[];
+  variables: { id: string; name: string; typeName: string; defaultValue?: string; persistent?: boolean; replicated?: boolean }[];
   editorLayout: {
     nodePositions: Record<string, { x: number; y: number }>;
     comments: [];
@@ -67,8 +67,9 @@ export function serializeGraph(document: GraphDocument): string {
       id: variable.id,
       name: variable.name,
       typeName: variable.typeName,
-      isPersistent: false,
-      isReplicated: false
+      defaultValue: variable.defaultValue ?? "",
+      isPersistent: variable.persistent === true,
+      isReplicated: variable.replicated === true
     })),
     nodes: document.nodes.map((node) => ({
       id: node.id,
@@ -95,7 +96,14 @@ export function parseGraph(json: string): GraphDocument {
     ...raw,
     nodes: raw.nodes ?? [],
     connections: raw.connections ?? [],
-    variables: raw.variables ?? [],
+    variables: (raw.variables ?? []).map((variable) => ({
+      id: variable.id,
+      name: variable.name,
+      typeName: variable.typeName,
+      defaultValue: variable.defaultValue,
+      persistent: variable.persistent === true || (variable as { isPersistent?: boolean }).isPersistent === true,
+      replicated: variable.replicated === true || (variable as { isReplicated?: boolean }).isReplicated === true
+    })),
     editorLayout: raw.editorLayout ?? createGraph("").editorLayout
   };
 }
@@ -287,6 +295,15 @@ export function nudgeNodes(document: GraphDocument, ids: string[], dx: number, d
     positions[id] = { x: position.x + dx, y: position.y + dy };
   }
   return { ...document, editorLayout: { ...document.editorLayout, nodePositions: positions } };
+}
+
+export function findVariableUses(document: GraphDocument, variable: { id: string; name: string }): { nodeId: string; message: string }[] {
+  const needle = variable.name.toLowerCase();
+  return document.nodes.flatMap((node) => {
+    const hit = node.pins.some((pin) => (pin.dataType ?? "").toLowerCase().includes(needle))
+      || Object.values(node.properties).some((value) => value.toLowerCase().includes(needle) || value === variable.id);
+    return hit ? [{ nodeId: node.id, message: `${node.name} references ${variable.name}` }] : [];
+  });
 }
 
 export function setNodeProperty(document: GraphDocument, nodeId: string, key: string, value: string): GraphDocument {

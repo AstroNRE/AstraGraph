@@ -4,7 +4,7 @@ const types = ["System.Int32", "System.Single", "System.Boolean", "System.String
 
 type Variable = GraphDocument["variables"][number];
 
-export function VariableEditor(props: { variables: Variable[]; onChange: (variables: Variable[]) => void }) {
+export function VariableEditor(props: { variables: Variable[]; onChange: (variables: Variable[]) => void; onFind?: (variable: Variable) => void }) {
   function update(id: string, patch: Partial<Variable>) {
     props.onChange(props.variables.map((variable) => variable.id === id ? { ...variable, ...patch } : variable));
   }
@@ -18,6 +18,10 @@ export function VariableEditor(props: { variables: Variable[]; onChange: (variab
             {types.includes(variable.typeName) ? null : <option value={variable.typeName}>{variable.typeName}</option>}
             {types.map((typeName) => <option key={typeName} value={typeName}>{typeName}</option>)}
           </select>
+          <input aria-label="Default" value={variable.defaultValue ?? ""} placeholder="Default" onChange={(event) => update(variable.id, { defaultValue: event.target.value })} />
+          <label><input type="checkbox" checked={variable.persistent === true} onChange={(event) => update(variable.id, { persistent: event.target.checked })} /> Persistent</label>
+          <label><input type="checkbox" checked={variable.replicated === true} onChange={(event) => update(variable.id, { replicated: event.target.checked })} /> Replicated</label>
+          <button type="button" onClick={() => props.onFind?.(variable)}>Uses</button>
           <button type="button" onClick={() => props.onChange(props.variables.filter((item) => item.id !== variable.id))}>Remove</button>
         </div>
       ))}

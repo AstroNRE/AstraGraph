@@ -17,7 +17,8 @@ public enum DebuggerExecutionMode
     Running,
     Paused,
     StepInto,
-    StepOver
+    StepOver,
+    StepOut
 }
 
 public sealed record Breakpoint(
@@ -119,6 +120,44 @@ public sealed class GraphDebugger : IVmDebugHook
         ExecutionMode = DebuggerExecutionMode.StepOver;
         _hasExecutedStep = false;
         OnResumed?.Invoke();
+    }
+
+    public void StepOut()
+    {
+        if (CurrentSuspension != null)
+        {
+            _skipBreakpointAtIp = CurrentSuspension.InstructionPointer;
+        }
+
+        CurrentSuspension = null;
+        ExecutionMode = DebuggerExecutionMode.StepOut;
+        OnResumed?.Invoke();
+    }
+
+    public bool StopForStepOut(IrOpCode opcode, NodeId? nodeId, int instructionPointer, ReadOnlySpan<AstraValue> registers)
+    {
+        if (ExecutionMode != DebuggerExecutionMode.StepOut)
+        {
+            return false;
+        }
+
+        if (opcode is not (IrOpCode.Return or IrOpCode.YieldContinuation))
+        {
+            return false;
+        }
+
+        if (_skipBreakpointAtIp == instructionPointer)
+        {
+            _skipBreakpointAtIp = -1;
+            ExecutionMode = DebuggerExecutionMode.Running;
+            return false;
+        }
+
+        var suspension = new DebugSuspension(nodeId ?? NodeId.Empty, instructionPointer, registers.ToArray());
+        CurrentSuspension = suspension;
+        ExecutionMode = DebuggerExecutionMode.Paused;
+        OnSuspension?.Invoke(suspension);
+        return true;
     }
 
     /// <summary>

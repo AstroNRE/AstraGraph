@@ -95,8 +95,26 @@ export class AuthoringClient {
     resume: (graphId: string) => this.roundtrip("debugger.command.request", { graphId, action: 3 }, "debugger.command.response"),
     stepOver: (graphId: string) => this.roundtrip("debugger.command.request", { graphId, action: 4 }, "debugger.command.response"),
     stepInto: (graphId: string) => this.roundtrip("debugger.command.request", { graphId, action: 5 }, "debugger.command.response"),
+    stepOut: (graphId: string) => this.roundtrip("debugger.command.request", { graphId, action: 6 }, "debugger.command.response"),
     removeBreakpoint: (graphId: string, targetNode: string) =>
-      this.roundtrip("debugger.command.request", { graphId, action: 1, targetNode }, "debugger.command.response")
+      this.roundtrip("debugger.command.request", { graphId, action: 1, targetNode }, "debugger.command.response"),
+    inspect: (graphId: string) => this.roundtrip("debugger.inspect.request", { graphId }, "debugger.inspect.response"),
+    watch: (name: string, expression: string, remove = false) =>
+      this.roundtrip("debugger.watch.request", { name, expression, remove }, "debugger.watch.response")
+  };
+
+  profiler = {
+    snapshot: (graphId: string, reset = false) => this.roundtrip("profiler.snapshot.request", { graphId, reset }, "profiler.snapshot.response")
+  };
+
+  audit = {
+    query: () => this.roundtrip("audit.query.request", {}, "audit.query.response")
+  };
+
+  schemas = {
+    list: () => this.roundtrip("schema.list.request", {}, "schema.list.response"),
+    save: (schema: { id: string; name: string; isComponent: boolean; fields: { id: string; name: string; typeName: string; defaultValue?: string; persistent: boolean; replicated: boolean }[] }) =>
+      this.roundtrip("schema.save.request", { schema }, "schema.save.response")
   };
 
   handshake(authorToken: string, authorName: string) {

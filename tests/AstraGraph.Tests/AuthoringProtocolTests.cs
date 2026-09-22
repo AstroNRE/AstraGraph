@@ -374,4 +374,36 @@ public sealed class AuthoringProtocolTests
         Assert.That(changes.Any(change => change.Kind == "node.added" && change.Detail == "Added"), Is.True);
         Assert.That(changes.Any(change => change.Kind == "node.removed"), Is.False);
     }
+
+    [Test]
+    public async Task StudioSurfaces_InspectWatchesProfileAuditAndKeepSchemaFieldIdentity()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var node = NodeId.New();
+        _debugger.Pause();
+        Assert.That(_debugger.ShouldSuspend(node, 4, new[] { AstraValue.FromInt64(7) }), Is.True);
+
+        _server.RememberWatch(_client.SessionId!, "Health", "r0", remove: false);
+        var inspect = _server.InspectDebugger(_client.SessionId!);
+        Assert.That(inspect.SuspendedNodeId, Is.EqualTo(node.ToString()));
+        Assert.That(inspect.Locals[0].Value, Does.Contain("7"));
+        Assert.That(inspect.Watches[0].Value, Does.Contain("7"));
+
+        var graphId = GraphId.New();
+        _profiler.RecordInstruction(graphId, node);
+        var snapshot = _server.CaptureProfiler(graphId, reset: false);
+        Assert.That(snapshot.Instructions, Is.EqualTo(1));
+        Assert.That(snapshot.Hottest.Any(item => item.NodeId == node.ToString() && item.Hits == 1), Is.True);
+
+        var fieldId = FieldId.New();
+        var saved = _server.SaveSchema(_client.SessionId!, new SchemaDto(SchemaId.New().ToString(), "Door", true, [new SchemaFieldDto(fieldId.ToString(), "Open", "bool", "false", true, true)]));
+        Assert.That(saved.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        var renamed = _server.SaveSchema(_client.SessionId!, saved.Schema! with { Fields = [saved.Schema.Fields[0] with { Name = "IsOpen" }] });
+        Assert.That(renamed.Schema!.Fields[0].Id, Is.EqualTo(fieldId.ToString()));
+        Assert.That(renamed.Schema.Fields[0].Name, Is.EqualTo("IsOpen"));
+        Assert.That(_server.ListSchemas().Single().Name, Is.EqualTo("Door"));
+
+        var audit = _server.QueryAudit();
+        Assert.That(audit, Is.Not.Null);
+    }
 }

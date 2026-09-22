@@ -21,7 +21,8 @@ public enum DebuggerAction
     Pause,
     Resume,
     StepOver,
-    StepInto
+    StepInto,
+    StepOut
 }
 
 public sealed record AuthHandshakeRequest(
@@ -214,6 +215,42 @@ public sealed record DebugStreamEvent(
     string Action,
     IReadOnlyDictionary<string, string> Locals,
     long TimestampTicks);
+
+public sealed record DebugValueDto(string Name, string Expression, string Value);
+
+public sealed record DebugTraceDto(string NodeId, int InstructionPointer);
+
+public sealed record ProfilerNodeDto(string NodeId, long Hits);
+
+public sealed record ProfilerSnapshotDto(
+    long Invocations,
+    double AverageMicroseconds,
+    long Instructions,
+    long NativeCalls,
+    long Yields,
+    IReadOnlyList<ProfilerNodeDto> Hottest);
+
+public sealed record AuditEntryDto(
+    string Timestamp,
+    string Action,
+    string Author,
+    string Message,
+    bool Success,
+    string? GraphId);
+
+public sealed record SchemaFieldDto(
+    string Id,
+    string Name,
+    string TypeName,
+    string? DefaultValue,
+    bool Persistent,
+    bool Replicated);
+
+public sealed record SchemaDto(
+    string Id,
+    string Name,
+    bool IsComponent,
+    IReadOnlyList<SchemaFieldDto> Fields);
 
 public sealed record ProfilerStreamEvent(
     GraphId GraphId,

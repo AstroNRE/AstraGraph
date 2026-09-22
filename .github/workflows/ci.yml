@@ -45,6 +45,21 @@ jobs:
       - name: Run tests (Release)
         run: dotnet test AstraGraph.slnx --configuration Release -p:RobustToolsBuild=true --no-build --verbosity normal --logger "trx;LogFileName=test_results.trx"
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: AstraGraph.StudioWeb/package-lock.json
+
+      - name: Test and build Astra Studio
+        working-directory: AstraGraph.StudioWeb
+        run: |
+          npm ci
+          npm test
+          npm run build
+          git -C .. diff --exit-code -- AstraGraph.StudioWeb/dist
+
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4

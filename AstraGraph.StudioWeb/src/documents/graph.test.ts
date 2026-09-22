@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addNode, connectPins, createGraph, duplicateNodes, nudgeNodes, removeNodes, setNodeProperty } from "./graph";
+import { addNode, connectPins, createGraph, duplicateNodes, findVariableUses, nudgeNodes, parseGraph, removeNodes, serializeGraph, setNodeProperty } from "./graph";
 
 describe("graph editing", () => {
   it("duplicates a node with fresh ids and keeps the original wire", () => {
@@ -25,6 +25,19 @@ describe("graph editing", () => {
     const moved = nudgeNodes(graph, [graph.nodes[0].id], 16, 0);
     expect(moved.nodes).toEqual(graph.nodes);
     expect(moved.editorLayout.nodePositions[graph.nodes[0].id].x).toBe(graph.editorLayout.nodePositions[graph.nodes[0].id].x + 16);
+  });
+
+  it("keeps variable persistence across serialize and finds a reference", () => {
+    const graph = addNode(createGraph("Demo"), "Core.VariableAssign", "Assign");
+    graph.nodes[0].properties.variable = "Health";
+    const withVariable = {
+      ...graph,
+      variables: [{ id: "var-1", name: "Health", typeName: "int32", defaultValue: "1", persistent: true, replicated: true }]
+    };
+    const parsed = parseGraph(serializeGraph(withVariable));
+    expect(parsed.variables[0].persistent).toBe(true);
+    expect(parsed.variables[0].replicated).toBe(true);
+    expect(findVariableUses(parsed, parsed.variables[0]).map((use) => use.nodeId)).toEqual([parsed.nodes[0].id]);
   });
 
   it("writes a node property in place", () => {

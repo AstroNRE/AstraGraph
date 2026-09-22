@@ -39,6 +39,8 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
     private readonly ConcurrentDictionary<GraphId, GraphSummaryDto> _graphs = new();
     private readonly ConcurrentDictionary<GraphId, string> _liveSources = new();
     private readonly ConcurrentDictionary<RevisionId, string> _revisionSources = new();
+    private readonly ConcurrentDictionary<string, Dictionary<string, string>> _watches = new();
+    private readonly ConcurrentDictionary<SchemaId, SchemaType> _schemas = new();
     private NodePaletteIndexer? _palette;
 
     public AuthoringServerSession(
@@ -654,6 +656,9 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             case DebuggerAction.StepOver:
                 _debugger.StepOver();
                 break;
+            case DebuggerAction.StepOut:
+                _debugger.StepOut();
+                break;
         }
 
         return new DebuggerCommandResponse(AuthoringStatusCode.Success, true);
@@ -718,6 +723,24 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
 
             DebuggerCommandRequestMsg req =>
                 HandleDebuggerCommandMsg(req),
+
+            DebuggerInspectRequestMsg req =>
+                HandleDebuggerInspectMsg(req),
+
+            DebuggerWatchRequestMsg req =>
+                HandleDebuggerWatchMsg(req),
+
+            ProfilerSnapshotRequestMsg req =>
+                HandleProfilerSnapshotMsg(req),
+
+            AuditQueryRequestMsg req =>
+                HandleAuditQueryMsg(req),
+
+            SchemaListRequestMsg req =>
+                HandleSchemaListMsg(req),
+
+            SchemaSaveRequestMsg req =>
+                HandleSchemaSaveMsg(req),
 
             PingMsg =>
                 new PongMsg { MessageId = Guid.NewGuid().ToString("N") },
@@ -1037,4 +1060,241 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             ErrorMessage = resp.ErrorMessage
         };
     }
+
+    public DebuggerInspectResponseMsg InspectDebugger(string sessionId)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var session))
+        {
+            return new DebuggerInspectResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Invalid session." };
+        }
+
+        if (!AstraAuthorizationService.CanDebug(session.User))
+        {
+            return new DebuggerInspectResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Insufficient permissions for debugging." };
+        }
+
+        var suspension = _debugger?.CurrentSuspension;
+        var registers = suspension?.Registers;
+        var locals = new List<DebugValueDto>();
+        if (registers != null)
+        {
+            for (var index = 0; index < registers.Length; index++)
+            {
+                locals.Add(new DebugValueDto($"r{index}", $"r{index}", registers[index].ToString()));
+            }
+        }
+
+        var watches = new List<DebugValueDto>();
+        if (_watches.TryGetValue(sessionId, out var stored))
+        {
+            foreach (var (name, expression) in stored)
+            {
+                watches.Add(new DebugValueDto(name, expression, EvaluateWatch(expression, registers)));
+            }
+        }
+
+        var trace = _debugger?.GetRecentTrace(12)
+            .Select(entry => new DebugTraceDto(entry.NodeId.ToString(), entry.InstructionPointer))
+            .ToArray() ?? [];
+
+        return new DebuggerInspectResponseMsg
+        {
+            Status = AuthoringStatusCode.Success,
+            SuspendedNodeId = suspension?.NodeId.ToString(),
+            Locals = locals,
+            Watches = watches,
+            Trace = trace
+        };
+    }
+
+    public void RememberWatch(string sessionId, string name, string expression, bool remove)
+    {
+        var stored = _watches.GetOrAdd(sessionId, _ => []);
+        if (remove) stored.Remove(name);
+        else stored[name] = expression;
+    }
+
+    public ProfilerSnapshotDto CaptureProfiler(GraphId graphId, bool reset)
+    {
+        var metric = _profiler?.GetMetrics(graphId) ?? new AstraGraph.Runtime.Profiling.GraphPerformanceMetric(0, 0, 0, 0, 0, 0);
+        var hottest = _profiler?.GetHottestNodes(8)
+            .Select(item => new ProfilerNodeDto(item.Key.ToString(), item.Value))
+            .ToArray() ?? [];
+        var snapshot = new ProfilerSnapshotDto(
+            metric.Invocations,
+            metric.AverageMicroseconds,
+            metric.InstructionsExecuted,
+            metric.NativeCallsExecuted,
+            metric.Yields,
+            hottest);
+        if (reset) _profiler?.Reset();
+        return snapshot;
+    }
+
+    public IReadOnlyList<AuditEntryDto> QueryAudit()
+    {
+        if (_auditLogger == null) return [];
+        return _auditLogger.ReadRecords(DateTimeOffset.UtcNow.AddDays(-2), DateTimeOffset.UtcNow.AddMinutes(5))
+            .Select(record => new AuditEntryDto(
+                record.Timestamp.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+                record.Action,
+                record.Author,
+                record.Message,
+                record.Success,
+                record.GraphId?.ToString()))
+            .ToArray();
+    }
+
+    public SchemaSaveResponseMsg SaveSchema(string sessionId, SchemaDto? schema)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var session))
+        {
+            return new SchemaSaveResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Invalid session." };
+        }
+
+        if (!AstraAuthorizationService.CanEditDraft(session.User))
+        {
+            return new SchemaSaveResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Insufficient permissions to edit a schema." };
+        }
+
+        if (schema == null || string.IsNullOrWhiteSpace(schema.Name))
+        {
+            return new SchemaSaveResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = "Schema name is required." };
+        }
+
+        if (!SchemaId.TryParse(string.IsNullOrWhiteSpace(schema.Id) ? null : schema.Id, out var schemaId) || schemaId == SchemaId.Empty)
+        {
+            schemaId = SchemaId.New();
+        }
+
+        var fields = new List<SchemaField>();
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var field in schema.Fields)
+        {
+            if (string.IsNullOrWhiteSpace(field.Name) || !names.Add(field.Name))
+            {
+                return new SchemaSaveResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = "Schema fields need unique names." };
+            }
+
+            if (!TryPrimitive(field.TypeName, out var type))
+            {
+                return new SchemaSaveResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = $"Unknown field type '{field.TypeName}'." };
+            }
+
+            var fieldId = FieldId.TryParse(field.Id, out var parsed) && parsed != FieldId.Empty ? parsed : FieldId.New();
+            var options = SchemaFieldOptions.None;
+            if (field.Persistent) options |= SchemaFieldOptions.Persistent;
+            if (field.Replicated) options |= SchemaFieldOptions.Replicated;
+            fields.Add(new SchemaField(fieldId, field.Name.Trim(), type, field.DefaultValue, options));
+        }
+
+        var stored = new SchemaType(schemaId, schema.Name.Trim(), schema.IsComponent, fields);
+        _schemas[schemaId] = stored;
+        return new SchemaSaveResponseMsg { Status = AuthoringStatusCode.Success, Schema = ToSchemaDto(stored) };
+    }
+
+    public IReadOnlyList<SchemaDto> ListSchemas() => _schemas.Values.Select(ToSchemaDto).OrderBy(schema => schema.Name).ToArray();
+
+    private static SchemaDto ToSchemaDto(SchemaType schema) => new(
+        schema.Id.ToString(),
+        schema.Name,
+        schema.IsComponentSchema,
+        schema.Fields.Select(field => new SchemaFieldDto(
+            field.Id.ToString(),
+            field.Name,
+            field.Type.TypeName,
+            field.DefaultValue,
+            field.IsPersistent,
+            field.IsReplicated)).ToArray());
+
+    private static bool TryPrimitive(string typeName, out AstraType type)
+    {
+        AstraType? parsed = typeName switch
+        {
+            "int32" or "System.Int32" => PrimitiveType.Int32,
+            "int64" or "System.Int64" => PrimitiveType.Int64,
+            "float32" or "System.Single" => PrimitiveType.Float32,
+            "float64" or "System.Double" => PrimitiveType.Float64,
+            "bool" or "System.Boolean" => PrimitiveType.Bool,
+            "string" or "System.String" => PrimitiveType.String,
+            _ => null
+        };
+        type = parsed ?? PrimitiveType.String;
+        return parsed != null;
+    }
+
+    private static string EvaluateWatch(string expression, AstraValue[]? registers)
+    {
+        if (registers != null && expression.Length > 1 && expression[0] == 'r' && int.TryParse(expression.AsSpan(1), out var index) && index >= 0 && index < registers.Length)
+        {
+            return registers[index].ToString();
+        }
+
+        return "(unavailable)";
+    }
+
+    private DebuggerInspectResponseMsg HandleDebuggerInspectMsg(DebuggerInspectRequestMsg req) => InspectDebugger(req.SessionId);
+
+    private DebuggerWatchResponseMsg HandleDebuggerWatchMsg(DebuggerWatchRequestMsg req)
+    {
+        if (!_sessions.TryGetValue(req.SessionId, out var session))
+        {
+            return new DebuggerWatchResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Invalid session." };
+        }
+
+        if (!AstraAuthorizationService.CanDebug(session.User))
+        {
+            return new DebuggerWatchResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Insufficient permissions for debugging." };
+        }
+
+        if (string.IsNullOrWhiteSpace(req.Name))
+        {
+            return new DebuggerWatchResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = "Watch name is required." };
+        }
+
+        RememberWatch(req.SessionId, req.Name.Trim(), req.Expression, req.Remove);
+        return new DebuggerWatchResponseMsg { Status = AuthoringStatusCode.Success };
+    }
+
+    private ProfilerSnapshotResponseMsg HandleProfilerSnapshotMsg(ProfilerSnapshotRequestMsg req)
+    {
+        if (!_sessions.TryGetValue(req.SessionId, out var session))
+        {
+            return new ProfilerSnapshotResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Invalid session." };
+        }
+
+        if (!AstraAuthorizationService.CanDebug(session.User))
+        {
+            return new ProfilerSnapshotResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Insufficient permissions for profiling." };
+        }
+
+        return new ProfilerSnapshotResponseMsg { Status = AuthoringStatusCode.Success, Snapshot = CaptureProfiler(req.GraphId, req.Reset) };
+    }
+
+    private AuditQueryResponseMsg HandleAuditQueryMsg(AuditQueryRequestMsg req)
+    {
+        if (!_sessions.TryGetValue(req.SessionId, out var session))
+        {
+            return new AuditQueryResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Invalid session." };
+        }
+
+        if (!AstraAuthorizationService.HasPermission(session.User, AstraPermission.ViewGraphs))
+        {
+            return new AuditQueryResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Insufficient permissions for audit." };
+        }
+
+        return new AuditQueryResponseMsg { Status = AuthoringStatusCode.Success, Entries = QueryAudit() };
+    }
+
+    private SchemaListResponseMsg HandleSchemaListMsg(SchemaListRequestMsg req)
+    {
+        if (!_sessions.ContainsKey(req.SessionId))
+        {
+            return new SchemaListResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Invalid session." };
+        }
+
+        return new SchemaListResponseMsg { Status = AuthoringStatusCode.Success, Schemas = ListSchemas() };
+    }
+
+    private SchemaSaveResponseMsg HandleSchemaSaveMsg(SchemaSaveRequestMsg req) => SaveSchema(req.SessionId, req.Schema);
 }
