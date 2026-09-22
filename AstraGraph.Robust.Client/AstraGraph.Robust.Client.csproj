@@ -5,9 +5,6 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <RobustClientPath Condition="'$(RobustClientPath)' == '' and Exists('../../RobustToolbox/Robust.Client/Robust.Client.csproj')">../../RobustToolbox/Robust.Client/Robust.Client.csproj</RobustClientPath>
-    <RobustClientPath Condition="'$(RobustClientPath)' == '' and Exists('../../../RobustToolbox/Robust.Client/Robust.Client.csproj')">../../../RobustToolbox/Robust.Client/Robust.Client.csproj</RobustClientPath>
-    <RobustClientPath Condition="'$(RobustClientPath)' == '' and Exists('../../SS14_UA/RobustToolbox/Robust.Client/Robust.Client.csproj')">../../SS14_UA/RobustToolbox/Robust.Client/Robust.Client.csproj</RobustClientPath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,6 +13,6 @@
     <ProjectReference Include="..\AstraGraph.UI\AstraGraph.UI.csproj" />
     <ProjectReference Include="..\AstraGraph.Editor.Bridge\AstraGraph.Editor.Bridge.csproj" />
     <ProjectReference Include="..\AstraGraph.Robust.Shared\AstraGraph.Robust.Shared.csproj" />
-    <ProjectReference Include="$(RobustClientPath)" Condition="'$(RobustClientPath)' != '' and Exists('$(RobustClientPath)')" />
+    <ProjectReference Include="$(RobustToolboxRoot)\Robust.Client\Robust.Client.csproj" Condition="'$(RobustToolboxRoot)' != '' and Exists('$(RobustToolboxRoot)\Robust.Client\Robust.Client.csproj')" />
   </ItemGroup>
 </Project>

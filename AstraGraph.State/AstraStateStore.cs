@@ -17,6 +17,7 @@ public sealed class AstraStateStore
 
     private readonly ConcurrentDictionary<(GraphId, string), VariableState> _variablesByName = new();
     private readonly ConcurrentDictionary<(GraphId, SymbolId), VariableState> _variablesById = new();
+    private readonly ConcurrentDictionary<(int, string), AstraValue> _entityVariables = new();
     private readonly Lock _lock = new();
 
     public void SetVariable(GraphId graphId, SymbolId variableId, string name, AstraValue value, bool isPersistent = false)
@@ -125,12 +126,37 @@ public sealed class AstraStateStore
         }
     }
 
+    public void SetEntityVariable(int entityUid, string name, AstraValue value)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        _entityVariables[(entityUid, name)] = value;
+    }
+
+    public AstraValue GetEntityVariable(int entityUid, string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        return _entityVariables.TryGetValue((entityUid, name), out var val) ? val : AstraValue.Null;
+    }
+
+    public void ClearEntity(int entityUid)
+    {
+        lock (_lock)
+        {
+            var keysToRemove = _entityVariables.Keys.Where(k => k.Item1 == entityUid).ToList();
+            foreach (var key in keysToRemove)
+            {
+                _entityVariables.TryRemove(key, out _);
+            }
+        }
+    }
+
     public void ClearAll()
     {
         lock (_lock)
         {
             _variablesByName.Clear();
             _variablesById.Clear();
+            _entityVariables.Clear();
         }
     }
 }

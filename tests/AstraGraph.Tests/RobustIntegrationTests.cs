@@ -144,13 +144,23 @@ public sealed class RobustIntegrationTests
     }
 
     [Test]
-    public void RobustEventBusSubscriptionAdapter_RefEventWriteBack_PropagatesMutations()
+    public void RobustEventBusSubscriptionAdapter_RefEventDispatch_MutatesOriginalStructInPlace()
     {
+        var router = new GraphEventRouter();
+        var adapter = new RobustEventBusSubscriptionAdapter(router);
+        var graphId = GraphId.New();
+
+        router.SubscribeRef<TestRefValueEvent>(graphId, "OnDamage", (ref TestRefValueEvent evArgs) =>
+        {
+            evArgs.Damage *= 3;
+            evArgs.Handled = true;
+        });
+
         var ev = new TestRefValueEvent { Handled = false, Damage = 10 };
 
-        // Test ref write-back
-        RobustEventBusSubscriptionAdapter.WriteBackRefEvent(ref ev);
+        router.DispatchRefEvent(ref ev);
 
+        Assert.That(ev.Damage, Is.EqualTo(30));
         Assert.That(ev.Handled, Is.True);
     }
 

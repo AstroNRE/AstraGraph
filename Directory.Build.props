@@ -14,5 +14,11 @@
     <Copyright>Copyright (c) 2026 Astro</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryType>git</RepositoryType>
+
+    <!-- RobustToolbox Root Resolution -->
+    <RobustToolboxRoot Condition="'$(RobustToolboxRoot)' == '' and Exists('$(MSBuildThisFileDirectory)../night-city/RobustToolbox/Robust.Shared/Robust.Shared.csproj')">$(MSBuildThisFileDirectory)../night-city/RobustToolbox</RobustToolboxRoot>
+    <RobustToolboxRoot Condition="'$(RobustToolboxRoot)' == '' and Exists('$(MSBuildThisFileDirectory)../RobustToolbox/Robust.Shared/Robust.Shared.csproj')">$(MSBuildThisFileDirectory)../RobustToolbox</RobustToolboxRoot>
+    <RobustToolboxRoot Condition="'$(RobustToolboxRoot)' == '' and Exists('$(MSBuildThisFileDirectory)../SS14_UA/RobustToolbox/Robust.Shared/Robust.Shared.csproj')">$(MSBuildThisFileDirectory)../SS14_UA/RobustToolbox</RobustToolboxRoot>
+    <RobustToolboxRoot Condition="'$(RobustToolboxRoot)' == '' and Exists('$(MSBuildThisFileDirectory)../../RobustToolbox/Robust.Shared/Robust.Shared.csproj')">$(MSBuildThisFileDirectory)../../RobustToolbox</RobustToolboxRoot>
   </PropertyGroup>
 </Project>

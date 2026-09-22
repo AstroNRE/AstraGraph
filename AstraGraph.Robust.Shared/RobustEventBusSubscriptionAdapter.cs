@@ -1,5 +1,6 @@
 using System.Reflection;
 using AstraGraph.Core;
+using AstraGraph.Core.Events;
 using AstraGraph.Runtime;
 using Robust.Shared.GameObjects;
 
@@ -18,12 +19,11 @@ public delegate void RefComponentEventHandler<TComp, TEvent>(EntityUid uid, TCom
 
 /// <summary>
 /// High-performance adapter bridging RobustToolbox's IEventBus and SubscribeLocalEvent
-/// directly to AstraGraph's GraphEventRouter with true ref TEvent write-back support.
+/// directly to AstraGraph's GraphEventRouter with true, unboxed ref TEvent dispatch.
 /// </summary>
 public sealed class RobustEventBusSubscriptionAdapter
 {
     private readonly GraphEventRouter _router;
-    private readonly List<Action<EntitySystem>> _deferredRegistrations = [];
 
     public RobustEventBusSubscriptionAdapter(GraphEventRouter router)
     {
@@ -31,7 +31,33 @@ public sealed class RobustEventBusSubscriptionAdapter
     }
 
     /// <summary>
-    /// Subscribes a broadcast event with full ref TEvent write-back support.
+    /// Registers a subscription dynamically based on a GraphEventSubscription descriptor.
+    /// </summary>
+    public void RegisterSubscription(EntitySystem system, GraphEventSubscription subscription)
+    {
+        ArgumentNullException.ThrowIfNull(system);
+        ArgumentNullException.ThrowIfNull(subscription);
+
+        if (subscription.ComponentType != null)
+        {
+            var registerMethod = typeof(RobustEventBusSubscriptionAdapter)
+                .GetMethod(nameof(RegisterComponentSubscription), BindingFlags.Instance | BindingFlags.Public)
+                ?.MakeGenericMethod(subscription.ComponentType, subscription.EventType);
+
+            registerMethod?.Invoke(this, [system, subscription.GraphId, subscription.EntryPointId, null]);
+        }
+        else
+        {
+            var registerMethod = typeof(RobustEventBusSubscriptionAdapter)
+                .GetMethod(nameof(RegisterBroadcastSubscription), BindingFlags.Instance | BindingFlags.Public)
+                ?.MakeGenericMethod(subscription.EventType);
+
+            registerMethod?.Invoke(this, [system, subscription.GraphId, subscription.EntryPointId, null]);
+        }
+    }
+
+    /// <summary>
+    /// Subscribes a broadcast event with full ref TEvent pass-through support without boxing.
     /// </summary>
     public void RegisterBroadcastSubscription<TEvent>(
         EntitySystem system,
@@ -42,7 +68,6 @@ public sealed class RobustEventBusSubscriptionAdapter
     {
         ArgumentNullException.ThrowIfNull(system);
 
-        // Subscribes via Robust EntitySystem ref handler
         var method = typeof(EntitySystem).GetMethod(
             "SubscribeLocalEvent",
             BindingFlags.Instance | BindingFlags.NonPublic,
@@ -52,14 +77,8 @@ public sealed class RobustEventBusSubscriptionAdapter
         {
             EntityEventRefHandler<TEvent> handler = (ref TEvent args) =>
             {
-                // 1. Invoke custom ref handler if specified
                 customRefHandler?.Invoke(ref args);
-
-                // 2. Dispatch through AstraGraph router
-                _router.DispatchEvent(null, args);
-
-                // 3. Write-back for ref events (Handled, Cancellable, or modified state)
-                WriteBackRefEvent(ref args);
+                _router.DispatchRefEvent(ref args);
             };
 
             method.Invoke(system, [handler, null, null]);
@@ -67,7 +86,7 @@ public sealed class RobustEventBusSubscriptionAdapter
     }
 
     /// <summary>
-    /// Subscribes a component-directed event with full ref TEvent write-back support.
+    /// Subscribes a component-directed event with full ref TEvent pass-through support without boxing.
     /// </summary>
     public void RegisterComponentSubscription<TComp, TEvent>(
         EntitySystem system,
@@ -91,45 +110,11 @@ public sealed class RobustEventBusSubscriptionAdapter
             var genericMethod = method.MakeGenericMethod(typeof(TComp), typeof(TEvent));
             ComponentEventRefHandler<TComp, TEvent> handler = (EntityUid uid, TComp comp, ref TEvent args) =>
             {
-                // 1. Invoke custom ref handler
                 customRefHandler?.Invoke(uid, comp, ref args);
-
-                // 2. Dispatch through AstraGraph router
-                _router.DispatchEvent(comp, args);
-
-                // 3. Write-back for ref events
-                WriteBackRefEvent(ref args);
+                _router.DispatchComponentRefEvent(uid, comp, ref args);
             };
 
             genericMethod.Invoke(system, [handler, null, null]);
-        }
-    }
-
-    /// <summary>
-    /// Performs in-place mutation write-back for Robust events (e.g. HandledEntityEventArgs, Cancellable).
-    /// </summary>
-    public static void WriteBackRefEvent<TEvent>(ref TEvent ev)
-    {
-        if (ev is null) return;
-
-        // If it's a HandledEntityEventArgs, ensure handled status is propagated
-        if (ev is HandledEntityEventArgs handledArgs)
-        {
-            // Already a reference class; state is mutated in-place
-            _ = handledArgs.Handled;
-        }
-
-        // For value-type struct events, boxed reflection or interface write-back can be applied
-        if (typeof(TEvent).IsValueType)
-        {
-            var prop = typeof(TEvent).GetProperty("Handled");
-            if (prop != null && prop.CanWrite && prop.PropertyType == typeof(bool))
-            {
-                object boxed = ev;
-                // If Handled flag was set during graph execution, propagate back
-                prop.SetValue(boxed, true);
-                ev = (TEvent)boxed;
-            }
         }
     }
 }

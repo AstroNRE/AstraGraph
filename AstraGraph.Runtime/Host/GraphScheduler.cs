@@ -2,13 +2,21 @@ using AstraGraph.Core;
 
 namespace AstraGraph.Runtime;
 
+public enum AstraGraphPhase
+{
+    PreSimulation,
+    MainSimulation,
+    PostSimulation
+}
+
 public sealed record SystemRegistration(
     GraphId GraphId,
     string SystemName,
     IReadOnlyList<string> Before,
     IReadOnlyList<string> After,
     int Priority = 0,
-    Action<double, int>? UpdateCallback = null);
+    Action<double, int>? UpdateCallback = null,
+    AstraGraphPhase Phase = AstraGraphPhase.MainSimulation);
 
 /// <summary>
 /// DAG-based scheduler that orders graph and native systems based on Before, After, and Priority rules.
@@ -79,6 +87,18 @@ public sealed class GraphScheduler
         foreach (var sys in systems)
         {
             sys.UpdateCallback?.Invoke(currentTimeSeconds, currentTick);
+        }
+    }
+
+    public void UpdatePhase(AstraGraphPhase phase, double currentTimeSeconds, int currentTick)
+    {
+        var systems = GetOrderedSystems();
+        foreach (var sys in systems)
+        {
+            if (sys.Phase == phase)
+            {
+                sys.UpdateCallback?.Invoke(currentTimeSeconds, currentTick);
+            }
         }
     }
 

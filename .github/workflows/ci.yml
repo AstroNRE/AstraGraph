@@ -15,8 +15,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Checkout RobustToolbox
-        run: git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/space-wizards/RobustToolbox.git ../RobustToolbox
+      - name: Checkout RobustToolbox (Pinned to night-city commit)
+        run: |
+          git init ../RobustToolbox
+          cd ../RobustToolbox
+          git remote add origin https://github.com/space-wizards/RobustToolbox.git
+          git fetch --depth 1 origin 81e82b01d6cc5957015a8c9f3baf5e573b0a5217
+          git checkout FETCH_HEAD
+          git submodule update --init --recursive --depth 1
+          cd ../AstraGraph
 
       - name: Setup .NET 9.0 SDK
         uses: actions/setup-dotnet@v4

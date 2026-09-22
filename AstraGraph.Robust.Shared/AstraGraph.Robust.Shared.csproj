@@ -5,9 +5,6 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <RobustSharedPath Condition="'$(RobustSharedPath)' == '' and Exists('../../RobustToolbox/Robust.Shared/Robust.Shared.csproj')">../../RobustToolbox/Robust.Shared/Robust.Shared.csproj</RobustSharedPath>
-    <RobustSharedPath Condition="'$(RobustSharedPath)' == '' and Exists('../../../RobustToolbox/Robust.Shared/Robust.Shared.csproj')">../../../RobustToolbox/Robust.Shared/Robust.Shared.csproj</RobustSharedPath>
-    <RobustSharedPath Condition="'$(RobustSharedPath)' == '' and Exists('../../SS14_UA/RobustToolbox/Robust.Shared/Robust.Shared.csproj')">../../SS14_UA/RobustToolbox/Robust.Shared/Robust.Shared.csproj</RobustSharedPath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,6 +13,6 @@
     <ProjectReference Include="..\AstraGraph.State\AstraGraph.State.csproj" />
     <ProjectReference Include="..\AstraGraph.VM\AstraGraph.VM.csproj" />
     <ProjectReference Include="..\AstraGraph.Runtime\AstraGraph.Runtime.csproj" />
-    <ProjectReference Include="$(RobustSharedPath)" Condition="'$(RobustSharedPath)' != '' and Exists('$(RobustSharedPath)')" />
+    <ProjectReference Include="$(RobustToolboxRoot)\Robust.Shared\Robust.Shared.csproj" Condition="'$(RobustToolboxRoot)' != '' and Exists('$(RobustToolboxRoot)\Robust.Shared\Robust.Shared.csproj')" />
   </ItemGroup>
 </Project>
