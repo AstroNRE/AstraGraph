@@ -1,27 +1,10 @@
-using AstraGraph.Core;
 using AstraGraph.Runtime.Integration;
 
 namespace AstraGraph.Runtime;
 
-public sealed class NativeEntityQueryBridge : IEcsQueryBridge
-{
-    private readonly INativeEntityAccess _access;
-
-    public NativeEntityQueryBridge(INativeEntityAccess access)
-    {
-        _access = access ?? throw new ArgumentNullException(nameof(access));
-    }
-
-    public bool HasNativeComponent(AstraEntityId entityUid, Type clrComponentType) =>
-        _access.HasComponent(entityUid, clrComponentType);
-
-    public object? GetNativeComponent(AstraEntityId entityUid, Type clrComponentType) =>
-        _access.GetComponent(entityUid, clrComponentType);
-
-    public IReadOnlyList<AstraEntityId> GetEntitiesWithNativeComponent(Type clrComponentType) =>
-        _access.WithComponent(clrComponentType);
-}
-
+/// <summary>
+/// Places Astra graphs into a fixed engine phase. Graph-versus-graph order stays in <see cref="GraphScheduler"/>.
+/// </summary>
 public sealed class FixedPhaseScheduleHook : IEngineScheduleHook
 {
     private readonly List<(string Name, Action<double, int> Update)> _updates = [];

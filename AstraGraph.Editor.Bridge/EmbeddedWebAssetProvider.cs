@@ -147,8 +147,37 @@ public sealed class EmbeddedWebAssetProvider : IWebAssetProvider
     public static EmbeddedWebAssetProvider CreateWithDefaultStudio()
     {
         var provider = new EmbeddedWebAssetProvider();
+        var root = FindStudioWebRoot();
+        if (root != null)
+        {
+            foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+            {
+                var relative = "/" + Path.GetRelativePath(root, file).Replace('\\', '/');
+                provider.RegisterAsset(relative, GetMimeType(file), File.ReadAllBytes(file));
+            }
+
+            return provider;
+        }
+
         PopulateDefaultAssets(provider);
         return provider;
+    }
+
+    public static string? FindStudioWebRoot()
+    {
+        var cursor = new DirectoryInfo(AppContext.BaseDirectory);
+        for (var depth = 0; depth < 8 && cursor != null; depth++)
+        {
+            var candidate = Path.Combine(cursor.FullName, "AstraGraph.StudioWeb", "wwwroot", "index.html");
+            if (File.Exists(candidate))
+            {
+                return Path.GetDirectoryName(candidate);
+            }
+
+            cursor = cursor.Parent;
+        }
+
+        return null;
     }
 
     internal static void PopulateDefaultAssets(EmbeddedWebAssetProvider provider)

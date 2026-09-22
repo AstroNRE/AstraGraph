@@ -16,10 +16,6 @@
 dotnet build -p:RobustToolboxRoot=../RobustToolbox
 ```
 
-## Приёмка Playable
+Код регистрации: `Shared/AstraContentRegistration.cs`, `Server/AstraServerRegistration.cs`, `Client/AstraClientRegistration.cs`.
 
-- [ ] Сервер стартует с сабмодулем без отдельного `dotnet build` при изменении `.agraph`.
-- [ ] `DollToMothroach.agraph` публикуется на границе тика.
-- [ ] Правка графа применяется без перезапуска.
-- [ ] Rollback возвращает предыдущую revision.
-- [ ] Повторный запуск того же бинарника поднимает последнюю опубликованную revision из `data/AstraGraph/Live`.
+Приёмка publish, hot edit, rollback и restart покрыта `ProductionIntegrationTests.PlayableLifecycle_PublishEditRollbackAndRestart`.

@@ -79,19 +79,6 @@ public interface IAstraGraphManager
     Security.IAstraPermissionProvider Permissions { get; }
 }
 
-public interface INativeEntityAccess
-{
-    bool Exists(AstraEntityId entityId);
-
-    bool HasComponent(AstraEntityId entityId, Type componentType);
-
-    object? GetComponent(AstraEntityId entityId, Type componentType);
-
-    IReadOnlyList<AstraEntityId> WithComponent(Type componentType);
-
-    void Delete(AstraEntityId entityId);
-}
-
 public interface IEngineScheduleHook
 {
     void Register(string systemName, IReadOnlyList<string> before, IReadOnlyList<string> after, Action<double, int> update);

@@ -16,6 +16,7 @@
   <Project Path="AstraGraph.Robust.Shared/AstraGraph.Robust.Shared.csproj" />
   <Project Path="AstraGraph.Robust.Server/AstraGraph.Robust.Server.csproj" />
   <Project Path="AstraGraph.Robust.Client/AstraGraph.Robust.Client.csproj" />
+  <Project Path="samples/ContentIntegration/AstraGraph.ContentIntegration.csproj" />
   <Folder Name="/tests/">
     <Project Path="tests/AstraGraph.Tests/AstraGraph.Tests.csproj" />
     <Project Path="tests/AstraGraph.Benchmarks/AstraGraph.Benchmarks.csproj" />

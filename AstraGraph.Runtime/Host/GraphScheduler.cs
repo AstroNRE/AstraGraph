@@ -19,8 +19,8 @@ public sealed record SystemRegistration(
     AstraGraphPhase Phase = AstraGraphPhase.MainSimulation);
 
 /// <summary>
-/// DAG-based scheduler that orders graph and native systems based on Before, After, and Priority rules.
-/// Prevents cyclic dependency deadlocks with topological validation.
+/// Orders Astra graphs against other Astra graphs by Before, After, and Priority.
+/// Placement next to native engine systems belongs to <see cref="IEngineScheduleHook"/>.
 /// </summary>
 public sealed class GraphScheduler
 {

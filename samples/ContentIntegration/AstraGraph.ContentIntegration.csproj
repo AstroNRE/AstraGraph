@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks></TargetFrameworks>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Content.Integration</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\AstraGraph.HotReload\AstraGraph.HotReload.csproj" />
+    <ProjectReference Include="..\..\AstraGraph.Runtime\AstraGraph.Runtime.csproj" />
+    <ProjectReference Include="..\..\AstraGraph.Persistence\AstraGraph.Persistence.csproj" />
+    <ProjectReference Include="..\..\AstraGraph.Editor.Protocol\AstraGraph.Editor.Protocol.csproj" />
+    <ProjectReference Include="..\..\AstraGraph.Robust.Server\AstraGraph.Robust.Server.csproj" />
+    <ProjectReference Include="..\..\AstraGraph.Robust.Client\AstraGraph.Robust.Client.csproj" />
+  </ItemGroup>
+</Project>

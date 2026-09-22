@@ -9,6 +9,11 @@ namespace AstraGraph.HotReload;
 /// </summary>
 public sealed class RevisionArchive
 {
+    private static readonly System.Text.Json.JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+    };
+
     private readonly StorageLayout _layout;
 
     public RevisionArchive(StorageLayout layout)
@@ -43,13 +48,27 @@ public sealed class RevisionArchive
             graphId = document.Id.ToString(),
             revisionId = record.RevisionId.ToString(),
             parentRevisionId = record.ParentRevisionId?.ToString(),
+            semanticHash = record.SemanticHash,
+            schemaHash = SchemaHash(record.SchemaSnapshot),
+            bindingCatalogHash = "",
+            compatibilityProfile = "robust-api-v1",
             author = record.Author,
-            message = record.Message,
-            semanticHash = record.SemanticHash
-        });
+            timestamp = record.Timestamp,
+            message = record.Message
+        }, JsonOptions);
         AtomicFileStore.WriteAllTextAtomic(
             Path.Combine(_layout.HistoryDirectory, stem + ".revision.json"),
             metadata);
+    }
+
+    private static string SchemaHash(SchemaType? schema)
+    {
+        if (schema == null)
+        {
+            return "";
+        }
+
+        return string.Join(",", schema.Fields.Select(field => field.Name + ":" + field.Type));
     }
 
     private static string Sanitize(string name)

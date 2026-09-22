@@ -148,6 +148,36 @@ public sealed class PredictionReconciler
     }
 
     /// <summary>
+    /// Re-simulates ticks that are still ahead of the last authoritative server tick.
+    /// </summary>
+    public void Replay(int entityUid, SchemaId schemaId, Func<int, AstraValue[]> resimulate)
+    {
+        ArgumentNullException.ThrowIfNull(resimulate);
+        List<int> ticks;
+        lock (_lock)
+        {
+            if (!_history.TryGetValue((entityUid, schemaId), out var list) || list.Count == 0)
+            {
+                return;
+            }
+
+            ticks = list.Select(snapshot => snapshot.Tick).Order().ToList();
+            list.Clear();
+        }
+
+        foreach (var tick in ticks)
+        {
+            var values = resimulate(tick);
+            RecordPredictedState(tick, entityUid, schemaId, values);
+            var component = _componentStore.GetComponent(entityUid, schemaId);
+            for (var i = 0; i < values.Length; i++)
+            {
+                component.SetField(i, values[i]);
+            }
+        }
+    }
+
+    /// <summary>
     /// Clears prediction history (e.g. on disconnect, map unload or round restart).
     /// </summary>
     public void Clear()

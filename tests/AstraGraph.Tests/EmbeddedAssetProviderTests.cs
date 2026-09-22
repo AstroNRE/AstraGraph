@@ -51,21 +51,15 @@ public sealed class EmbeddedAssetProviderTests
         var indexHtml = provider.TryGetAsset("/index.html");
         Assert.That(indexHtml, Is.Not.Null);
         Assert.That(indexHtml!.ContentType, Does.Contain("text/html"));
-        Assert.That(Encoding.UTF8.GetString(indexHtml.Content), Does.Contain("Astra Studio Web"));
+        Assert.That(Encoding.UTF8.GetString(indexHtml.Content), Does.Contain("Astra Studio"));
 
-        var css = provider.TryGetAsset("/css/studio.css");
+        var css = provider.TryGetAsset("/studio.css") ?? provider.TryGetAsset("/css/studio.css");
         Assert.That(css, Is.Not.Null);
         Assert.That(css!.ContentType, Does.Contain("text/css"));
 
-        var transport = provider.TryGetAsset("/js/transport.js");
-        Assert.That(transport, Is.Not.Null);
-        Assert.That(transport!.ContentType, Does.Contain("javascript"));
-
-        var canvas = provider.TryGetAsset("/js/canvas.js");
-        Assert.That(canvas, Is.Not.Null);
-
-        var studioJs = provider.TryGetAsset("/js/studio.js");
+        var studioJs = provider.TryGetAsset("/studio.js") ?? provider.TryGetAsset("/js/studio.js");
         Assert.That(studioJs, Is.Not.Null);
+        Assert.That(Encoding.UTF8.GetString(studioJs!.Content), Does.Contain("draft.publish.request"));
     }
 
     [Test]
