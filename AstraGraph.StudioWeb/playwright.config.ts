@@ -2,6 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "e2e",
+  testIgnore: "live.spec.ts",
   timeout: 30_000,
   webServer: {
     command: "npm run preview -- --host 127.0.0.1 --port 4173 --strictPort",

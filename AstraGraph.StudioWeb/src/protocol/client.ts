@@ -59,7 +59,9 @@ export class AuthoringClient {
       this.roundtrip("draft.save.request", { graphId, baseRevisionId, draftJson, authorMessage: "Studio save" }, "draft.save.response"),
     compile: (graphId: string, draftJson: string) =>
       this.roundtrip("draft.compile.request", { graphId, draftJson }, "draft.compile.response"),
-    discard: (graphId: string) => this.roundtrip("draft.discard.request", { graphId }, "draft.discard.response")
+    discard: (graphId: string) => this.roundtrip("draft.discard.request", { graphId }, "draft.discard.response"),
+    rebase: (graphId: string) => this.roundtrip("draft.rebase.request", { graphId }, "draft.rebase.response"),
+    merge: (graphId: string, otherDraftJson: string) => this.roundtrip("draft.merge.request", { graphId, otherDraftJson }, "draft.merge.response")
   };
 
   publish(graphId: string, baseRevisionId: string, draftJson: string, publishMessage = "Studio publish") {
@@ -108,7 +110,12 @@ export class AuthoringClient {
   };
 
   profiler = {
-    snapshot: (graphId: string, reset = false) => this.roundtrip("profiler.snapshot.request", { graphId, reset }, "profiler.snapshot.response")
+    snapshot: (graphId: string, reset = false) => this.roundtrip("profiler.snapshot.request", { graphId, reset }, "profiler.snapshot.response"),
+    subscribe: (graphId: string, unsubscribe = false) => this.roundtrip("profiler.subscribe.request", { graphId, unsubscribe }, "profiler.subscribe.response")
+  };
+
+  tests = {
+    run: (draftJson: string) => this.roundtrip("test.run.request", { draftJson }, "test.run.response")
   };
 
   audit = {

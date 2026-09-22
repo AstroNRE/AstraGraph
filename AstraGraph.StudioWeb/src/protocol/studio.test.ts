@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { frame, unframe } from "./frame";
 import handshakeFixture from "../../../tests/fixtures/handshake.json";
+import compileFixture from "../../../tests/fixtures/compile-response.json";
 import { canCompile, canPublish, permissionBits } from "../permissions/gate";
 import { addNode, createGraph, edit, redo, undo } from "../documents/graph";
 
@@ -19,6 +20,9 @@ describe("shared handshake fixture", () => {
     expect(handshakeFixture.status).toBe(0);
     expect(handshakeFixture.sessionId).toBe("abc");
     expect(handshakeFixture.protocolVersion).toBe(1);
+    expect(compileFixture.status).toBe(0);
+    expect(compileFixture.stage).toBe("Verify");
+    expect(compileFixture.hasErrors).toBe(false);
   });
 });
 

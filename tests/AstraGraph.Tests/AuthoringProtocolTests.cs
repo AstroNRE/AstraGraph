@@ -683,5 +683,147 @@ public sealed class AuthoringProtocolTests
         var snapshot = _server.CaptureProfiler(graphId, reset: false);
         Assert.That(snapshot.AllocatedBytes, Is.EqualTo(128));
         Assert.That(snapshot.NetworkBytes, Is.GreaterThan(0));
+        Assert.That(snapshot.QueryIterations, Is.EqualTo(MixedQueryEngine.Iterations));
+    }
+
+    [Test]
+    public async Task Rebase_MergesADraftOntoANewerHead()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var graphId = GraphId.New();
+        var baseline = CreateTestGraphDocument(graphId, "Door");
+        var first = await _client.PublishDraftAsync(graphId, RevisionId.Empty, GraphSerializer.Serialize(baseline), "base");
+        Assert.That(first.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        var ours = new GraphDocument
+        {
+            Id = baseline.Id,
+            Name = baseline.Name,
+            Kind = baseline.Kind,
+            Side = baseline.Side,
+            Metadata = baseline.Metadata,
+            Nodes = baseline.Nodes,
+            Variables = [new GraphVariableDocument { Name = "Value", TypeName = "int32" }]
+        };
+        var saved = _server.HandleDraftSave(new DraftSaveRequest(_client.SessionId!, graphId, first.PublishedRevision!.Value, GraphSerializer.Serialize(ours), "ours"));
+        Assert.That(saved.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        var renamed = baseline.Nodes[0];
+        var theirs = new GraphDocument
+        {
+            Id = baseline.Id,
+            Name = baseline.Name,
+            Kind = baseline.Kind,
+            Side = baseline.Side,
+            Metadata = baseline.Metadata,
+            Nodes = [new NodeDocument { Id = renamed.Id, Name = "Theirs", NodeType = renamed.NodeType, Pins = renamed.Pins, Properties = renamed.Properties }]
+        };
+        var second = await _client.PublishDraftAsync(graphId, first.PublishedRevision.Value, GraphSerializer.Serialize(theirs), "theirs");
+        Assert.That(second.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        var rebasing = _server.RebaseDraft(_client.SessionId!, graphId);
+        Assert.That(rebasing.Status, Is.EqualTo(AuthoringStatusCode.Success), rebasing.ErrorMessage);
+        Assert.That(rebasing.DraftJson, Does.Contain("Theirs"));
+        Assert.That(rebasing.DraftJson, Does.Contain("Value"));
+    }
+
+    [Test]
+    public void SemanticMerge_ReportsAConflictWhenBothAuthorsEditTheSameNode()
+    {
+        var graphId = GraphId.New();
+        var baseline = CreateTestGraphDocument(graphId);
+        var node = baseline.Nodes[0];
+        GraphDocument Copy(string name) => new()
+        {
+            Id = baseline.Id,
+            Name = baseline.Name,
+            Kind = baseline.Kind,
+            Side = baseline.Side,
+            Nodes = [new NodeDocument { Id = node.Id, Name = name, NodeType = node.NodeType, Pins = node.Pins, Properties = node.Properties }]
+        };
+        var merged = SemanticMerge.Merge(baseline, Copy("Ours"), Copy("Theirs"));
+        Assert.That(merged.Document, Is.Null);
+        Assert.That(merged.Conflicts, Is.Not.Empty);
+    }
+
+    [Test]
+    public async Task SchemaSave_AcceptsInterfaceAndListFields()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var saved = _server.SaveSchema(_client.SessionId!, new SchemaDto(
+            SchemaId.New().ToString(),
+            "DoorContract",
+            false,
+            [new SchemaFieldDto(FieldId.New().ToString(), "States", "List<int32>", null, false, false)],
+            "Interface"));
+        Assert.That(saved.Status, Is.EqualTo(AuthoringStatusCode.Success), saved.ErrorMessage);
+        Assert.That(saved.Schema!.Kind, Is.EqualTo("Interface"));
+        Assert.That(saved.Schema.Fields[0].TypeName, Is.EqualTo("List<int32>"));
+    }
+
+    [Test]
+    public async Task EntityWatch_ReadsADynamicField()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var field = new SchemaField(FieldId.New(), "State", PrimitiveType.Int32, "0", SchemaFieldOptions.None);
+        var schema = new SchemaType(SchemaId.New(), "Door", true, [field]);
+        _host.Components.AddComponent(7, schema).SetField(0, AstraValue.FromInt64(9));
+        _server.RememberWatch(_client.SessionId!, "State", "entity:7.Door.State", false);
+        var inspect = _server.InspectDebugger(_client.SessionId!);
+        Assert.That(inspect.Watches.Single().Value, Is.EqualTo("9"));
+    }
+
+    [Test]
+    public async Task SharedPublish_UsesTheHostTickPlusLead()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        _host.Update(1, 10);
+        var graphId = GraphId.New();
+        var published = await _client.PublishDraftAsync(graphId, RevisionId.Empty, GraphSerializer.Serialize(CreateTestGraphDocument(graphId, "SharedDoor", GraphSide.Shared)), "shared");
+        Assert.That(published.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        Assert.That(published.ActivationTick, Is.EqualTo(14));
+        Assert.That(published.ClientCount, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task UiCompile_MountsControlsAndReportsLayout()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var compiled = _server.CompileUi(_client.SessionId!, new UiDocumentDto(
+            GraphId.New().ToString(),
+            "Panel",
+            200,
+            120,
+            new UiNodeDto(Guid.NewGuid().ToString("D"), "Button", "Open", "Open", [], ValueSource: "Binding")));
+        Assert.That(compiled.Status, Is.EqualTo(AuthoringStatusCode.Success), compiled.ErrorMessage);
+        Assert.That(compiled.ElementCount, Is.EqualTo(1));
+        Assert.That(compiled.Mounted, Does.Contain("Button:Binding"));
+    }
+
+    [Test]
+    public async Task ProfilerSubscribe_ReturnsNodeTime()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var node = NodeId.New();
+        _profiler.RecordNodeTime(node, 15);
+        var graphId = GraphId.New();
+        var subscribed = _server.SubscribeProfiler(_client.SessionId!, graphId, false);
+        Assert.That(subscribed.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        Assert.That(subscribed.Snapshot!.Hottest.Any(item => item.NodeId == node.ToString() && item.Microseconds >= 15), Is.True);
+    }
+
+    [Test]
+    public void CompileFixture_MatchesTheSharedContract()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "tests", "fixtures", "compile-response.json")))
+        {
+            dir = dir.Parent;
+        }
+
+        Assert.That(dir, Is.Not.Null);
+        var json = File.ReadAllText(Path.Combine(dir!.FullName, "tests", "fixtures", "compile-response.json"));
+        var message = JsonSerializer.Deserialize<DraftCompileResponseMsg>(json, AuthoringJsonContext.Default);
+        Assert.That(message, Is.Not.Null);
+        Assert.That(message!.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        Assert.That(message.HasErrors, Is.False);
+        Assert.That(message.Stage, Is.EqualTo("Verify"));
     }
 }

@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Background,
   Controls,
   Handle,
   MiniMap,
+  Panel,
   Position,
   ReactFlow,
   ReactFlowProvider,
@@ -16,7 +17,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import "./canvas.css";
-import { applyFlow, toFlow, type FlowEdge, type GraphDocument, type PinDocument } from "../documents/graph";
+import { alignNodes, applyFlow, emptyAttributes, toFlow, type FlowEdge, type GraphDocument, type PinDocument } from "../documents/graph";
 
 type PinMark = "compatible" | "incompatible";
 
@@ -31,6 +32,7 @@ type AstraData = {
   marks?: Record<string, PinMark>;
   reasons?: Record<string, string>;
   alertPin?: string;
+  comment?: boolean;
 };
 
 function pinShape(pin: { name: string; kind: string }) {
@@ -39,6 +41,7 @@ function pinShape(pin: { name: string; kind: string }) {
 }
 
 function AstraNodeView({ data }: NodeProps<Node<AstraData, "astra">>) {
+  if (data.comment) return <div className="astra-comment"><strong>{data.label}</strong><div>{data.nodeType}</div></div>;
   const eventNode = data.nodeType.startsWith("Event") || data.outputs.some((pin) => pin.name === "Then");
   return (
     <div className={eventNode ? "astra-node event" : "astra-node"}>
@@ -76,6 +79,15 @@ function AstraNodeView({ data }: NodeProps<Node<AstraData, "astra">>) {
 }
 
 const nodeTypes = { astra: AstraNodeView };
+
+function readBookmarks(value: string | undefined): { id: string; name: string }[] {
+  try {
+    const parsed = JSON.parse(value || "[]") as { id?: string; name?: string }[];
+    return Array.isArray(parsed) ? parsed.filter((item) => item.id).map((item) => ({ id: String(item.id), name: String(item.name || "Node") })) : [];
+  } catch {
+    return [];
+  }
+}
 
 function useFlowColorMode(): "dark" | "light" {
   const [mode, setMode] = useState<"dark" | "light">(() => document.documentElement.dataset.theme === "light" ? "light" : "dark");
@@ -130,6 +142,8 @@ function CanvasSurface(props: {
   const { fitView } = useReactFlow();
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<AstraData, "astra">>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<FlowEdge>([]);
+  const [picked, setPicked] = useState<string[]>([]);
+  const frameRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const flow = toFlow(props.document);
@@ -145,7 +159,7 @@ function CanvasSurface(props: {
         alertPin: props.alertPin
       }
     })));
-    setEdges(flow.edges);
+    setEdges(flow.edges.map((edge) => ({ ...edge, className: props.alertPin && (edge.sourceHandle === props.alertPin || edge.targetHandle === props.alertPin) ? "edge-alert" : undefined })));
   }, [props.alertPin, props.document, props.heat, props.pinMarks, props.pinReasons, props.selectedId, setEdges, setNodes]);
 
   useEffect(() => {
@@ -185,6 +199,7 @@ function CanvasSurface(props: {
   }
 
   return (
+    <div ref={frameRef} className="canvas-frame">
     <ReactFlow
       colorMode={colorMode}
       nodes={nodes}
@@ -214,13 +229,41 @@ function CanvasSurface(props: {
       deleteKeyCode={null}
       selectionOnDrag
       multiSelectionKeyCode="Shift"
+      onlyRenderVisibleElements
       snapToGrid
       snapGrid={[16, 16]}
       fitView
+      onMove={(_, viewport) => frameRef.current?.classList.toggle("semantic-far", viewport.zoom < 0.6)}
+      onSelectionChange={({ nodes: selected }) => {
+        const ids = selected.map((node) => node.id);
+        setPicked((current) => current.length === ids.length && current.every((id, index) => id === ids[index]) ? current : ids);
+      }}
     >
+      <Panel position="top-left" className="canvas-tools">
+        <button type="button" onClick={() => props.onChange(alignNodes(props.document, picked, "left"))}>Align left</button>
+        <button type="button" onClick={() => props.onChange(alignNodes(props.document, picked, "top"))}>Align top</button>
+        <button type="button" onClick={() => props.onChange({
+          ...props.document,
+          editorLayout: {
+            ...props.document.editorLayout,
+            comments: [...props.document.editorLayout.comments, { id: crypto.randomUUID(), title: "Comment", text: "", x: 48, y: 48, width: 180, height: 80 }]
+          }
+        })}>Comment</button>
+        <button type="button" onClick={() => {
+          if (!props.selectedId) return;
+          const bookmarks = readBookmarks(props.document.attributes?.bookmarks);
+          const node = props.document.nodes.find((item) => item.id === props.selectedId);
+          bookmarks.push({ id: props.selectedId, name: node?.name || "Node" });
+          props.onChange({ ...props.document, attributes: { ...emptyAttributes(), ...props.document.attributes, bookmarks: JSON.stringify(bookmarks) } });
+        }}>Bookmark</button>
+        {readBookmarks(props.document.attributes?.bookmarks).map((bookmark) => (
+          <button key={bookmark.id} type="button" onClick={() => props.onSelect?.(bookmark.id)}>{bookmark.name}</button>
+        ))}
+      </Panel>
       <Background gap={18} size={1} />
       <Controls showInteractive={false} />
       <MiniMap pannable zoomable style={{ width: 132, height: 88 }} />
     </ReactFlow>
+    </div>
   );
 }

@@ -10,9 +10,14 @@ export function BindingBrowser(props: {
   onInsert: (entry: CatalogEntry) => void;
 }) {
   const [localQuery, setLocalQuery] = useState("");
-  const [limit, setLimit] = useState(80);
+  const [scrollTop, setScrollTop] = useState(0);
   const query = props.query ?? localQuery;
   const groups = useMemo(() => groupBindings(filterBindings(props.entries, query)), [props.entries, query]);
+  const flat = useMemo(() => groups.flatMap((group) => group.items.map((entry) => ({ group: group.category, entry }))), [groups]);
+  const rowHeight = 36;
+  const windowSize = 40;
+  const start = Math.max(0, Math.floor(scrollTop / rowHeight) - 4);
+  const visible = flat.slice(start, start + windowSize);
 
   return (
     <div className="browser">
@@ -21,22 +26,18 @@ export function BindingBrowser(props: {
       {props.status === "loading" ? <p className="muted">Loading bindings…</p> : null}
       {props.status === "error" ? <p className="problem error">{props.error}</p> : null}
       {props.status === "ready" && groups.length === 0 ? <p className="muted">No bindings match.</p> : null}
-      {groups.map((group) => (
-        <details key={group.category} open={query.trim().length > 0}>
-          <summary>{group.category}<span className="muted"> {group.items.length}</span></summary>
-          <ul className="list">
-            {group.items.slice(0, limit).map((entry) => (
-              <li key={entry.signature}>
-                <button type="button" title={entry.documentation || entry.signature} onClick={() => props.onInsert(entry)}>
-                  <span>{methodName(entry.signature)}</span>
-                  <span className="muted">{entry.side}{entry.isPure ? " · pure" : ""}{entry.isPredictionSafe ? " · predicted" : ""}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          {group.items.length > limit ? <button type="button" onClick={() => setLimit((value) => value + 80)}>Show more</button> : null}
-        </details>
-      ))}
+      <div className="virtual-list" onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}>
+        <div style={{ height: flat.length * rowHeight, position: "relative" }}>
+          {visible.map((row, index) => (
+            <div key={row.entry.signature} style={{ position: "absolute", top: (start + index) * rowHeight, height: rowHeight, left: 0, right: 0 }}>
+              <button type="button" title={row.entry.documentation || row.entry.signature} onClick={() => props.onInsert(row.entry)}>
+                <span>{methodName(row.entry.signature)}</span>
+                <span className="muted">{row.group} · {row.entry.side}{row.entry.isPure ? " · pure" : ""}</span>
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

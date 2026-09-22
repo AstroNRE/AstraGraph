@@ -22,6 +22,7 @@ public sealed class AstraGraphHost
     public AstraVm Vm { get; }
     public IVmHostServices HostServices { get; }
     public int ExecutedEntryPoints { get; private set; }
+    public int CurrentTick { get; private set; }
     public Debugging.GraphDebugger Debugger { get; }
     public GraphFaultLog Faults { get; }
 
@@ -87,6 +88,7 @@ public sealed class AstraGraphHost
 
     public void Update(double currentTimeSeconds, int currentTick)
     {
+        CurrentTick = currentTick;
         // 1. Update systems DAG
         Scheduler.Update(currentTimeSeconds, currentTick);
 

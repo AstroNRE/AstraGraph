@@ -59,6 +59,8 @@ public sealed class GraphListResponseMsg : AuthoringMessage
     public AuthoringStatusCode Status { get; init; }
     public IReadOnlyList<GraphSummaryDto> Graphs { get; init; } = Array.Empty<GraphSummaryDto>();
     public string? ErrorMessage { get; init; }
+    public int ClientCount { get; init; }
+    public string MigrationSummary { get; init; } = "No schema migration";
 }
 
 public sealed class DraftCompileRequestMsg : AuthoringMessage
@@ -98,6 +100,8 @@ public sealed class DraftPublishResponseMsg : AuthoringMessage
     public IReadOnlyList<Diagnostic> Diagnostics { get; init; } = Array.Empty<Diagnostic>();
     public string? ErrorMessage { get; init; }
     public int ActivationTick { get; init; }
+    public string? MigrationSummary { get; init; }
+    public int ClientCount { get; init; }
 }
 
 public sealed class DraftSaveRequestMsg : AuthoringMessage
@@ -329,6 +333,7 @@ public sealed class DebuggerInspectResponseMsg : AuthoringMessage
     public IReadOnlyList<DebugValueDto> Locals { get; init; } = [];
     public IReadOnlyList<DebugValueDto> Watches { get; init; } = [];
     public IReadOnlyList<DebugTraceDto> Trace { get; init; } = [];
+    public string? EventPayload { get; init; }
     public string? ErrorMessage { get; init; }
 }
 
@@ -518,6 +523,77 @@ public sealed class UiCompileResponseMsg : AuthoringMessage
     public override string Kind => "ui.compile.response";
     public AuthoringStatusCode Status { get; init; }
     public IReadOnlyList<Diagnostic> Diagnostics { get; init; } = [];
+    public string? ErrorMessage { get; init; }
+    public int ElementCount { get; init; }
+    public int MaxDepth { get; init; }
+    public int BindingCount { get; init; }
+    public string Mounted { get; init; } = string.Empty;
+}
+
+public sealed class DraftRebaseRequestMsg : AuthoringMessage
+{
+    public override string Kind => "draft.rebase.request";
+    public string SessionId { get; init; } = string.Empty;
+    public GraphId GraphId { get; init; }
+}
+
+public sealed class DraftRebaseResponseMsg : AuthoringMessage
+{
+    public override string Kind => "draft.rebase.response";
+    public AuthoringStatusCode Status { get; init; }
+    public string? DraftJson { get; init; }
+    public RevisionId? BaseRevisionId { get; init; }
+    public string? Conflicts { get; init; }
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class DraftMergeRequestMsg : AuthoringMessage
+{
+    public override string Kind => "draft.merge.request";
+    public string SessionId { get; init; } = string.Empty;
+    public GraphId GraphId { get; init; }
+    public string OtherDraftJson { get; init; } = string.Empty;
+}
+
+public sealed class DraftMergeResponseMsg : AuthoringMessage
+{
+    public override string Kind => "draft.merge.response";
+    public AuthoringStatusCode Status { get; init; }
+    public string? DraftJson { get; init; }
+    public string? Conflicts { get; init; }
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class GraphTestRequestMsg : AuthoringMessage
+{
+    public override string Kind => "test.run.request";
+    public string SessionId { get; init; } = string.Empty;
+    public string DraftJson { get; init; } = string.Empty;
+}
+
+public sealed class GraphTestResponseMsg : AuthoringMessage
+{
+    public override string Kind => "test.run.response";
+    public AuthoringStatusCode Status { get; init; }
+    public bool Passed { get; init; }
+    public string? Actual { get; init; }
+    public string? Expected { get; init; }
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class ProfilerSubscribeRequestMsg : AuthoringMessage
+{
+    public override string Kind => "profiler.subscribe.request";
+    public string SessionId { get; init; } = string.Empty;
+    public GraphId GraphId { get; init; }
+    public bool Unsubscribe { get; init; }
+}
+
+public sealed class ProfilerSubscribeResponseMsg : AuthoringMessage
+{
+    public override string Kind => "profiler.subscribe.response";
+    public AuthoringStatusCode Status { get; init; }
+    public ProfilerSnapshotDto? Snapshot { get; init; }
     public string? ErrorMessage { get; init; }
 }
 

@@ -51,9 +51,9 @@ public sealed class DiagnosticBag : IReadOnlyList<Diagnostic>
         }
     }
 
-    public void ReportError(string code, string message, NodeId? nodeId = null, PinId? pinId = null, SymbolId? symbolId = null, string? suggestedFix = null)
+    public void ReportError(string code, string message, NodeId? nodeId = null, PinId? pinId = null, SymbolId? symbolId = null, string? suggestedFix = null, NodeId? relatedNodeId = null)
     {
-        Report(new Diagnostic(code, DiagnosticSeverity.Error, message, nodeId, pinId, symbolId, suggestedFix));
+        Report(new Diagnostic(code, DiagnosticSeverity.Error, message, nodeId, pinId, symbolId, suggestedFix, relatedNodeId));
     }
 
     public void ReportWarning(string code, string message, NodeId? nodeId = null, PinId? pinId = null, SymbolId? symbolId = null, string? suggestedFix = null)

@@ -58,6 +58,7 @@ public sealed class GraphProfiler
 
     private readonly ConcurrentDictionary<GraphId, MetricsAccumulator> _metrics = new();
     private readonly ConcurrentDictionary<NodeId, long> _nodeHits = new();
+    private readonly ConcurrentDictionary<NodeId, double> _nodeMicros = new();
     private readonly ConcurrentDictionary<GraphId, List<double>> _samples = new();
 
     public ProfileScope BeginScope(GraphId graphId) => new(this, graphId);
@@ -108,6 +109,20 @@ public sealed class GraphProfiler
         System.Threading.Interlocked.Increment(ref acc.BudgetViolations);
     }
 
+    public void RecordNodeTime(NodeId nodeId, double microseconds)
+    {
+        _nodeHits.AddOrUpdate(nodeId, 1, (_, old) => old + 1);
+        _nodeMicros.AddOrUpdate(nodeId, microseconds, (_, old) => old + microseconds);
+    }
+
+    public double NodeMicroseconds(NodeId nodeId) => _nodeMicros.TryGetValue(nodeId, out var value) ? value : 0;
+
+    public IReadOnlyList<double> RecentSamples(GraphId graphId)
+    {
+        if (!_samples.TryGetValue(graphId, out var samples)) return [];
+        lock (samples) return samples.ToArray();
+    }
+
     public void RecordAllocation(GraphId graphId, long bytes)
     {
         if (bytes <= 0) return;
@@ -150,6 +165,7 @@ public sealed class GraphProfiler
     {
         _metrics.Clear();
         _nodeHits.Clear();
+        _nodeMicros.Clear();
         _samples.Clear();
     }
 

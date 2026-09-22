@@ -16,6 +16,8 @@ public sealed class MixedQueryEngine
     private readonly DynamicComponentStore _componentStore;
     private readonly IEcsQueryBridge _ecsBridge;
 
+    public static long Iterations { get; private set; }
+
     public MixedQueryEngine(DynamicComponentStore componentStore, IEcsQueryBridge ecsBridge)
     {
         _componentStore = componentStore ?? throw new ArgumentNullException(nameof(componentStore));
@@ -25,6 +27,7 @@ public sealed class MixedQueryEngine
     public List<MixedQueryResult> Execute(QueryDescriptor query)
     {
         ArgumentNullException.ThrowIfNull(query);
+        Iterations++;
 
         if (query.RequiredAstraSchemas.Count == 0 && query.RequiredNativeTypes.Count == 0)
         {

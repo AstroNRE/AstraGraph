@@ -12,6 +12,7 @@ export interface UiNode {
   minWidth?: number | null;
   minHeight?: number | null;
   styleClasses?: string[];
+  valueSource?: "Constant" | "Binding" | "Expression";
 }
 
 export interface UiBindingModel {
@@ -78,6 +79,12 @@ function findNode(node: UiNode, id: string): UiNode | undefined {
 }
 
 function boundText(node: UiNode, local: Record<string, string>, bindings: UiBindingModel[]): string {
+  if (node.valueSource === "Expression") return node.text ?? "";
+  if ((node.valueSource ?? "Binding") === "Binding" || node.valueSource === "Binding") {
+    const binding = bindings.find((item) => item.elementId === node.id && item.targetProperty === "Text");
+    if (binding && local[binding.stateVariable]) return local[binding.stateVariable];
+  }
+  if (node.valueSource === "Constant") return node.text ?? "";
   const binding = bindings.find((item) => item.elementId === node.id && item.targetProperty === "Text");
   if (binding && local[binding.stateVariable]) return local[binding.stateVariable];
   return node.text ?? "";
@@ -117,7 +124,7 @@ function ControlPreview(props: { document: UiDocumentModel }) {
           <option value="light">light</option>
         </select>
       </label>
-      <p className="muted">{locale} · browser mock of the control catalog. A connected Robust client mounts the native controls.</p>
+      <p className="muted">{locale} · browser mock of the same control types. Native Robust controls mount when IUserInterfaceManager is present; otherwise the factory contract uses the in-memory control.</p>
       <div style={{ width: props.document.width, transform: `scale(${scale})`, transformOrigin: "top left", background: theme === "light" ? "#f3f4f6" : "#171a22", color: theme === "light" ? "#111" : "#e7e9ee", padding: 8 }}>
         <ControlNode node={props.document.root} local={props.document.localState ?? {}} bindings={props.document.bindings ?? []} />
       </div>
@@ -125,7 +132,7 @@ function ControlPreview(props: { document: UiDocumentModel }) {
   );
 }
 
-export function UiDesigner(props: { documents: UiDocumentModel[]; onSave: (document: UiDocumentModel) => void; onDiagnose?: (document: UiDocumentModel) => void }) {
+export function UiDesigner(props: { documents: UiDocumentModel[]; layout?: string; onSave: (document: UiDocumentModel) => void; onDiagnose?: (document: UiDocumentModel) => void }) {
   const [draft, setDraft] = useState<UiDocumentModel | null>(props.documents[0] ?? null);
   const [selected, setSelected] = useState("");
   const [tab, setTab] = useState<(typeof tabs)[number]>("Design");
@@ -170,6 +177,13 @@ export function UiDesigner(props: { documents: UiDocumentModel[]; onSave: (docum
           </ul>
           <label className="field">Text
             <input value={current.text ?? ""} onChange={(event) => setDraft({ ...draft, root: updateNode(draft.root, current.id, { text: event.target.value }) })} />
+          </label>
+          <label className="field">Value
+            <select value={current.valueSource ?? "Constant"} onChange={(event) => setDraft({ ...draft, root: updateNode(draft.root, current.id, { valueSource: event.target.value as UiNode["valueSource"] }) })}>
+              <option>Constant</option>
+              <option>Binding</option>
+              <option>Expression</option>
+            </select>
           </label>
           <div className="section-label">Add control</div>
           {controls.map((elementType) => (
@@ -244,7 +258,7 @@ export function UiDesigner(props: { documents: UiDocumentModel[]; onSave: (docum
       ) : null}
       {tab === "Diagnostics" ? (
         <div>
-          <p className="muted">Runs the UI compiler against this document.</p>
+          <p className="muted">Runs the UI compiler against this document. {props.layout}</p>
           <button type="button" onClick={() => props.onDiagnose?.(draft)}>Compile UI</button>
         </div>
       ) : null}

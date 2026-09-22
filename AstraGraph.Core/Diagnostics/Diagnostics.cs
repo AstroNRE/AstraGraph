@@ -53,7 +53,8 @@ public sealed record Diagnostic(
     NodeId? NodeId = null,
     PinId? PinId = null,
     SymbolId? SymbolId = null,
-    string? SuggestedFix = null)
+    string? SuggestedFix = null,
+    NodeId? RelatedNodeId = null)
 {
     public override string ToString()
     {

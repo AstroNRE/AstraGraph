@@ -8,6 +8,7 @@ using AstraGraph.Editor.Core.Search;
 using AstraGraph.HotReload;
 using AstraGraph.UI.Compiler;
 using AstraGraph.UI.Model;
+using AstraGraph.UI.Runtime;
 using AstraGraph.Persistence.Audit;
 using AstraGraph.Runtime.Debugging;
 using AstraGraph.Runtime.Profiling;
@@ -43,7 +44,10 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
     private readonly ConcurrentDictionary<RevisionId, string> _revisionSources = new();
     private readonly ConcurrentDictionary<string, Dictionary<string, string>> _watches = new();
     private readonly ConcurrentDictionary<SchemaId, SchemaType> _schemas = new();
+    private readonly ConcurrentDictionary<SchemaId, string> _schemaKinds = new();
     private readonly ConcurrentDictionary<string, EnumType> _enums = new();
+    private readonly ConcurrentDictionary<string, GraphId> _profilerWatch = new();
+    private string _lastMigration = "No schema migration";
     private readonly ConcurrentDictionary<GraphId, string> _status = new();
     private readonly ConcurrentDictionary<RevisionId, int> _activation = new();
     private int _authoringTick;
@@ -146,6 +150,36 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         public void Dispose() => dispose();
     }
 
+    private GraphSummaryDto DescribeGraph(GraphSummaryDto graph)
+    {
+        var owner = "";
+        var tags = "";
+        var overrideOf = "";
+        if (_liveSources.TryGetValue(graph.Id, out var json))
+        {
+            try
+            {
+                var document = GraphSerializer.Deserialize(json);
+                owner = document.Metadata.Author;
+                tags = string.Join(", ", document.Metadata.Tags);
+                document.Metadata.CustomAttributes.TryGetValue("overrideOf", out overrideOf!);
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                owner = "";
+            }
+        }
+
+        return graph with
+        {
+            Status = _status.TryGetValue(graph.Id, out var status) ? status : "Live",
+            HasDraft = _activeDrafts.ContainsKey(graph.Id),
+            Owner = owner,
+            Tags = tags,
+            OverrideOf = overrideOf ?? ""
+        };
+    }
+
     public GraphListResponse HandleGraphList(GraphListRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -155,13 +189,9 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         }
 
         var graphs = _graphs.Values
-            .Select(graph => graph with
-            {
-                Status = _status.TryGetValue(graph.Id, out var status) ? status : "Live",
-                HasDraft = _activeDrafts.ContainsKey(graph.Id)
-            })
+            .Select(DescribeGraph)
             .ToList();
-        return new GraphListResponse(AuthoringStatusCode.Success, graphs);
+        return new GraphListResponse(AuthoringStatusCode.Success, graphs, ClientCount: _sessions.Count, MigrationSummary: _lastMigration);
     }
 
     public DraftSaveResponse HandleDraftSave(DraftSaveRequest request)
@@ -192,7 +222,7 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         }
 
         var draftRevision = RevisionId.New();
-        _activeDrafts[request.GraphId] = (draftRevision, request.DraftJson);
+        _activeDrafts[request.GraphId] = (request.BaseRevisionId, request.DraftJson);
 
         return new DraftSaveResponse(AuthoringStatusCode.Success, draftRevision, false);
     }
@@ -317,7 +347,10 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             (_graphs.TryGetValue(request.GraphId, out var prev) ? prev.RevisionCount : 0) + 1);
         _revisionSources[newRevision] = request.DraftJson;
         _liveSources[request.GraphId] = request.DraftJson;
-        _activeDrafts.TryRemove(request.GraphId, out _);
+        if (_activeDrafts.TryGetValue(request.GraphId, out var pending) && pending.DraftJson == request.DraftJson)
+        {
+            _activeDrafts.TryRemove(request.GraphId, out _);
+        }
         _status.TryRemove(request.GraphId, out _);
 
         if (_auditLogger != null)
@@ -336,11 +369,19 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         var activationTick = 0;
         if (graphDoc.Side is GraphSide.Shared or GraphSide.SharedPredicted)
         {
-            activationTick = System.Threading.Interlocked.Increment(ref _authoringTick) + 4;
+            var hostTick = _hotReloadManager?.Host.CurrentTick ?? 0;
+            var counter = hostTick > 0 ? hostTick : System.Threading.Interlocked.Increment(ref _authoringTick);
+            activationTick = counter + 4;
             _activation[newRevision] = activationTick;
         }
 
-        return Task.FromResult(new DraftPublishResponse(AuthoringStatusCode.Success, newRevision, [], ActivationTick: activationTick));
+        return Task.FromResult(new DraftPublishResponse(
+            AuthoringStatusCode.Success,
+            newRevision,
+            [],
+            ActivationTick: activationTick,
+            MigrationSummary: _lastMigration,
+            ClientCount: _sessions.Count));
     }
 
     public Task<RollbackResponse> HandleRollbackAsync(RollbackRequest request)
@@ -835,6 +876,18 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             UiCompileRequestMsg req =>
                 CompileUi(req.SessionId, req.Document),
 
+            DraftRebaseRequestMsg req =>
+                RebaseDraft(req.SessionId, req.GraphId),
+
+            DraftMergeRequestMsg req =>
+                MergeDraft(req.SessionId, req.GraphId, req.OtherDraftJson),
+
+            GraphTestRequestMsg req =>
+                RunGraphTest(req.SessionId, req.DraftJson),
+
+            ProfilerSubscribeRequestMsg req =>
+                SubscribeProfiler(req.SessionId, req.GraphId, req.Unsubscribe),
+
             DraftCompileRequestMsg req =>
                 HandleDraftCompileMsg(req),
 
@@ -913,7 +966,9 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         {
             Status = resp.Status,
             Graphs = resp.Graphs,
-            ErrorMessage = resp.ErrorMessage
+            ErrorMessage = resp.ErrorMessage,
+            ClientCount = resp.ClientCount,
+            MigrationSummary = resp.MigrationSummary
         };
     }
 
@@ -1200,7 +1255,9 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             PublishedRevision = resp.PublishedRevision,
             Diagnostics = resp.Diagnostics,
             ErrorMessage = resp.ErrorMessage,
-            ActivationTick = resp.ActivationTick
+            ActivationTick = resp.ActivationTick,
+            MigrationSummary = resp.MigrationSummary,
+            ClientCount = resp.ClientCount
         };
     }
 
@@ -1257,8 +1314,135 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             SuspendedNodeId = suspension?.NodeId.ToString(),
             Locals = locals,
             Watches = watches,
-            Trace = trace
+            Trace = trace,
+            EventPayload = EventPayload(suspension?.NodeId, registers)
         };
+    }
+
+    public DraftRebaseResponseMsg RebaseDraft(string sessionId, GraphId graphId)
+    {
+        if (!_sessions.ContainsKey(sessionId))
+        {
+            return new DraftRebaseResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Invalid session." };
+        }
+
+        if (!_activeDrafts.TryGetValue(graphId, out var draft))
+        {
+            return new DraftRebaseResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = "No draft to rebase." };
+        }
+
+        if (!_graphs.TryGetValue(graphId, out var summary))
+        {
+            return new DraftRebaseResponseMsg { Status = AuthoringStatusCode.NotFound, ErrorMessage = "Graph was not found." };
+        }
+
+        if (draft.HeadRevision == summary.ActiveRevision)
+        {
+            return new DraftRebaseResponseMsg { Status = AuthoringStatusCode.Success, DraftJson = draft.DraftJson, BaseRevisionId = summary.ActiveRevision };
+        }
+
+        if (!_revisionSources.TryGetValue(draft.HeadRevision, out var baseJson) || !_liveSources.TryGetValue(graphId, out var liveJson))
+        {
+            return new DraftRebaseResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = "Base revision source is missing." };
+        }
+
+        var merged = SemanticMerge.Merge(GraphSerializer.Deserialize(baseJson), GraphSerializer.Deserialize(draft.DraftJson), GraphSerializer.Deserialize(liveJson));
+        if (merged.Document == null)
+        {
+            return new DraftRebaseResponseMsg { Status = AuthoringStatusCode.Conflict, Conflicts = string.Join("; ", merged.Conflicts), ErrorMessage = "Rebase has conflicts." };
+        }
+
+        var json = GraphSerializer.Serialize(merged.Document, writeIndented: false);
+        _activeDrafts[graphId] = (summary.ActiveRevision, json);
+        return new DraftRebaseResponseMsg { Status = AuthoringStatusCode.Success, DraftJson = json, BaseRevisionId = summary.ActiveRevision };
+    }
+
+    public DraftMergeResponseMsg MergeDraft(string sessionId, GraphId graphId, string otherDraftJson)
+    {
+        if (!_sessions.ContainsKey(sessionId))
+        {
+            return new DraftMergeResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Invalid session." };
+        }
+
+        if (!_liveSources.TryGetValue(graphId, out var liveJson) || !_graphs.TryGetValue(graphId, out var summary))
+        {
+            return new DraftMergeResponseMsg { Status = AuthoringStatusCode.NotFound, ErrorMessage = "Graph was not found." };
+        }
+
+        var hasDraft = _activeDrafts.TryGetValue(graphId, out var draft);
+        var oursJson = hasDraft ? draft.DraftJson : liveJson;
+        var baseId = hasDraft ? draft.HeadRevision : summary.ActiveRevision;
+        var baseJson = _revisionSources.TryGetValue(baseId, out var stored) ? stored : liveJson;
+        MergeResult merged;
+        try
+        {
+            merged = SemanticMerge.Merge(GraphSerializer.Deserialize(baseJson), GraphSerializer.Deserialize(oursJson), GraphSerializer.Deserialize(otherDraftJson));
+        }
+        catch (Exception ex) when (ex is System.Text.Json.JsonException or FormatException)
+        {
+            return new DraftMergeResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = ex.Message };
+        }
+
+        if (merged.Document == null)
+        {
+            return new DraftMergeResponseMsg { Status = AuthoringStatusCode.Conflict, Conflicts = string.Join("; ", merged.Conflicts), ErrorMessage = "Merge has conflicts." };
+        }
+
+        var json = GraphSerializer.Serialize(merged.Document, writeIndented: false);
+        _activeDrafts[graphId] = (summary.ActiveRevision, json);
+        return new DraftMergeResponseMsg { Status = AuthoringStatusCode.Success, DraftJson = json };
+    }
+
+    public GraphTestResponseMsg RunGraphTest(string sessionId, string draftJson)
+    {
+        if (!_sessions.ContainsKey(sessionId))
+        {
+            return new GraphTestResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Invalid session." };
+        }
+
+        GraphDocument document;
+        try
+        {
+            document = GraphSerializer.Deserialize(draftJson);
+        }
+        catch (Exception ex) when (ex is System.Text.Json.JsonException or FormatException)
+        {
+            return new GraphTestResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = ex.Message };
+        }
+
+        if (!document.Metadata.CustomAttributes.TryGetValue("expected", out var expected))
+        {
+            return new GraphTestResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = "Graph has no expected result." };
+        }
+
+        var run = RunSandbox(sessionId, draftJson);
+        var actual = run.Result ?? "";
+        var passed = !run.HasErrors && string.Equals(actual, expected, StringComparison.Ordinal);
+        return new GraphTestResponseMsg
+        {
+            Status = passed ? AuthoringStatusCode.Success : AuthoringStatusCode.ValidationError,
+            Passed = passed,
+            Actual = actual,
+            Expected = expected,
+            ErrorMessage = passed ? null : run.Result
+        };
+    }
+
+    public ProfilerSubscribeResponseMsg SubscribeProfiler(string sessionId, GraphId graphId, bool unsubscribe)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var session))
+        {
+            return new ProfilerSubscribeResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Invalid session." };
+        }
+
+        if (!AstraAuthorizationService.CanDebug(session.User))
+        {
+            return new ProfilerSubscribeResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Insufficient permissions for profiling." };
+        }
+
+        if (unsubscribe) _profilerWatch.TryRemove(sessionId, out _);
+        else _profilerWatch[sessionId] = graphId;
+        return new ProfilerSubscribeResponseMsg { Status = AuthoringStatusCode.Success, Snapshot = CaptureProfiler(graphId, false) };
     }
 
     public void RememberWatch(string sessionId, string name, string expression, bool remove)
@@ -1272,7 +1456,7 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
     {
         var metric = _profiler?.GetMetrics(graphId) ?? new AstraGraph.Runtime.Profiling.GraphPerformanceMetric(0, 0, 0, 0, 0, 0);
         var hottest = _profiler?.GetHottestNodes(8)
-            .Select(item => new ProfilerNodeDto(item.Key.ToString(), item.Value))
+            .Select(item => new ProfilerNodeDto(item.Key.ToString(), item.Value, _profiler.NodeMicroseconds(item.Key)))
             .ToArray() ?? [];
         var snapshot = new ProfilerSnapshotDto(
             metric.Invocations,
@@ -1284,7 +1468,9 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             metric.P95Microseconds,
             metric.BudgetViolations,
             metric.AllocatedBytes,
-            _hotReloadManager?.Host.PendingReplicationBytes() ?? 0);
+            _hotReloadManager?.Host.PendingReplicationBytes() ?? 0,
+            AstraGraph.Runtime.MixedQueryEngine.Iterations,
+            _profiler?.RecentSamples(graphId) ?? []);
         if (reset) _profiler?.Reset();
         return snapshot;
     }
@@ -1328,6 +1514,11 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             return SaveEnum(schema);
         }
 
+        if (kind is not ("Component" or "Struct" or "Interface" or "Contract"))
+        {
+            return new SchemaSaveResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = $"Unknown schema kind '{kind}'." };
+        }
+
         if (!SchemaId.TryParse(string.IsNullOrWhiteSpace(schema.Id) ? null : schema.Id, out var schemaId) || schemaId == SchemaId.Empty)
         {
             schemaId = SchemaId.New();
@@ -1344,7 +1535,7 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
                 return new SchemaSaveResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = "Schema fields need unique names." };
             }
 
-            if (!TryPrimitive(field.TypeName, out var type))
+            if (!TryType(field.TypeName, out var type))
             {
                 return new SchemaSaveResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = $"Unknown field type '{field.TypeName}'." };
             }
@@ -1358,12 +1549,21 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
 
         var isComponent = kind.Equals("Component", StringComparison.OrdinalIgnoreCase);
         var stored = new SchemaType(schemaId, schema.Name.Trim(), isComponent, fields);
+        if (kind.Equals("Interface", StringComparison.OrdinalIgnoreCase) || kind.Equals("Contract", StringComparison.OrdinalIgnoreCase))
+        {
+            _schemaKinds[schemaId] = kind;
+        }
+        else
+        {
+            _schemaKinds.TryRemove(schemaId, out _);
+        }
         var migration = _schemas.TryGetValue(schemaId, out var previous)
             ? StateMigrationPlanner.CreatePlan(previous, stored).Steps
                 .Select(step => new SemanticChangeDto(step.Action.ToString(), $"{step.SourceFieldName} → {step.TargetFieldName}"))
                 .ToArray()
             : [];
         _schemas[schemaId] = stored;
+        _lastMigration = migration.Length == 0 ? "No schema migration" : string.Join("; ", migration.Select(change => $"{change.Kind} {change.Detail}"));
         return new SchemaSaveResponseMsg { Status = AuthoringStatusCode.Success, Schema = ToSchemaDto(stored), Changes = migration };
     }
 
@@ -1407,7 +1607,7 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         .OrderBy(schema => schema.Name)
         .ToArray();
 
-    private static SchemaDto ToSchemaDto(SchemaType schema) => new(
+    private SchemaDto ToSchemaDto(SchemaType schema) => new(
         schema.Id.ToString(),
         schema.Name,
         schema.IsComponentSchema,
@@ -1418,7 +1618,7 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             field.DefaultValue,
             field.IsPersistent,
             field.IsReplicated)).ToArray(),
-        schema.IsComponentSchema ? "Component" : "Struct");
+        _schemaKinds.TryGetValue(schema.Id, out var kind) ? kind : schema.IsComponentSchema ? "Component" : "Struct");
 
     private static SchemaDto ToEnumDto(EnumType type) => new(
         type.Id.ToString(),
@@ -1427,6 +1627,43 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         [],
         "Enum",
         type.Members.Select(member => member.Name).ToArray());
+
+    private static bool TryType(string typeName, out AstraType type)
+    {
+        typeName = typeName.Trim();
+        if (typeName.EndsWith('?') && typeName.Length > 1 && TryType(typeName[..^1], out var inner))
+        {
+            type = new NullableType(inner);
+            return true;
+        }
+
+        if (TryCollection("List<", CollectionKind.List, typeName, out type) || TryCollection("Set<", CollectionKind.Set, typeName, out type))
+        {
+            return true;
+        }
+
+        if (typeName.StartsWith("Dictionary<", StringComparison.Ordinal) && typeName.EndsWith('>'))
+        {
+            var body = typeName["Dictionary<".Length..^1];
+            var comma = body.IndexOf(',');
+            if (comma > 0 && TryType(body[..comma], out var key) && TryType(body[(comma + 1)..], out var element))
+            {
+                type = new CollectionType(CollectionKind.Dictionary, element, key);
+                return true;
+            }
+        }
+
+        return TryPrimitive(typeName, out type);
+    }
+
+    private static bool TryCollection(string prefix, CollectionKind kind, string typeName, out AstraType type)
+    {
+        type = PrimitiveType.String;
+        if (!typeName.StartsWith(prefix, StringComparison.Ordinal) || !typeName.EndsWith('>')) return false;
+        if (!TryType(typeName[prefix.Length..^1], out var element)) return false;
+        type = new CollectionType(kind, element);
+        return true;
+    }
 
     private static bool TryPrimitive(string typeName, out AstraType type)
     {
@@ -1478,7 +1715,14 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             if (function == null) return new SandboxRunDto("Verify", bytecode.SemanticHash, "No function to run", true);
             var started = System.Diagnostics.Stopwatch.GetTimestamp();
             var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
-            var executed = new AstraGraph.VM.AstraVm().Execute(bytecode, function);
+            var executed = new AstraGraph.VM.AstraVm().Execute(bytecode, function, onNodeElapsed: (node, microseconds) =>
+            {
+                _profiler?.RecordNodeTime(node, microseconds);
+                if (_profilerWatch.Values.Contains(document.Id))
+                {
+                    PublishOutbound(new ProfilerSnapshotResponseMsg { Status = AuthoringStatusCode.Success, Snapshot = CaptureProfiler(document.Id, false) });
+                }
+            });
             var allocated = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
             var elapsed = (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1_000_000.0 / System.Diagnostics.Stopwatch.Frequency;
             if (document.Id != GraphId.Empty)
@@ -1512,14 +1756,50 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             item.Fields.Select(field => new RuntimeFieldDto(field.Name, field.Value)).ToArray()))
         .ToArray();
 
-    private static string EvaluateWatch(string expression, AstraValue[]? registers)
+    private string EvaluateWatch(string expression, AstraValue[]? registers)
     {
+        if (expression.StartsWith("entity:", StringComparison.Ordinal))
+        {
+            var body = expression["entity:".Length..];
+            var first = body.IndexOf('.');
+            var second = first < 0 ? -1 : body.IndexOf('.', first + 1);
+            if (first > 0 && second > first && int.TryParse(body[..first], out var entityId))
+            {
+                var schema = body[(first + 1)..second];
+                var field = body[(second + 1)..];
+                var match = RuntimeEntities().FirstOrDefault(item => item.EntityId == entityId && item.Schema == schema);
+                return match?.Fields.FirstOrDefault(item => item.Name == field)?.Value ?? "(unavailable)";
+            }
+        }
+
         if (registers != null && expression.Length > 1 && expression[0] == 'r' && int.TryParse(expression.AsSpan(1), out var index) && index >= 0 && index < registers.Length)
         {
             return registers[index].ToString();
         }
 
         return "(unavailable)";
+    }
+
+    private string? EventPayload(NodeId? nodeId, AstraValue[]? registers)
+    {
+        if (nodeId == null || registers is not { Length: > 0 }) return null;
+        foreach (var json in _liveSources.Values)
+        {
+            try
+            {
+                var node = GraphSerializer.Deserialize(json).FindNode(nodeId.Value);
+                if (node != null && node.NodeType.Contains("Event", StringComparison.OrdinalIgnoreCase))
+                {
+                    return registers[0].ToString();
+                }
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                continue;
+            }
+        }
+
+        return null;
     }
 
     private DebuggerInspectResponseMsg HandleDebuggerInspectMsg(DebuggerInspectRequestMsg req) => InspectDebugger(req.SessionId);
@@ -1676,10 +1956,15 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
 
             var stored = _uiDocuments[GraphId.FromString(saved.Document.Id)];
             var compiled = UiCompiler.Compile(stored);
+            var mounted = MountControls(stored.Root);
             return new UiCompileResponseMsg
             {
                 Status = compiled.Diagnostics.Any(item => item.Severity == DiagnosticSeverity.Error) ? AuthoringStatusCode.ValidationError : AuthoringStatusCode.Success,
-                Diagnostics = compiled.Diagnostics
+                Diagnostics = compiled.Diagnostics,
+                ElementCount = mounted.Count,
+                MaxDepth = UiDepth(stored.Root, 1),
+                BindingCount = stored.Bindings.Count,
+                Mounted = string.Join(", ", mounted)
             };
         }
         catch (Exception ex) when (ex is InvalidOperationException or FormatException)
@@ -1719,9 +2004,43 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             MinWidth = dto.MinWidth,
             MinHeight = dto.MinHeight,
             StyleClasses = (dto.StyleClasses ?? []).Where(item => !string.IsNullOrWhiteSpace(item)).ToList(),
+            CustomProperties = new Dictionary<string, object?> { ["valueSource"] = string.IsNullOrWhiteSpace(dto.ValueSource) ? "Constant" : dto.ValueSource },
             Children = (dto.Children ?? []).Select(child => BuildUiNode(child, depth + 1)).ToList()
         };
     }
+
+    private static List<string> MountControls(UiElementNode node)
+    {
+        var factory = UiFactory();
+        var mounted = new List<string>();
+        void Walk(UiElementNode current)
+        {
+            var control = factory.CreateControl(current.Id, current.ElementType, current.Name, current.MinWidth, current.MinHeight, current.Orientation);
+            var source = current.CustomProperties.TryGetValue("valueSource", out var mode) ? mode?.ToString() : "Constant";
+            control.SetProperty("Text", current.Text);
+            control.SetProperty("valueSource", source);
+            mounted.Add($"{control.ElementType}:{source}");
+            foreach (var child in current.Children) Walk(child);
+        }
+
+        Walk(node);
+        return mounted;
+    }
+
+    private static IRobustUiControlFactory UiFactory()
+    {
+        var native = Type.GetType("AstraGraph.Robust.Client.RobustUiControlFactory, AstraGraph.Robust.Client");
+        if (native != null && Activator.CreateInstance(native) is IRobustUiControlFactory factory)
+        {
+            var available = native.GetMethod("IsNativeUiAvailable")?.Invoke(null, null);
+            if (available is true) return factory;
+        }
+
+        return new MockRobustUiControlFactory();
+    }
+
+    private static int UiDepth(UiElementNode node, int depth) =>
+        node.Children.Count == 0 ? depth : node.Children.Max(child => UiDepth(child, depth + 1));
 
     private static UiDocumentDto ToUiDto(UiDocument document) => new(
         document.Id.ToString(),
@@ -1744,7 +2063,8 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         node.Orientation.ToString(),
         node.MinWidth,
         node.MinHeight,
-        node.StyleClasses);
+        node.StyleClasses,
+        node.CustomProperties.TryGetValue("valueSource", out var source) ? source?.ToString() ?? "Constant" : "Constant");
 
     private UiSaveResponseMsg HandleUiSaveMsg(UiSaveRequestMsg req)
     {

@@ -35,3 +35,29 @@
   width: 132px !important;
   height: 88px !important;
 }
+
+.canvas-tools {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: 420px;
+}
+
+.astra-comment {
+  width: 180px;
+  min-height: 64px;
+  padding: 8px;
+  border: 1px dashed var(--border-active);
+  background: color-mix(in srgb, var(--surface-panel) 80%, transparent);
+  color: var(--text-primary);
+}
+
+.semantic-far .astra-node-type,
+.semantic-far .pin {
+  display: none;
+}
+
+.react-flow__edge.edge-alert path {
+  stroke: var(--danger, #d4544a);
+  stroke-width: 2;
+}

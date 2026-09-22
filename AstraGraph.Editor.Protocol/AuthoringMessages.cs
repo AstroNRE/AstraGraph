@@ -44,14 +44,19 @@ public sealed record GraphSummaryDto(
     RevisionId ActiveRevision,
     int RevisionCount,
     string Status = "Live",
-    bool HasDraft = false);
+    bool HasDraft = false,
+    string Owner = "",
+    string Tags = "",
+    string OverrideOf = "");
 
 public sealed record GraphListRequest(string SessionId);
 
 public sealed record GraphListResponse(
     AuthoringStatusCode Status,
     IReadOnlyList<GraphSummaryDto> Graphs,
-    string? ErrorMessage = null);
+    string? ErrorMessage = null,
+    int ClientCount = 0,
+    string MigrationSummary = "No schema migration");
 
 public sealed record DraftSaveRequest(
     string SessionId,
@@ -92,7 +97,9 @@ public sealed record DraftPublishResponse(
     RevisionId? PublishedRevision,
     IReadOnlyList<Diagnostic> Diagnostics,
     string? ErrorMessage = null,
-    int ActivationTick = 0);
+    int ActivationTick = 0,
+    string? MigrationSummary = null,
+    int ClientCount = 0);
 
 public sealed record RollbackRequest(
     string SessionId,
@@ -227,7 +234,7 @@ public sealed record DebugValueDto(string Name, string Expression, string Value)
 
 public sealed record DebugTraceDto(string NodeId, int InstructionPointer);
 
-public sealed record ProfilerNodeDto(string NodeId, long Hits);
+public sealed record ProfilerNodeDto(string NodeId, long Hits, double Microseconds = 0);
 
 public sealed record ProfilerSnapshotDto(
     long Invocations,
@@ -239,7 +246,9 @@ public sealed record ProfilerSnapshotDto(
     double P95Microseconds = 0,
     long BudgetViolations = 0,
     long AllocatedBytes = 0,
-    int NetworkBytes = 0);
+    int NetworkBytes = 0,
+    long QueryIterations = 0,
+    IReadOnlyList<double>? Samples = null);
 
 public sealed record RuntimeFieldDto(string Name, string Value);
 
@@ -276,7 +285,8 @@ public sealed record UiNodeDto(
     string Orientation = "Vertical",
     int? MinWidth = null,
     int? MinHeight = null,
-    IReadOnlyList<string>? StyleClasses = null);
+    IReadOnlyList<string>? StyleClasses = null,
+    string ValueSource = "Constant");
 
 public sealed record UiBindingDto(
     string BindingId,

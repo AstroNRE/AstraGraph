@@ -5,6 +5,7 @@ import {
   addNode,
   connectPins,
   createGraph,
+  emptyAttributes,
   duplicateNodes,
   edit,
   insertNode,
@@ -26,7 +27,8 @@ import { readCatalog, type CatalogEntry } from "../bindings/catalog";
 import { BindingBrowser } from "./BindingBrowser";
 import { VariableEditor } from "./VariableEditor";
 import { SchemaEditor, type SchemaDocument } from "./SchemaEditor";
-import { problemGroup, suggestedFixFor } from "./problems";
+import { applyQuickFix, problemGroup, suggestedFixFor } from "./problems";
+import { rankTexts } from "../search/fuzzy";
 import { UiDesigner, type UiDocumentModel } from "./UiDesigner";
 import { chooseRecovery, recallDraft, rememberDraft } from "../documents/recovery";
 
@@ -37,12 +39,12 @@ const palette = [
   ["Core.VariableAssign", "Assign"]
 ] as const;
 
-interface GraphSummary { id: string; name: string; activeRevision?: string; kind?: string; side?: string; status?: string; hasDraft?: boolean }
+interface GraphSummary { id: string; name: string; activeRevision?: string; kind?: string; side?: string; status?: string; hasDraft?: boolean; owner?: string; tags?: string; overrideOf?: string }
 type Activity = "explorer" | "bindings" | "types" | "design" | "runtime" | "audit" | "access";
 type DockTab = "problems" | "watch" | "debug" | "profiler" | "history" | "output";
 const activities: Activity[] = ["explorer", "bindings", "types", "design", "runtime", "audit", "access"];
 const dockTabs: DockTab[] = ["problems", "watch", "debug", "profiler", "history", "output"];
-interface Problem { severity: string; code: string; message: string; nodeId?: string; pinId?: string; suggestedFix?: string }
+interface Problem { severity: string; code: string; message: string; nodeId?: string; pinId?: string; relatedNodeId?: string; suggestedFix?: string }
 interface RevisionRecord { revisionId: string; author: string; timestamp: string; message: string; semanticHash: string; parentRevisionId?: string; activationTick?: number }
 interface Suggestion { bindingId: string; nodeType: string; displayName: string; pinName: string }
 const graphKinds = ["System", "Behavior", "Function", "Library", "Schema", "UI"] as const;
@@ -71,6 +73,15 @@ export function App() {
   const [historyLimit, setHistoryLimit] = useState(40);
   const [publishConfirm, setPublishConfirm] = useState(false);
   const [activationTick, setActivationTick] = useState(0);
+  const [ownerFilter, setOwnerFilter] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
+  const [revisionFilter, setRevisionFilter] = useState("");
+  const [clientCount, setClientCount] = useState(0);
+  const [migrationSummary, setMigrationSummary] = useState("No schema migration");
+  const [eventPayload, setEventPayload] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [uiLayout, setUiLayout] = useState("");
+  const [otherDraft, setOtherDraft] = useState("");
   const [openTabs, setOpenTabs] = useState<GraphSummary[]>([]);
   const [bindingQuery, setBindingQuery] = useState("");
   const [reconnectToken, setReconnectToken] = useState(0);
@@ -106,7 +117,7 @@ export function App() {
   const [watchName, setWatchName] = useState("Value");
   const [watchExpr, setWatchExpr] = useState("r0");
   const [breakpointCondition, setBreakpointCondition] = useState("");
-  const [profile, setProfile] = useState<{ invocations?: number; averageMicroseconds?: number; p95Microseconds?: number; budgetViolations?: number; allocatedBytes?: number; networkBytes?: number; instructions?: number; nativeCalls?: number; yields?: number; hottest?: { nodeId: string; hits: number }[] } | null>(null);
+  const [profile, setProfile] = useState<{ invocations?: number; averageMicroseconds?: number; p95Microseconds?: number; budgetViolations?: number; allocatedBytes?: number; networkBytes?: number; queryIterations?: number; samples?: number[]; instructions?: number; nativeCalls?: number; yields?: number; hottest?: { nodeId: string; hits: number; microseconds?: number }[] } | null>(null);
   const [compileHash, setCompileHash] = useState("");
   const [commandsOpen, setCommandsOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
@@ -114,6 +125,7 @@ export function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [dockOpen, setDockOpen] = useState(false);
   const [protocolError, setProtocolError] = useState("");
+  const [searchHits, setSearchHits] = useState<{ id: string; text: string }[]>([]);
   const graph = stack.present;
   const preview = mode === "preview";
   const graphRef = useRef(graph);
@@ -123,6 +135,22 @@ export function App() {
   graphRef.current = graph;
   selectedRef.current = selected;
   problemsRef.current = problems;
+  const enums = schemas.filter((schema) => schema.kind === "Enum");
+
+  useEffect(() => {
+    const items = [
+      ...graphs.map((item) => ({ id: `graph:${item.id}`, text: `${item.name} graph ${item.tags ?? ""}` })),
+      ...schemas.map((item) => ({ id: `schema:${item.id}`, text: `${item.name} schema ${item.kind ?? ""}` })),
+      ...runtimeEntities.map((item) => ({ id: `entity:${item.entityId}`, text: `${item.entityId} ${item.schema} entity` })),
+      ...catalog.map((item) => ({ id: `doc:${item.signature}`, text: `${item.signature} ${item.documentation}` }))
+    ];
+    setSearchHits(rankTexts(searchQuery, items));
+    if (typeof Worker === "undefined") return;
+    const worker = new Worker(new URL("../search/fuzzy.worker.ts", import.meta.url), { type: "module" });
+    worker.onmessage = (event: MessageEvent<{ id: string; text: string }[]>) => setSearchHits(event.data);
+    worker.postMessage({ query: searchQuery, items });
+    return () => worker.terminate();
+  }, [catalog, graphs, runtimeEntities, schemas, searchQuery]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -254,6 +282,9 @@ export function App() {
       });
       const authoring = new AuthoringClient(socket);
       authoring.onUnsolicited = (message) => {
+        if (message.kind === "profiler.snapshot.response" && message.body.snapshot) {
+          setProfile(message.body.snapshot as typeof profile);
+        }
         if (message.kind === "session.updated") {
           const nextBits = permissionBits(message.body.permissions);
           setBits(nextBits);
@@ -287,6 +318,8 @@ export function App() {
           const listed = await authoring.graphs.list();
           const items = (listed.body.graphs as GraphSummary[] | undefined) ?? [];
           setGraphs(items);
+          setClientCount(Number(listed.body.clientCount ?? 0));
+          setMigrationSummary(String(listed.body.migrationSummary ?? "No schema migration"));
           setCatalogStatus("loading");
           try {
             const catalogResponse = await authoring.catalog.query();
@@ -426,6 +459,8 @@ export function App() {
     setCompileStage(String(response.body.stage ?? pipelineStage(readProblems(response.body.diagnostics, response.body.errorMessage))));
     const listed = await client.graphs.list();
     setGraphs((listed.body.graphs as GraphSummary[] | undefined) ?? []);
+    setClientCount(Number(listed.body.clientCount ?? clientCount));
+    setMigrationSummary(String(listed.body.migrationSummary ?? migrationSummary));
     setDockTab("output");
     setDockOpen(true);
   }
@@ -452,9 +487,62 @@ export function App() {
     const response = await client.publish(graph.id, baseRevision, json, publishMessage);
     if (response.body.publishedRevision) setBaseRevision(String(response.body.publishedRevision));
     setActivationTick(Number(response.body.activationTick ?? 0));
+    setClientCount(Number(response.body.clientCount ?? clientCount));
+    setMigrationSummary(String(response.body.migrationSummary ?? migrationSummary));
     setProblems(readProblems(response.body.diagnostics, response.body.errorMessage));
     const listed = await client.graphs.list();
     setGraphs((listed.body.graphs as GraphSummary[] | undefined) ?? []);
+    if (response.body.publishedRevision) {
+      const history = await client.history.list(graph.id);
+      setRevisions(readRevisions(history.body));
+      setDockTab("history");
+      setDockOpen(true);
+    }
+  }
+
+  async function rebaseDraft() {
+    if (!client) return;
+    const response = await client.drafts.rebase(graph.id);
+    if (response.body.conflicts) {
+      setProblems([{ severity: "error", code: "MERGE", message: String(response.body.conflicts) }]);
+      setDockTab("problems");
+      setDockOpen(true);
+      return;
+    }
+    if (response.body.draftJson) setStack({ past: [], present: parseGraph(String(response.body.draftJson)), future: [] });
+    if (response.body.baseRevisionId) setBaseRevision(String(response.body.baseRevisionId));
+  }
+
+  async function mergeDraft() {
+    if (!client || !otherDraft.trim()) return;
+    const response = await client.drafts.merge(graph.id, otherDraft);
+    if (response.body.conflicts) {
+      setProblems([{ severity: "error", code: "MERGE", message: String(response.body.conflicts) }]);
+      setDockTab("problems");
+      setDockOpen(true);
+      return;
+    }
+    if (response.body.draftJson) setStack({ past: [], present: parseGraph(String(response.body.draftJson)), future: [] });
+  }
+
+  async function runGraphTest() {
+    if (!client) return;
+    const response = await client.tests.run(serializeGraph(graph));
+    const passed = response.body.passed === true;
+    setProblems([{
+      severity: passed ? "info" : "error",
+      code: "TEST",
+      message: passed ? "Expected result matched" : `Expected ${response.body.expected ?? ""}, got ${response.body.actual ?? response.body.errorMessage ?? ""}`
+    }]);
+    setDockTab("problems");
+    setDockOpen(true);
+  }
+
+  function patchAttribute(key: keyof GraphDocument["attributes"], value: string) {
+    setStack((current) => edit(current, {
+      ...current.present,
+      attributes: { ...emptyAttributes(), ...current.present.attributes, [key]: value }
+    }));
   }
 
   async function compareRevision(revisionId: string) {
@@ -550,6 +638,7 @@ export function App() {
     if (!client) return;
     const response = await client.ui.compile(document);
     setProblems(readProblems(response.body.diagnostics, response.body.errorMessage));
+    setUiLayout(`${response.body.elementCount ?? 0} controls · depth ${response.body.maxDepth ?? 0} · ${response.body.bindingCount ?? 0} bindings · ${response.body.mounted ?? ""}`);
     setDockTab("problems");
     setDockOpen(true);
   }
@@ -676,6 +765,7 @@ export function App() {
     setLocals(readValues(response.body.locals));
     setWatches(readValues(response.body.watches));
     setTrace(Array.isArray(response.body.trace) ? response.body.trace as { nodeId: string; instructionPointer: number }[] : []);
+    setEventPayload(String(response.body.eventPayload ?? ""));
     const nodeId = String(response.body.suspendedNodeId ?? "");
     if (nodeId) {
       setSelected(nodeId);
@@ -693,6 +783,7 @@ export function App() {
 
   async function loadProfile() {
     if (!client) return;
+    await client.profiler.subscribe(graph.id);
     const response = await client.profiler.snapshot(graph.id);
     setProfile((response.body.snapshot ?? null) as typeof profile);
     setDockTab("profiler");
@@ -786,14 +877,27 @@ export function App() {
           {activity === "explorer" ? (
             <>
               <input value={graphQuery} placeholder="Filter graphs" onChange={(event) => setGraphQuery(event.target.value)} />
+              <label className="field">Owner<input value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)} /></label>
+              <label className="field">Tag<input value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} /></label>
+              <label className="field">Revision<input value={revisionFilter} onChange={(event) => setRevisionFilter(event.target.value)} /></label>
               <label className="field">Side
                 <select value={sideFilter} onChange={(event) => setSideFilter(event.target.value)}>
                   <option>All</option>
                   {graphSides.map((side) => <option key={side}>{side}</option>)}
                 </select>
               </label>
+              {graphs.some((item) => item.overrideOf) ? (
+                <div>
+                  <div className="section-label">Overrides</div>
+                  <ul className="list">
+                    {graphs.filter((item) => item.overrideOf && matchesGraph(item, graphQuery, sideFilter, ownerFilter, tagFilter, revisionFilter)).map((item) => (
+                      <GraphRow key={item.id} item={item} currentId={graph.id} onOpen={() => void openListed(item)} onDisable={() => void disableGraph(item.id, true)} onDelete={() => void deleteGraph(item.id)} />
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               {(["Live", "Drafts", "Disabled", "Failed"] as const).map((bucket) => {
-                const items = graphs.filter((item) => graphBucket(item) === bucket && matchesGraph(item, graphQuery, sideFilter));
+                const items = graphs.filter((item) => graphBucket(item) === bucket && matchesGraph(item, graphQuery, sideFilter, ownerFilter, tagFilter, revisionFilter));
                 if (items.length === 0) return null;
                 return (
                   <div key={bucket}>
@@ -829,7 +933,7 @@ export function App() {
             />
           ) : null}
           {activity === "types" ? <SchemaEditor schemas={schemas} onSave={(schema) => void saveSchema(schema)} /> : null}
-          {activity === "design" ? <UiDesigner documents={uiDocuments} onSave={(document) => void saveUi(document)} onDiagnose={(document) => void diagnoseUi(document)} /> : null}
+          {activity === "design" ? <UiDesigner documents={uiDocuments} layout={uiLayout} onSave={(document) => void saveUi(document)} onDiagnose={(document) => void diagnoseUi(document)} /> : null}
           {activity === "runtime" ? (
             <div>
               <button type="button" onClick={() => void loadRuntime()}>Refresh runtime</button>
@@ -947,6 +1051,41 @@ export function App() {
               <label className="field">Version
                 <input value={graph.version ?? "1.0.0"} onChange={(event) => setStack((current) => edit(current, { ...current.present, version: event.target.value }))} />
               </label>
+              <label className="field">Owner<input value={graph.attributes?.author ?? ""} onChange={(event) => patchAttribute("author", event.target.value)} /></label>
+              <label className="field">Schedule
+                <select value={graph.attributes?.schedule || "Update"} onChange={(event) => patchAttribute("schedule", event.target.value)}>
+                  <option>Update</option>
+                  <option>Tick</option>
+                  <option>Manual</option>
+                </select>
+              </label>
+              <label className="field">Security profile
+                <select value={graph.attributes?.securityProfile || "Default"} onChange={(event) => patchAttribute("securityProfile", event.target.value)}>
+                  <option>Default</option>
+                  <option>ServerOnly</option>
+                  <option>Sandboxed</option>
+                </select>
+              </label>
+              <label className="field">Hot reload
+                <select value={graph.attributes?.hotReload || "Automatic"} onChange={(event) => patchAttribute("hotReload", event.target.value)}>
+                  <option>Automatic</option>
+                  <option>Manual</option>
+                  <option>Disabled</option>
+                </select>
+              </label>
+              <label className="field">Budget<input value={graph.attributes?.budget ?? "256"} onChange={(event) => patchAttribute("budget", event.target.value)} /></label>
+              <label className="field">Override of<input value={graph.attributes?.overrideOf ?? ""} onChange={(event) => patchAttribute("overrideOf", event.target.value)} /></label>
+              <label className="field">Entity<input value={graph.attributes?.entity ?? ""} placeholder="7" onChange={(event) => patchAttribute("entity", event.target.value)} /></label>
+              <label className="field">Prototype<input value={graph.attributes?.prototype ?? ""} onChange={(event) => patchAttribute("prototype", event.target.value)} /></label>
+              <label className="field">Enum
+                <select value={graph.attributes?.enumType ?? ""} onChange={(event) => patchAttribute("enumType", event.target.value)}>
+                  <option value="">None</option>
+                  {enums.map((schema) => <option key={schema.id} value={schema.name}>{schema.name}</option>)}
+                </select>
+              </label>
+              {graph.kind === "Function" ? <label className="field">Generic parameters<input value={graph.attributes?.generics ?? ""} placeholder="T, TState" onChange={(event) => patchAttribute("generics", event.target.value)} /></label> : null}
+              <label className="field">Expected result<input value={graph.attributes?.expected ?? ""} onChange={(event) => patchAttribute("expected", event.target.value)} /></label>
+              <button type="button" onClick={() => void runGraphTest()}>Run graph test</button>
               <label className="field">Kind
                 <select value={graph.kind} onChange={(event) => setStack((current) => edit(current, { ...current.present, kind: event.target.value }))}>
                   {graphKinds.map((kind) => <option key={kind}>{kind}</option>)}
@@ -998,7 +1137,8 @@ export function App() {
                             setAlertPin(problem.pinId ?? "");
                             setFocusToken((token) => token + 1);
                           }}>{problem.code}: {problem.message}</button>
-                          {problem.suggestedFix === "remove-node" && problem.nodeId ? <button type="button" onClick={() => setStack((current) => edit(current, removeNodes(current.present, [problem.nodeId!])))}>Remove node</button> : null}
+                          {problem.relatedNodeId ? <button type="button" onClick={() => { setSelected(problem.relatedNodeId!); setFocusToken((token) => token + 1); }}>Related</button> : null}
+                          {problem.suggestedFix ? <button type="button" onClick={() => setStack((current) => edit(current, applyQuickFix(current.present, problem)))}>{problem.suggestedFix}</button> : null}
                         </li>
                       ))}
                     </ul>
@@ -1021,6 +1161,13 @@ export function App() {
                 ))}
                 {revisions.length === 0 ? <li className="muted">No revisions</li> : null}
                 {revisions.length > historyLimit ? <li><button type="button" onClick={() => setHistoryLimit((value) => value + 40)}>Show more</button></li> : null}
+                <li><button type="button" onClick={() => void rebaseDraft()}>Rebase onto head</button></li>
+                <li>
+                  <label className="field">Other author draft
+                    <textarea value={otherDraft} onChange={(event) => setOtherDraft(event.target.value)} />
+                  </label>
+                  <button type="button" onClick={() => void mergeDraft()}>Semantic merge</button>
+                </li>
                 {diffLines.map((line, index) => <li key={`${line.kind}-${index}`} className="muted">{line.kind}: {line.detail}</li>)}
               </ul>
             </section> : null}
@@ -1029,19 +1176,22 @@ export function App() {
                 <ul className="list">
                   {locals.map((item) => <li key={item.name}>{item.name}: {item.value}</li>)}
                   {watches.map((item) => <li key={item.name}>{item.name} {item.expression}: {item.value}</li>)}
+                  <li className="muted">Call stack runs until Return. The virtual machine has no frames.</li>
+                  {eventPayload ? <li>Event payload {eventPayload}</li> : null}
                   {trace.map((item, index) => <li key={`${item.nodeId}-${index}`} className="muted">{item.nodeId} @{item.instructionPointer}</li>)}
                   {locals.length === 0 && watches.length === 0 ? <li className="muted">No suspension</li> : null}
                 </ul>
                 <label className="field">Watch<input value={watchName} onChange={(event) => setWatchName(event.target.value)} /></label>
-                <label className="field">Expression<input value={watchExpr} onChange={(event) => setWatchExpr(event.target.value)} /></label>
+                <label className="field">Expression<input value={watchExpr} placeholder="r0 or entity:7.Door.State" onChange={(event) => setWatchExpr(event.target.value)} /></label>
                 <button disabled={!debugAllowed} onClick={() => void addWatch()}>Add watch</button>
               </section>
             ) : null}
             {dockTab === "profiler" ? (
               <section>
-                <p className="muted">invocations {profile?.invocations ?? 0} · avg {Math.round(profile?.averageMicroseconds ?? 0)} µs · p95 {Math.round(profile?.p95Microseconds ?? 0)} µs · budget {profile?.budgetViolations ?? 0} · alloc {profile?.allocatedBytes ?? 0} B · net {profile?.networkBytes ?? 0} B · instructions {profile?.instructions ?? 0} · native {profile?.nativeCalls ?? 0} · yields {profile?.yields ?? 0}</p>
+                <p className="muted">invocations {profile?.invocations ?? 0} · avg {Math.round(profile?.averageMicroseconds ?? 0)} µs · p95 {Math.round(profile?.p95Microseconds ?? 0)} µs · queries {profile?.queryIterations ?? 0} · budget {profile?.budgetViolations ?? 0} · alloc {profile?.allocatedBytes ?? 0} B · net {profile?.networkBytes ?? 0} B · instructions {profile?.instructions ?? 0} · native {profile?.nativeCalls ?? 0} · yields {profile?.yields ?? 0}</p>
+                <p className="muted">{(profile?.samples ?? []).slice(-16).map((sample) => Math.round(sample)).join(" ")}</p>
                 <ul className="list">
-                  {(profile?.hottest ?? []).map((item) => <li key={item.nodeId}>{item.hits} · {item.nodeId}</li>)}
+                  {(profile?.hottest ?? []).map((item) => <li key={item.nodeId}>{item.hits} · {Math.round(item.microseconds ?? 0)} µs · {item.nodeId}</li>)}
                 </ul>
               </section>
             ) : null}
@@ -1086,7 +1236,9 @@ export function App() {
         <div className="dialog-back" onClick={() => setPublishOpen(false)}>
           <form className="dialog" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); void publish(); }}>
             <h2>Publish</h2>
-            <p className="muted">{graph.side} · base {baseRevision.slice(0, 8)} · head {headRevision.slice(0, 8)} · {graph.nodes.length} nodes{activationTick > 0 ? ` · activation tick ${activationTick}` : ""}</p>
+            <p className="muted">{graph.side} · base {baseRevision.slice(0, 8)} · head {headRevision.slice(0, 8)} · {graph.nodes.length} nodes · {clientCount} clients</p>
+            <p className="muted">{migrationSummary}</p>
+            <p className="muted">{activationTick > 0 ? `Activation counter ${activationTick}. It is the host tick or the local authoring counter plus 4, not a game tick.` : "Shared publish stores an activation counter: host tick or local counter plus 4."}</p>
             <ul className="list">
               {diffLines.map((line, index) => <li key={`${line.kind}-${index}`} className="muted">{line.kind}: {line.detail}</li>)}
               {diffLines.length === 0 ? <li className="muted">No semantic changes</li> : null}
@@ -1123,9 +1275,18 @@ export function App() {
       {quickOpen ? (
         <div className="palette" onClick={() => setQuickOpen(false)}>
           <form onClick={(event) => event.stopPropagation()}>
-            <input autoFocus placeholder="Open graph" onKeyDown={(event) => { if (event.key === "Escape") setQuickOpen(false); }} />
+            <input autoFocus placeholder="Graphs, schemas, docs, entities" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setQuickOpen(false); }} />
             <ul className="list">
-              {graphs.map((item) => <li key={item.id}><button type="button" onClick={() => { setQuickOpen(false); void openListed(item); }}>{item.name}</button></li>)}
+              {searchHits.slice(0, 30).map((item) => <li key={item.id}><button type="button" onClick={() => {
+                setQuickOpen(false);
+                if (item.id.startsWith("graph:")) {
+                  const found = graphs.find((graphItem) => graphItem.id === item.id.slice(6));
+                  if (found) void openListed(found);
+                }
+                if (item.id.startsWith("schema:")) setActivity("types");
+                if (item.id.startsWith("entity:")) setActivity("runtime");
+                if (item.id.startsWith("doc:")) setActivity("bindings");
+              }}>{item.text}</button></li>)}
             </ul>
           </form>
         </div>
@@ -1187,10 +1348,13 @@ function graphBucket(item: GraphSummary): "Live" | "Drafts" | "Disabled" | "Fail
   return "Live";
 }
 
-function matchesGraph(item: GraphSummary, query: string, side: string): boolean {
+function matchesGraph(item: GraphSummary, query: string, side: string, owner = "", tag = "", revision = ""): boolean {
   const name = item.name.toLowerCase().includes(query.trim().toLowerCase());
   const sideMatches = side === "All" || (item.side ?? "Server") === side;
-  return name && sideMatches;
+  const ownerMatches = !owner.trim() || (item.owner ?? "").toLowerCase().includes(owner.trim().toLowerCase());
+  const tagMatches = !tag.trim() || (item.tags ?? "").toLowerCase().includes(tag.trim().toLowerCase());
+  const revisionMatches = !revision.trim() || (item.activeRevision ?? "").toLowerCase().includes(revision.trim().toLowerCase());
+  return name && sideMatches && ownerMatches && tagMatches && revisionMatches;
 }
 
 function GraphRow(props: { item: GraphSummary; currentId: string; onOpen: () => void; onDisable: () => void; onDelete: () => void }) {
@@ -1204,7 +1368,7 @@ function GraphRow(props: { item: GraphSummary; currentId: string; onOpen: () => 
 }
 
 function readProblems(value: unknown, error: unknown): Problem[] {
-  const diagnostics = Array.isArray(value) ? value as { severity?: unknown; code?: unknown; message?: unknown; nodeId?: unknown; pinId?: unknown; suggestedFix?: unknown }[] : [];
+  const diagnostics = Array.isArray(value) ? value as { severity?: unknown; code?: unknown; message?: unknown; nodeId?: unknown; pinId?: unknown; relatedNodeId?: unknown; suggestedFix?: unknown }[] : [];
   if (diagnostics.length > 0) return diagnostics.map((item) => {
     const code = String(item.code ?? "DIAG");
     return {
@@ -1213,6 +1377,7 @@ function readProblems(value: unknown, error: unknown): Problem[] {
       message: String(item.message ?? ""),
       nodeId: item.nodeId ? String(item.nodeId) : undefined,
       pinId: item.pinId ? String(item.pinId) : undefined,
+      relatedNodeId: item.relatedNodeId ? String(item.relatedNodeId) : undefined,
       suggestedFix: suggestedFixFor(code, item.suggestedFix ? String(item.suggestedFix) : undefined)
     };
   });

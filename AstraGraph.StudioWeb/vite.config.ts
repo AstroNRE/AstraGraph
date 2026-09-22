@@ -12,6 +12,13 @@ export default defineConfig({
       "/ws": { target: "ws://127.0.0.1:5173", ws: true }
     }
   },
+  preview: {
+    proxy: {
+      "/api": "http://127.0.0.1:5173",
+      "/health": "http://127.0.0.1:5173",
+      "/ws": { target: "ws://127.0.0.1:5173", ws: true }
+    }
+  },
   build: {
     outDir: "dist",
     emptyOutDir: true,

@@ -65,7 +65,7 @@ public sealed class SemanticAnalyzer
         {
             if (!pinMap.TryGetValue(conn.FromPin, out var fromTuple))
             {
-                diagnostics.ReportError(DiagnosticCodes.InvalidConnection, $"Connection source pin '{conn.FromPin}' does not exist.", conn.FromNode, conn.FromPin);
+                diagnostics.ReportError(DiagnosticCodes.InvalidConnection, $"Connection source pin '{conn.FromPin}' does not exist.", conn.FromNode, conn.FromPin, suggestedFix: "remove-connection", relatedNodeId: conn.ToNode);
                 continue;
             }
 
@@ -90,7 +90,7 @@ public sealed class SemanticAnalyzer
 
             if (fromPin.Kind != toPin.Kind)
             {
-                diagnostics.ReportError(DiagnosticCodes.InvalidConnection, $"Cannot connect {fromPin.Kind} pin to {toPin.Kind} pin.", conn.FromNode, conn.FromPin);
+                diagnostics.ReportError(DiagnosticCodes.InvalidConnection, $"Cannot connect {fromPin.Kind} pin to {toPin.Kind} pin.", conn.FromNode, conn.FromPin, suggestedFix: "remove-connection", relatedNodeId: conn.ToNode);
             }
 
             // Type compatibility for Data pins
@@ -137,7 +137,9 @@ public sealed class SemanticAnalyzer
                     DiagnosticCodes.MultipleInputConnectionsToExecutionPin,
                     $"Execution input pin '{tuple.Pin.Name}' on node '{tuple.Node.Name}' has {conns.Count} incoming connections. Only 1 is allowed without a Merge node.",
                     tuple.Node.Id,
-                    pinId);
+                    pinId,
+                    suggestedFix: "remove-connection",
+                    relatedNodeId: conns[0].FromNode);
             }
         }
 
@@ -149,12 +151,12 @@ public sealed class SemanticAnalyzer
         {
             if (document.Side == GraphSide.Client && node.Properties.TryGetValue("Side", out var side) && side.Equals("Server", StringComparison.OrdinalIgnoreCase))
             {
-                diagnostics.ReportError(DiagnosticCodes.ServerApiCalledOnClient, $"Node '{node.Name}' requires Server side, but graph is configured for Client.", node.Id);
+                diagnostics.ReportError(DiagnosticCodes.ServerApiCalledOnClient, $"Node '{node.Name}' requires Server side, but graph is configured for Client.", node.Id, suggestedFix: "set-side:Server");
             }
 
             if (document.Side == GraphSide.SharedPredicted && node.Properties.TryGetValue("IsDeterministic", out var det) && det.Equals("false", StringComparison.OrdinalIgnoreCase))
             {
-                diagnostics.ReportError(DiagnosticCodes.NonDeterministicOperationInPrediction, $"Node '{node.Name}' is non-deterministic and cannot be executed in predicted context.", node.Id);
+                diagnostics.ReportError(DiagnosticCodes.NonDeterministicOperationInPrediction, $"Node '{node.Name}' is non-deterministic and cannot be executed in predicted context.", node.Id, suggestedFix: "set-deterministic");
             }
         }
 
@@ -177,7 +179,7 @@ public sealed class SemanticAnalyzer
 
         if (entryNodes.Count == 0 && document.Kind == GraphKind.System)
         {
-            diagnostics.ReportWarning(DiagnosticCodes.MissingEntryPoint, "System graph has no recognized entry points (e.g. Event.* or System.Update).");
+            diagnostics.ReportWarning(DiagnosticCodes.MissingEntryPoint, "System graph has no recognized entry points (e.g. Event.* or System.Update).", suggestedFix: "add-entry");
         }
 
         foreach (var entryNode in entryNodes)

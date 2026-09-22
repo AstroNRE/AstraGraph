@@ -21,6 +21,31 @@ export interface ConnectionDocument {
   toPin: string;
 }
 
+export interface CommentBox {
+  id: string;
+  title: string;
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface GraphAttributes {
+  author: string;
+  schedule: string;
+  securityProfile: string;
+  hotReload: string;
+  budget: string;
+  generics: string;
+  overrideOf: string;
+  expected: string;
+  prototype: string;
+  entity: string;
+  enumType: string;
+  bookmarks: string;
+}
+
 export interface GraphDocument {
   formatVersion: string;
   id: string;
@@ -32,10 +57,11 @@ export interface GraphDocument {
   description: string;
   tags: string;
   version: string;
+  attributes: GraphAttributes;
   variables: { id: string; name: string; typeName: string; defaultValue?: string; persistent?: boolean; replicated?: boolean; parameter?: boolean }[];
   editorLayout: {
     nodePositions: Record<string, { x: number; y: number }>;
-    comments: [];
+    comments: CommentBox[];
     viewportX: number;
     viewportY: number;
     zoom: number;
@@ -45,7 +71,7 @@ export interface GraphDocument {
 export interface FlowNode {
   id: string;
   position: { x: number; y: number };
-  data: { label: string; nodeType: string; inputs: PinDocument[]; outputs: PinDocument[]; pure?: boolean; side?: string };
+  data: { label: string; nodeType: string; inputs: PinDocument[]; outputs: PinDocument[]; pure?: boolean; side?: string; comment?: boolean };
 }
 
 export interface FlowEdge {
@@ -58,6 +84,10 @@ export interface FlowEdge {
 
 export const emptyRevision = "00000000-0000-0000-0000-000000000000";
 
+export function emptyAttributes(): GraphAttributes {
+  return { author: "", schedule: "Update", securityProfile: "Default", hotReload: "Automatic", budget: "256", generics: "", overrideOf: "", expected: "", prototype: "", entity: "", enumType: "", bookmarks: "[]" };
+}
+
 export function serializeGraph(document: GraphDocument): string {
   return JSON.stringify({
     formatVersion: document.formatVersion,
@@ -66,11 +96,11 @@ export function serializeGraph(document: GraphDocument): string {
     kind: document.kind,
     side: document.side,
     metadata: {
-      author: "",
+      author: document.attributes?.author ?? "",
       description: document.description ?? "",
       version: document.version || "1.0.0",
       tags: (document.tags ?? "").split(",").map((tag) => tag.trim()).filter(Boolean),
-      customAttributes: {}
+      customAttributes: { ...(document.attributes ?? emptyAttributes()) }
     },
     variables: document.variables.map((variable) => ({
       id: variable.id,
@@ -100,13 +130,15 @@ export function serializeGraph(document: GraphDocument): string {
 }
 
 export function parseGraph(json: string): GraphDocument {
-  const raw = JSON.parse(json) as GraphDocument & { metadata?: { description?: string; version?: string; tags?: string[] } };
+  const raw = JSON.parse(json) as GraphDocument & { metadata?: { author?: string; description?: string; version?: string; tags?: string[]; customAttributes?: Partial<GraphAttributes> } };
+  const stored = raw.metadata?.customAttributes ?? {};
   return {
     ...createGraph(raw.name || "Untitled"),
     ...raw,
     description: raw.metadata?.description ?? raw.description ?? "",
     tags: raw.metadata?.tags?.join(", ") ?? raw.tags ?? "",
     version: raw.metadata?.version ?? raw.version ?? "1.0.0",
+    attributes: { ...emptyAttributes(), ...stored, author: raw.metadata?.author ?? stored.author ?? "" },
     nodes: raw.nodes ?? [],
     connections: raw.connections ?? [],
     variables: (raw.variables ?? []).map((variable) => ({
@@ -118,7 +150,11 @@ export function parseGraph(json: string): GraphDocument {
       replicated: variable.replicated === true || (variable as { isReplicated?: boolean }).isReplicated === true,
       parameter: variable.parameter === true || (variable as { isParameter?: boolean }).isParameter === true
     })),
-    editorLayout: raw.editorLayout ?? createGraph("").editorLayout
+    editorLayout: {
+      ...(raw.editorLayout ?? createGraph("").editorLayout),
+      comments: raw.editorLayout?.comments ?? [],
+      nodePositions: raw.editorLayout?.nodePositions ?? {}
+    }
   };
 }
 
@@ -132,6 +168,7 @@ export function createGraph(name: string): GraphDocument {
     description: "",
     tags: "",
     version: "1.0.0",
+    attributes: emptyAttributes(),
     nodes: [],
     connections: [],
     variables: [],
@@ -190,18 +227,25 @@ export function addNode(document: GraphDocument, nodeType: string, name: string)
 
 export function toFlow(document: GraphDocument): { nodes: FlowNode[]; edges: FlowEdge[] } {
   return {
-    nodes: document.nodes.map((node) => ({
-      id: node.id,
-      position: document.editorLayout.nodePositions[node.id] ?? { x: 80, y: 80 },
-      data: {
-        label: node.name,
-        nodeType: node.nodeType,
-        inputs: node.pins.filter((pin) => pin.direction === "input"),
-        outputs: node.pins.filter((pin) => pin.direction === "output"),
-        pure: node.properties.pure === "true",
-        side: node.properties.side ?? ""
-      }
-    })),
+    nodes: [
+      ...document.nodes.map((node) => ({
+        id: node.id,
+        position: document.editorLayout.nodePositions[node.id] ?? { x: 80, y: 80 },
+        data: {
+          label: node.name,
+          nodeType: node.nodeType,
+          inputs: node.pins.filter((pin) => pin.direction === "input"),
+          outputs: node.pins.filter((pin) => pin.direction === "output"),
+          pure: node.properties.pure === "true",
+          side: node.properties.side ?? ""
+        }
+      })),
+      ...document.editorLayout.comments.map((comment) => ({
+        id: comment.id,
+        position: { x: comment.x, y: comment.y },
+        data: { label: comment.title || "Comment", nodeType: comment.text, inputs: [], outputs: [], comment: true }
+      }))
+    ],
     edges: document.connections.map((connection) => ({
       id: `${connection.fromPin}-${connection.toPin}`,
       source: connection.fromNode,
@@ -218,17 +262,36 @@ export function applyFlow(
   edges: FlowEdge[]
 ): GraphDocument {
   const positions = { ...document.editorLayout.nodePositions };
-  for (const node of nodes) positions[node.id] = node.position;
+  const comments = document.editorLayout.comments.map((comment) => {
+    const moved = nodes.find((node) => node.id === comment.id);
+    return moved ? { ...comment, x: moved.position.x, y: moved.position.y } : comment;
+  });
+  for (const node of nodes) {
+    if (document.nodes.some((item) => item.id === node.id)) positions[node.id] = node.position;
+  }
   return {
     ...document,
-    connections: edges.map((edge) => ({
+    connections: edges.filter((edge) => document.nodes.some((node) => node.id === edge.source)).map((edge) => ({
       fromNode: edge.source,
       fromPin: edge.sourceHandle,
       toNode: edge.target,
       toPin: edge.targetHandle
     })),
-    editorLayout: { ...document.editorLayout, nodePositions: positions }
+    editorLayout: { ...document.editorLayout, nodePositions: positions, comments }
   };
+}
+
+export function alignNodes(document: GraphDocument, ids: string[], axis: "left" | "top"): GraphDocument {
+  const selected = ids.map((id) => document.editorLayout.nodePositions[id]).filter(Boolean);
+  if (selected.length < 2) return document;
+  const edge = axis === "left" ? Math.min(...selected.map((item) => item.x)) : Math.min(...selected.map((item) => item.y));
+  const nodePositions = { ...document.editorLayout.nodePositions };
+  for (const id of ids) {
+    const position = nodePositions[id];
+    if (!position) continue;
+    nodePositions[id] = axis === "left" ? { ...position, x: edge } : { ...position, y: edge };
+  }
+  return { ...document, editorLayout: { ...document.editorLayout, nodePositions } };
 }
 
 export interface UndoStack<T> {

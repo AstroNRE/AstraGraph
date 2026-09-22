@@ -16,7 +16,8 @@ public sealed class AstraVm
         int startIp = 0,
         IVmHostServices? hostServices = null,
         ExecutionBudget? budget = null,
-        IVmDebugHook? debugHook = null)
+        IVmDebugHook? debugHook = null,
+        Action<NodeId, double>? onNodeElapsed = null)
     {
         ArgumentNullException.ThrowIfNull(program);
         ArgumentNullException.ThrowIfNull(function);
@@ -56,6 +57,8 @@ public sealed class AstraVm
                 }
 
                 var instr = instructions[ip++];
+                var timedNode = onNodeElapsed == null ? (NodeId?)null : function.GetSourceNodeId(ip - 1);
+                var nodeStamp = System.Diagnostics.Stopwatch.GetTimestamp();
                 var dest = instr.DestRegister;
 
                 switch (instr.AsOpCode)
@@ -318,6 +321,12 @@ public sealed class AstraVm
                         registers[dest] = AstraValue.FromBool(services.HasComponent(entityId, compName));
                         break;
                     }
+                }
+
+                if (onNodeElapsed != null && timedNode.HasValue)
+                {
+                    var elapsed = (System.Diagnostics.Stopwatch.GetTimestamp() - nodeStamp) * 1_000_000.0 / System.Diagnostics.Stopwatch.Frequency;
+                    onNodeElapsed(timedNode.Value, elapsed);
                 }
             }
 

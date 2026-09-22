@@ -14,11 +14,12 @@ export interface SchemaDocument {
   name: string;
   isComponent: boolean;
   fields: SchemaField[];
-  kind?: "Component" | "Struct" | "Enum";
+  kind?: "Component" | "Struct" | "Enum" | "Interface" | "Contract";
   members?: string[];
 }
 
-const fieldTypes = ["int32", "int64", "float32", "float64", "bool", "string"];
+const fieldTypes = ["int32", "int64", "float32", "float64", "bool", "string", "int32?", "string?", "List<int32>", "Set<string>", "Dictionary<string, int32>"];
+const schemaKinds = ["Component", "Struct", "Enum", "Interface", "Contract"] as const;
 
 export function SchemaEditor(props: {
   schemas: SchemaDocument[];
@@ -33,7 +34,7 @@ export function SchemaEditor(props: {
   if (!draft) {
     return (
       <div>
-        {(["Component", "Struct", "Enum"] as const).map((kind) => (
+        {schemaKinds.map((kind) => (
           <button key={kind} type="button" onClick={() => setDraft({
             id: crypto.randomUUID(),
             name: kind,
@@ -56,12 +57,10 @@ export function SchemaEditor(props: {
       </label>
       <label className="field">Kind
         <select value={kind} onChange={(event) => {
-          const next = event.target.value as "Component" | "Struct" | "Enum";
+          const next = event.target.value as (typeof schemaKinds)[number];
           setDraft({ ...draft, kind: next, isComponent: next === "Component", members: next === "Enum" ? (draft.members?.length ? draft.members : ["None"]) : draft.members });
         }}>
-          <option>Component</option>
-          <option>Struct</option>
-          <option>Enum</option>
+          {schemaKinds.map((item) => <option key={item}>{item}</option>)}
         </select>
       </label>
       {kind === "Enum" ? (
