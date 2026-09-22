@@ -11,7 +11,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Assets\**\*" />
-    <Content Include="..\AstraGraph.StudioWeb\wwwroot\**\*" Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\AstraGraph.StudioWeb\dist\**\*" Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

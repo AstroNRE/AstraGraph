@@ -173,7 +173,9 @@ public sealed class EmbeddedWebAssetProvider : IWebAssetProvider
         var cursor = new DirectoryInfo(AppContext.BaseDirectory);
         for (var depth = 0; depth < 8 && cursor != null; depth++)
         {
-            var candidate = Path.Combine(cursor.FullName, "AstraGraph.StudioWeb", "wwwroot", "index.html");
+            var dist = Path.Combine(cursor.FullName, "AstraGraph.StudioWeb", "dist", "index.html");
+            var prototype = Path.Combine(cursor.FullName, "AstraGraph.StudioWeb", "wwwroot", "index.html");
+            var candidate = File.Exists(dist) ? dist : prototype;
             if (File.Exists(candidate))
             {
                 return Path.GetDirectoryName(candidate);

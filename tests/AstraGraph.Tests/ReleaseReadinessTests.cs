@@ -186,7 +186,9 @@ public sealed class ReleaseReadinessTests
         var dir = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
         while (dir != null)
         {
-            var candidate = Path.Combine(dir.FullName, "AstraGraph.StudioWeb", "wwwroot");
+            var dist = Path.Combine(dir.FullName, "AstraGraph.StudioWeb", "dist");
+            var prototype = Path.Combine(dir.FullName, "AstraGraph.StudioWeb", "wwwroot");
+            var candidate = File.Exists(Path.Combine(dist, "index.html")) ? dist : prototype;
             if (Directory.Exists(candidate))
             {
                 return candidate;
@@ -194,6 +196,6 @@ public sealed class ReleaseReadinessTests
             dir = dir.Parent;
         }
 
-        throw new DirectoryNotFoundException("AstraGraph.StudioWeb/wwwroot was not found.");
+        throw new DirectoryNotFoundException("AstraGraph.StudioWeb/dist was not found.");
     }
 }

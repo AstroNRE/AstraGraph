@@ -342,17 +342,32 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
                     continue;
                 }
 
+                if (!IsBrowserBinding(desc.Name))
+                {
+                    continue;
+                }
+
                 list.Add(new CatalogEntryDto(
-                    Signature: $"{desc.DeclaringTypeName}.{desc.Name}",
+                    Signature: desc.Descriptor,
                     Category: desc.DeclaringTypeName,
                     IsPure: desc.IsPure,
                     IsPredictionSafe: desc.IsDeterministic,
                     Side: desc.Side,
-                    Documentation: $"Method {desc.DeclaringTypeName}.{desc.Name}, Cost: {desc.Cost}"));
+                    Documentation: desc.Name));
             }
         }
 
         return new CatalogQueryResponse(AuthoringStatusCode.Success, list);
+    }
+
+    internal static bool IsBrowserBinding(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name) || name.Contains('<') || name.Contains('>'))
+        {
+            return false;
+        }
+
+        return name is not ("Equals" or "GetHashCode" or "ToString" or "Deconstruct" or "PrintMembers" or "GetType" or "MemberwiseClone");
     }
 
     public DebuggerCommandResponse HandleDebuggerCommand(DebuggerCommandRequest request)

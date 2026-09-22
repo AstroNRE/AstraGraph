@@ -52,6 +52,15 @@ Content вызывает `IAstraGraphManager`. Ядро не ссылается 
 
 DevHost — отдельный инструмент разработки. Он не заменяет внутриигровой local bridge и не входит в поставку игрового сервера.
 
+Интерфейс — один frontend в `AstraGraph.StudioWeb`. Исходники собираются в `dist/`, и именно этот каталог раздают Local Bridge и DevHost. Сборка игрового сервера npm не вызывает.
+
+```bash
+cd AstraGraph.StudioWeb
+npm install
+npm run build
+npm test
+```
+
 ### Preview
 
 ```bash
