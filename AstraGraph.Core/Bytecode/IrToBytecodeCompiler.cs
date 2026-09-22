@@ -181,6 +181,31 @@ public static class IrToBytecodeCompiler
                 return new BytecodeInstruction(opCode, argReg, kind, guidIdx, 0);
             }
 
+            case IrOpCode.StoreVariable:
+            {
+                var varName = instr.StringPayload ?? (instr.Operands != null && instr.Operands.Count > 0 && instr.Operands[0] is IrVariable v ? v.Name : string.Empty);
+                var nameIdx = pool.GetOrAddString(varName);
+                var valReg = (instr.Operands != null && instr.Operands.Count > 0)
+                    ? (instr.Operands.Count > 1 ? ((IrRegister)instr.Operands[1]).Index : ((IrRegister)instr.Operands[0]).Index)
+                    : 0;
+                return new BytecodeInstruction(opCode, BytecodeInstruction.NoRegister, nameIdx, valReg, 0);
+            }
+
+            case IrOpCode.LoadVariable:
+            {
+                var varName = instr.StringPayload ?? (instr.Operands != null && instr.Operands.Count > 0 && instr.Operands[0] is IrVariable v ? v.Name : string.Empty);
+                var nameIdx = pool.GetOrAddString(varName);
+                return new BytecodeInstruction(opCode, destReg, nameIdx, 0, 0);
+            }
+
+            case IrOpCode.GetComponent:
+            case IrOpCode.HasComponent:
+            {
+                var entityReg = (instr.Operands != null && instr.Operands.Count > 0 && instr.Operands[0] is IrRegister r) ? r.Index : 0;
+                var compIdx = pool.GetOrAddString(instr.StringPayload ?? string.Empty);
+                return new BytecodeInstruction(opCode, destReg, entityReg, compIdx, 0);
+            }
+
             default:
                 return new BytecodeInstruction(opCode, destReg, 0, 0, 0);
         }

@@ -119,7 +119,15 @@ public sealed class RoslynCompiler
             {
                 JitFunctionInvoker invoker = (regs, services, budget) =>
                 {
-                    return (AstraValue)methodInfo.Invoke(instance, [regs, services, budget])!;
+                    try
+                    {
+                        return (AstraValue)methodInfo.Invoke(instance, [regs, services, budget])!;
+                    }
+                    catch (TargetInvocationException tie) when (tie.InnerException != null)
+                    {
+                        System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(tie.InnerException).Throw();
+                        throw;
+                    }
                 };
                 program.RegisterInvoker(func.Name, invoker);
             }
