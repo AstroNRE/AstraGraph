@@ -16,17 +16,20 @@ public sealed class AstraBootstrapService
     private readonly HotReloadManager _hotReload;
     private readonly BootstrapLoader _loader;
     private readonly PersistentStateStore? _stateStore;
+    private readonly string? _compatibilityManifestPath;
 
     public AstraBootstrapService(
         AstraGraphHost host,
         HotReloadManager hotReload,
         BootstrapLoader loader,
-        PersistentStateStore? stateStore = null)
+        PersistentStateStore? stateStore = null,
+        string? compatibilityManifestPath = null)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _hotReload = hotReload ?? throw new ArgumentNullException(nameof(hotReload));
         _loader = loader ?? throw new ArgumentNullException(nameof(loader));
         _stateStore = stateStore;
+        _compatibilityManifestPath = compatibilityManifestPath;
     }
 
     public int Activate(string author = "Bootstrap")
@@ -45,7 +48,7 @@ public sealed class AstraBootstrapService
             }
         }
 
-        var manifestPath = EngineCompatibilityService.FindManifest();
+        var manifestPath = EngineCompatibilityService.FindManifest(_compatibilityManifestPath);
         if (manifestPath != null)
         {
             var manifest = EngineCompatibilityService.Load(manifestPath).Manifest;

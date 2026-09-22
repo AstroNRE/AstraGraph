@@ -12,11 +12,6 @@ namespace AstraGraph.Robust.Server;
 /// <summary>
 /// Content-side lookup over IAdminManager. AstraGraph does not reference Content admin types.
 /// </summary>
-public interface IAstraAdminDirectory
-{
-    bool TryGetAdmin(string userId, out uint adminFlags, out string? rank, out bool isSandbox);
-}
-
 public sealed class RobustAdminPermissionProvider : IAstraPermissionProvider
 {
     private readonly AstraAdminPermissionResolver _resolver;

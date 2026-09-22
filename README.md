@@ -22,8 +22,27 @@ dotnet test AstraGraph.slnx
 dotnet build AstraGraph.slnx -p:RobustToolboxRoot=../RobustToolbox
 ```
 
-4. Зарегистрировать `SharedAstraGraphSystem`, `ServerAstraGraphSystem` и `ClientAstraGraphSystem` в IoC и передать им `AstraGraphFacade`.
-5. Положить графы проекта в `Resources/AstraGraph`, живые ревизии пишутся в `data/AstraGraph`.
+4. До `ServerAstraGraphSystem.Initialize()` передать настройки хоста. Форк регистрирует `IAstraServerHostConfiguration` в IoC или вызывает `AstraServerHost.Configure` заранее:
+
+```csharp
+var options = new AstraServerHostOptions
+{
+    Storage = new StorageLayout(
+        "<consumer>/Resources/AstraGraph",
+        "<consumer>/data/AstraGraph"),
+
+    CompatibilityManifestPath =
+        "<consumer>/AstraGraph/Compatibility.json",
+
+    RobustToolboxRoot =
+        "<consumer>/RobustToolbox",
+
+    AdminDirectory = consumerAdminDirectory
+};
+```
+
+`IAstraAdminDirectory` или собственный `IAstraPermissionProvider` реализуются в форке. AstraGraph не ссылается на `IAdminManager`.
+5. Положить графы проекта в `Resources/AstraGraph`, живые ревизии пишутся в `data/AstraGraph`. Если commit движка нельзя прочитать из `.git`, передайте `RobustCommit`. Иначе старт останавливается: engine identity не подменяется значением из манифеста.
 
 Content вызывает `IAstraGraphManager`. Ядро не ссылается на RobustToolbox и не ссылается на `AdminFlags`. Право на вход в Studio даёт `IAstraPermissionProvider` в адаптере форка.
 

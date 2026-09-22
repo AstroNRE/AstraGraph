@@ -53,22 +53,102 @@ public sealed class EngineCompatibilityService : IEngineCompatibilityService
         PropertyNameCaseInsensitive = true
     };
 
-    public static string? FindManifest(string fileName = "Compatibility.json")
+    public static string? FindManifest(
+        string? explicitPath = null,
+        IEnumerable<string>? searchRoots = null,
+        string fileName = "Compatibility.json")
     {
-        var cursor = new DirectoryInfo(AppContext.BaseDirectory);
-        for (var depth = 0; depth < 8 && cursor != null; depth++)
+        if (!string.IsNullOrWhiteSpace(explicitPath))
         {
-            var candidate = Path.Combine(cursor.FullName, fileName);
-            if (File.Exists(candidate))
+            var full = Path.GetFullPath(explicitPath);
+            if (!File.Exists(full))
             {
-                return candidate;
+                throw new EngineCompatibilityException($"Compatibility manifest '{full}' was not found.");
             }
 
-            cursor = cursor.Parent;
+            return full;
         }
 
-        var cwd = Path.Combine(Directory.GetCurrentDirectory(), fileName);
-        return File.Exists(cwd) ? cwd : null;
+        var roots = new List<string>();
+        if (searchRoots != null)
+        {
+            roots.AddRange(searchRoots.Where(root => !string.IsNullOrWhiteSpace(root)));
+        }
+
+        roots.Add(Directory.GetCurrentDirectory());
+        roots.Add(AppContext.BaseDirectory);
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var root in roots)
+        {
+            DirectoryInfo? cursor;
+            try
+            {
+                cursor = new DirectoryInfo(Path.GetFullPath(root));
+            }
+            catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
+            {
+                continue;
+            }
+
+            for (var depth = 0; depth < 8 && cursor != null; depth++)
+            {
+                if (!seen.Add(cursor.FullName))
+                {
+                    break;
+                }
+
+                var direct = Path.Combine(cursor.FullName, fileName);
+                if (File.Exists(direct))
+                {
+                    return direct;
+                }
+
+                var nested = Path.Combine(cursor.FullName, "AstraGraph", fileName);
+                if (File.Exists(nested))
+                {
+                    return nested;
+                }
+
+                cursor = cursor.Parent;
+            }
+        }
+
+        return null;
+    }
+
+    public static string ResolveRobustToolboxRoot(string manifestPath, string? explicitRoot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(manifestPath);
+        if (!string.IsNullOrWhiteSpace(explicitRoot))
+        {
+            var full = Path.GetFullPath(explicitRoot);
+            if (!Directory.Exists(full))
+            {
+                throw new EngineCompatibilityException($"RobustToolbox root '{full}' does not exist.");
+            }
+
+            return full;
+        }
+
+        return Path.GetFullPath(Path.Combine(Path.GetDirectoryName(manifestPath)!, "..", "RobustToolbox"));
+    }
+
+    public static string ResolveEngineIdentity(string manifestPath, string? explicitCommit, string? explicitRoot)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitCommit))
+        {
+            return explicitCommit.Trim();
+        }
+
+        var root = ResolveRobustToolboxRoot(manifestPath, explicitRoot);
+        var commit = Directory.Exists(root) ? ReadCheckedOutCommit(root) : null;
+        if (string.IsNullOrWhiteSpace(commit))
+        {
+            throw new EngineCompatibilityException("Engine identity could not be verified.");
+        }
+
+        return commit;
     }
 
     public static EngineCompatibilityService Load(string path)

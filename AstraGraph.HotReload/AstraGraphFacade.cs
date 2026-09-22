@@ -52,13 +52,30 @@ public sealed class AstraGraphFacade :
         StorageLayout layout,
         IAstraPermissionProvider permissions)
     {
+        return ForServer(host, layout, permissions, compatibilityManifestPath: null);
+    }
+
+    public static AstraGraphFacade ForServer(AstraGraphHost host, AstraServerHostOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var permissions = options.PermissionProvider
+            ?? throw new InvalidOperationException("PermissionProvider must be resolved before creating the server facade.");
+        return ForServer(host, options.Storage, permissions, options.CompatibilityManifestPath);
+    }
+
+    private static AstraGraphFacade ForServer(
+        AstraGraphHost host,
+        StorageLayout layout,
+        IAstraPermissionProvider permissions,
+        string? compatibilityManifestPath)
+    {
         ArgumentNullException.ThrowIfNull(layout);
         layout.EnsureDirectories();
         var catalog = new BindingCatalog();
         var hotReload = new HotReloadManager(host, archive: new RevisionArchive(layout), catalog: catalog);
         var loader = new BootstrapLoader(layout);
         var state = new PersistentStateStore(layout);
-        var pipeline = new AstraBootstrapService(host, hotReload, loader, state);
+        var pipeline = new AstraBootstrapService(host, hotReload, loader, state, compatibilityManifestPath);
         return new AstraGraphFacade(host, hotReload, catalog, permissions, loader, pipeline, state);
     }
 
