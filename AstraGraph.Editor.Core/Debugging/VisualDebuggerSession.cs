@@ -34,6 +34,13 @@ public sealed class VisualDebuggerSession
     {
         _canvasModel = canvasModel ?? throw new ArgumentNullException(nameof(canvasModel));
         _debugger = debugger ?? throw new ArgumentNullException(nameof(debugger));
+
+        _debugger.OnSuspension += HandleSuspension;
+        _debugger.OnResumed += () =>
+        {
+            CurrentSuspension = null;
+            OnResumed?.Invoke();
+        };
     }
 
     public bool HasBreakpoint(NodeId nodeId) => _debugger.HasBreakpoint(nodeId);
@@ -82,28 +89,36 @@ public sealed class VisualDebuggerSession
         OnSuspended?.Invoke(suspension);
     }
 
+    public void Pause()
+    {
+        _debugger.Pause();
+    }
+
     public void Resume()
     {
         CurrentSuspension = null;
+        _debugger.Resume();
         OnResumed?.Invoke();
     }
 
     public void StepOver()
     {
-        // Resume until next node execution
         CurrentSuspension = null;
+        _debugger.StepOver();
         OnResumed?.Invoke();
     }
 
     public void StepInto()
     {
         CurrentSuspension = null;
+        _debugger.StepInto();
         OnResumed?.Invoke();
     }
 
     public void StepOut()
     {
         CurrentSuspension = null;
+        _debugger.Resume();
         OnResumed?.Invoke();
     }
 

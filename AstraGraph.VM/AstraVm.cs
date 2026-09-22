@@ -15,7 +15,8 @@ public sealed class AstraVm
         AstraValue[]? initialRegisters = null,
         int startIp = 0,
         IVmHostServices? hostServices = null,
-        ExecutionBudget? budget = null)
+        ExecutionBudget? budget = null,
+        IVmDebugHook? debugHook = null)
     {
         ArgumentNullException.ThrowIfNull(program);
         ArgumentNullException.ThrowIfNull(function);
@@ -37,6 +38,20 @@ public sealed class AstraVm
             while (ip < instructions.Count)
             {
                 b.Tick();
+
+                if (debugHook != null)
+                {
+                    var sourceNode = function.GetSourceNodeId(ip);
+                    if (debugHook.ShouldSuspend(sourceNode, ip, registers))
+                    {
+                        return new VmExecutionResult(
+                            VmExecutionStatus.Yielded,
+                            AstraValue.Null,
+                            ResumeInstructionPointer: ip,
+                            CapturedRegisters: registers.ToArray(),
+                            InstructionsExecuted: b.InstructionsExecuted);
+                    }
+                }
 
                 var instr = instructions[ip++];
                 var dest = instr.DestRegister;
@@ -220,7 +235,27 @@ public sealed class AstraVm
                         var kind = (ContinuationKind)instr.Op1;
                         var resumeGuid = (Guid)program.Constants[instr.Op2].Value!;
                         var nextIp = instr.Extra;
-                        var yieldState = new ContinuationState(kind, resumeGuid, nextIp, registers);
+                        double delaySec = 0.0;
+                        string? eventTypeName = null;
+
+                        if (instr.DestRegister != BytecodeInstruction.NoRegister && instr.DestRegister < registers.Length)
+                        {
+                            var regVal = registers[instr.DestRegister];
+                            if (regVal.Type == AstraValueType.Double)
+                            {
+                                delaySec = regVal.AsDouble();
+                            }
+                            else if (regVal.Type == AstraValueType.Int64)
+                            {
+                                delaySec = regVal.AsInt64();
+                            }
+                            else if (regVal.Type == AstraValueType.Object && regVal.AsString() is { } str)
+                            {
+                                eventTypeName = str;
+                            }
+                        }
+
+                        var yieldState = new ContinuationState(kind, resumeGuid, nextIp, registers, delaySec, eventTypeName);
 
                         return new VmExecutionResult(
                             VmExecutionStatus.Yielded,

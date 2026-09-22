@@ -20,17 +20,20 @@ public sealed class AstraGraphHost
     public AstraStateStore State { get; }
     public AstraVm Vm { get; }
     public IVmHostServices HostServices { get; }
+    public Debugging.GraphDebugger Debugger { get; }
 
     public AstraGraphHost(
         AstraVm? vm = null,
         DynamicComponentStore? components = null,
         AstraStateStore? state = null,
-        IVmHostServices? hostServices = null)
+        IVmHostServices? hostServices = null,
+        Debugging.GraphDebugger? debugger = null)
     {
         Vm = vm ?? new AstraVm();
         Components = components ?? new DynamicComponentStore();
         State = state ?? new AstraStateStore();
         HostServices = hostServices ?? new DefaultVmHostServices();
+        Debugger = debugger ?? new Debugging.GraphDebugger();
         Scheduler = new GraphScheduler();
         EventRouter = new GraphEventRouter();
         Continuations = new ContinuationScheduler(Vm, HostServices);
@@ -47,6 +50,7 @@ public sealed class AstraGraphHost
         _activePrograms.TryRemove(graphId, out _);
         EventRouter.UnsubscribeGraph(graphId);
         Scheduler.UnregisterGraph(graphId);
+        Continuations.CancelByGraph(graphId);
     }
 
     public BytecodeProgram? GetProgram(GraphId graphId) =>

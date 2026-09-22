@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using AstraGraph.Core;
+using AstraGraph.VM;
 
 namespace AstraGraph.Runtime.Debugging;
 
@@ -9,6 +10,14 @@ public enum BreakpointMode
 {
     GraphPause,
     Tracepoint
+}
+
+public enum DebuggerExecutionMode
+{
+    Running,
+    Paused,
+    StepInto,
+    StepOver
 }
 
 public sealed record Breakpoint(
@@ -41,14 +50,22 @@ public sealed class DebugSuspension
 
 /// <summary>
 /// Live graph debugger supporting non-blocking GraphPause breakpoints,
-/// tracepoints, variable inspection, and bounded execution trace ring buffers.
+/// tracepoints, stepping (into/over), pause/resume, variable inspection, and bounded execution trace ring buffers.
 /// </summary>
-public sealed class GraphDebugger
+public sealed class GraphDebugger : IVmDebugHook
 {
     private readonly ConcurrentDictionary<NodeId, Breakpoint> _breakpoints = new();
     private readonly List<ExecutionTraceEntry> _traceRing = [];
     private readonly Lock _lock = new();
+    private bool _hasExecutedStep;
+
     public int MaxTraceEntries { get; set; } = 500;
+    public DebuggerExecutionMode ExecutionMode { get; private set; } = DebuggerExecutionMode.Running;
+    public DebugSuspension? CurrentSuspension { get; private set; }
+    public bool IsPaused => ExecutionMode == DebuggerExecutionMode.Paused || CurrentSuspension != null;
+
+    public event Action<DebugSuspension>? OnSuspension;
+    public event Action? OnResumed;
 
     public void SetBreakpoint(Breakpoint breakpoint)
     {
@@ -61,6 +78,48 @@ public sealed class GraphDebugger
     public void ClearBreakpoints() => _breakpoints.Clear();
 
     public bool HasBreakpoint(NodeId nodeId) => _breakpoints.ContainsKey(nodeId);
+
+    private int _skipBreakpointAtIp = -1;
+
+    public void Pause()
+    {
+        ExecutionMode = DebuggerExecutionMode.Paused;
+    }
+
+    public void Resume()
+    {
+        if (CurrentSuspension != null)
+        {
+            _skipBreakpointAtIp = CurrentSuspension.InstructionPointer;
+        }
+        CurrentSuspension = null;
+        ExecutionMode = DebuggerExecutionMode.Running;
+        OnResumed?.Invoke();
+    }
+
+    public void StepInto()
+    {
+        if (CurrentSuspension != null)
+        {
+            _skipBreakpointAtIp = CurrentSuspension.InstructionPointer;
+        }
+        CurrentSuspension = null;
+        ExecutionMode = DebuggerExecutionMode.StepInto;
+        _hasExecutedStep = false;
+        OnResumed?.Invoke();
+    }
+
+    public void StepOver()
+    {
+        if (CurrentSuspension != null)
+        {
+            _skipBreakpointAtIp = CurrentSuspension.InstructionPointer;
+        }
+        CurrentSuspension = null;
+        ExecutionMode = DebuggerExecutionMode.StepOver;
+        _hasExecutedStep = false;
+        OnResumed?.Invoke();
+    }
 
     /// <summary>
     /// Checks whether execution at the given node hits a breakpoint.
@@ -90,12 +149,68 @@ public sealed class GraphDebugger
 
         if (bp.Mode == BreakpointMode.Tracepoint)
         {
-            // Tracepoint only records trace; does not suspend
             return false;
         }
 
         suspension = new DebugSuspension(nodeId, instructionPointer, regsArray);
+        CurrentSuspension = suspension;
         return true;
+    }
+
+    public bool ShouldSuspend(
+        NodeId? nodeId,
+        int instructionPointer,
+        ReadOnlySpan<AstraValue> registers)
+    {
+        var effectiveNode = nodeId ?? NodeId.New();
+        var regsArray = registers.ToArray();
+        RecordTrace(effectiveNode, instructionPointer, regsArray);
+
+        if (ExecutionMode == DebuggerExecutionMode.Paused)
+        {
+            var suspension = new DebugSuspension(effectiveNode, instructionPointer, regsArray);
+            CurrentSuspension = suspension;
+            OnSuspension?.Invoke(suspension);
+            return true;
+        }
+
+        if (ExecutionMode is DebuggerExecutionMode.StepInto or DebuggerExecutionMode.StepOver)
+        {
+            if (!_hasExecutedStep)
+            {
+                _hasExecutedStep = true;
+                return false;
+            }
+
+            var suspension = new DebugSuspension(effectiveNode, instructionPointer, regsArray);
+            CurrentSuspension = suspension;
+            ExecutionMode = DebuggerExecutionMode.Paused;
+            OnSuspension?.Invoke(suspension);
+            return true;
+        }
+
+        if (_skipBreakpointAtIp == instructionPointer)
+        {
+            _skipBreakpointAtIp = -1;
+            return false;
+        }
+
+        if (nodeId.HasValue && _breakpoints.TryGetValue(nodeId.Value, out var bp))
+        {
+            if (bp.Condition == null || bp.Condition(regsArray))
+            {
+                if (bp.Mode == BreakpointMode.GraphPause)
+                {
+                    var suspension = new DebugSuspension(nodeId.Value, instructionPointer, regsArray);
+                    CurrentSuspension = suspension;
+                    ExecutionMode = DebuggerExecutionMode.Paused;
+                    OnSuspension?.Invoke(suspension);
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private void RecordTrace(NodeId nodeId, int ip, AstraValue[] registers)

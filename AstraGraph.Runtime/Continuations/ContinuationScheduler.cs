@@ -76,8 +76,17 @@ public sealed class ContinuationScheduler
                     frame.InstructionPointer = result.YieldState.NextInstructionPointer;
                     Array.Copy(result.YieldState.Arguments.ToArray(), frame.CapturedRegisters, Math.Min(result.YieldState.Arguments.Count, frame.CapturedRegisters.Length));
 
-                    // Default to 1 second delay if not configured otherwise
-                    frame.Condition = ContinuationCondition.DelaySeconds(currentTimeSeconds, 1.0);
+                    var delaySec = result.YieldState.DelaySeconds > 0 ? result.YieldState.DelaySeconds : 1.0;
+                    frame.Condition = result.YieldState.Kind switch
+                    {
+                        ContinuationKind.Delay or ContinuationKind.DoAfter =>
+                            ContinuationCondition.DelaySeconds(currentTimeSeconds, delaySec),
+                        ContinuationKind.WaitUntil =>
+                            ContinuationCondition.NextTick(currentTick),
+                        ContinuationKind.AwaitEvent =>
+                            ContinuationCondition.AwaitEvent(result.YieldState.EventTypeName ?? string.Empty),
+                        _ => ContinuationCondition.DelaySeconds(currentTimeSeconds, delaySec)
+                    };
                 }
                 else
                 {
@@ -116,9 +125,41 @@ public sealed class ContinuationScheduler
                 startIp: frame.InstructionPointer,
                 hostServices: _hostServices);
 
-            if (!result.IsYielded)
+            if (result.IsYielded && result.YieldState != null)
+            {
+                frame.InstructionPointer = result.YieldState.NextInstructionPointer;
+                Array.Copy(result.YieldState.Arguments.ToArray(), frame.CapturedRegisters, Math.Min(result.YieldState.Arguments.Count, frame.CapturedRegisters.Length));
+
+                var delaySec = result.YieldState.DelaySeconds > 0 ? result.YieldState.DelaySeconds : 1.0;
+                frame.Condition = result.YieldState.Kind switch
+                {
+                    ContinuationKind.Delay or ContinuationKind.DoAfter =>
+                        ContinuationCondition.DelaySeconds(0.0, delaySec),
+                    ContinuationKind.WaitUntil =>
+                        ContinuationCondition.NextTick(0),
+                    ContinuationKind.AwaitEvent =>
+                        ContinuationCondition.AwaitEvent(result.YieldState.EventTypeName ?? string.Empty),
+                    _ => ContinuationCondition.DelaySeconds(0.0, delaySec)
+                };
+            }
+            else
             {
                 lock (_lock) _active.Remove(frame);
+            }
+        }
+    }
+
+    public void CancelByGraph(GraphId graphId)
+    {
+        lock (_lock)
+        {
+            for (var i = _active.Count - 1; i >= 0; i--)
+            {
+                if (_active[i].GraphId == graphId)
+                {
+                    _active[i].Cancel();
+                    _active.RemoveAt(i);
+                }
             }
         }
     }

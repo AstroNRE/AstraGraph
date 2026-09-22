@@ -321,6 +321,18 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             case DebuggerAction.RemoveBreakpoint when request.TargetNode.HasValue:
                 _debugger.RemoveBreakpoint(request.TargetNode.Value);
                 break;
+            case DebuggerAction.Pause:
+                _debugger.Pause();
+                break;
+            case DebuggerAction.Resume:
+                _debugger.Resume();
+                break;
+            case DebuggerAction.StepInto:
+                _debugger.StepInto();
+                break;
+            case DebuggerAction.StepOver:
+                _debugger.StepOver();
+                break;
         }
 
         return new DebuggerCommandResponse(AuthoringStatusCode.Success, true);

@@ -51,7 +51,20 @@ public sealed record ContinuationState(
     ContinuationKind Kind,
     Guid ResumePointId,
     int NextInstructionPointer,
-    IReadOnlyList<AstraValue> Arguments);
+    IReadOnlyList<AstraValue> Arguments,
+    double DelaySeconds = 0.0,
+    string? EventTypeName = null);
+
+/// <summary>
+/// Hook for VM debugging (breakpoints, stepping, pausing).
+/// </summary>
+public interface IVmDebugHook
+{
+    bool ShouldSuspend(
+        NodeId? nodeId,
+        int instructionPointer,
+        ReadOnlySpan<AstraValue> registers);
+}
 
 /// <summary>
 /// Structured result returned by Astra VM invocation.
@@ -61,8 +74,11 @@ public sealed record VmExecutionResult(
     AstraValue ReturnValue,
     ContinuationState? YieldState = null,
     Exception? Exception = null,
-    int InstructionsExecuted = 0)
+    int InstructionsExecuted = 0,
+    int ResumeInstructionPointer = 0,
+    IReadOnlyList<AstraValue>? CapturedRegisters = null)
 {
     public bool IsSuccess => Status == VmExecutionStatus.Completed;
     public bool IsYielded => Status == VmExecutionStatus.Yielded;
+    public bool IsSuspended => Status == VmExecutionStatus.Yielded && YieldState == null;
 }

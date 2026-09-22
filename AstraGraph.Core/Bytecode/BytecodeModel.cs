@@ -32,14 +32,24 @@ public sealed class BytecodeFunction
     public int RegisterCount { get; }
     public int ParameterCount { get; }
     public IReadOnlyList<BytecodeInstruction> Instructions { get; }
+    public IReadOnlyList<NodeId?>? SourceMap { get; }
 
-    public BytecodeFunction(int nameConstantIndex, int registerCount, int parameterCount, IReadOnlyList<BytecodeInstruction> instructions)
+    public BytecodeFunction(
+        int nameConstantIndex,
+        int registerCount,
+        int parameterCount,
+        IReadOnlyList<BytecodeInstruction> instructions,
+        IReadOnlyList<NodeId?>? sourceMap = null)
     {
         NameConstantIndex = nameConstantIndex;
         RegisterCount = registerCount;
         ParameterCount = parameterCount;
         Instructions = instructions;
+        SourceMap = sourceMap;
     }
+
+    public NodeId? GetSourceNodeId(int ip) =>
+        SourceMap != null && ip >= 0 && ip < SourceMap.Count ? SourceMap[ip] : null;
 }
 
 /// <summary>

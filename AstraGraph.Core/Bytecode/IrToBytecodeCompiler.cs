@@ -34,6 +34,7 @@ public static class IrToBytecodeCompiler
     {
         var nameIdx = pool.GetOrAddString(func.Name);
         var instructions = new List<BytecodeInstruction>();
+        var sourceMap = new List<NodeId?>();
         var blockStartOffsets = new Dictionary<int, int>();
         var pendingFixups = new List<(int InstructionIndex, IrBasicBlock Block, IrInstruction IrInstr)>();
 
@@ -47,6 +48,7 @@ public static class IrToBytecodeCompiler
             {
                 var bcInstr = EmitInstruction(instr, pool);
                 instructions.Add(bcInstr);
+                sourceMap.Add(instr.SourceNodeId);
             }
 
             // Terminator instruction (placeholder targets to be fixed up)
@@ -55,6 +57,7 @@ public static class IrToBytecodeCompiler
                 var termIndex = instructions.Count;
                 var termBc = EmitInstruction(block.Terminator, pool);
                 instructions.Add(termBc);
+                sourceMap.Add(block.Terminator.SourceNodeId);
                 pendingFixups.Add((termIndex, block, block.Terminator));
             }
         }
@@ -99,7 +102,7 @@ public static class IrToBytecodeCompiler
             }
         }
 
-        return new BytecodeFunction(nameIdx, func.RegisterCount, func.Parameters.Count, instructions);
+        return new BytecodeFunction(nameIdx, func.RegisterCount, func.Parameters.Count, instructions, sourceMap);
     }
 
     private static BytecodeInstruction EmitInstruction(IrInstruction instr, ConstantPool pool)
@@ -172,7 +175,10 @@ public static class IrToBytecodeCompiler
                 var kind = (int)(instr.Metadata is ContinuationKind k ? k : ContinuationKind.Delay);
                 var resumeGuid = Guid.Parse(instr.StringPayload!);
                 var guidIdx = pool.GetOrAddGuid(resumeGuid);
-                return new BytecodeInstruction(opCode, BytecodeInstruction.NoRegister, kind, guidIdx, 0);
+                var argReg = (instr.Operands != null && instr.Operands.Count > 0 && instr.Operands[0] is IrRegister r)
+                    ? (ushort)r.Index
+                    : BytecodeInstruction.NoRegister;
+                return new BytecodeInstruction(opCode, argReg, kind, guidIdx, 0);
             }
 
             default:
