@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   Background,
   Controls,
@@ -13,6 +13,7 @@ import {
   type NodeProps
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import "./canvas.css";
 import { applyFlow, toFlow, type FlowEdge, type GraphDocument } from "../documents/graph";
 
 type AstraData = {
@@ -39,7 +40,20 @@ function AstraNodeView({ data }: NodeProps<Node<AstraData, "astra">>) {
 
 const nodeTypes = { astra: AstraNodeView };
 
+function useFlowColorMode(): "dark" | "light" {
+  const [mode, setMode] = useState<"dark" | "light">(() => document.documentElement.dataset.theme === "light" ? "light" : "dark");
+  useEffect(() => {
+    const root = document.documentElement;
+    const sync = () => setMode(root.dataset.theme === "light" ? "light" : "dark");
+    const observer = new MutationObserver(sync);
+    observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
+  }, []);
+  return mode;
+}
+
 export function GraphCanvas(props: { document: GraphDocument; onChange: (next: GraphDocument) => void }) {
+  const colorMode = useFlowColorMode();
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<AstraData, "astra">>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<FlowEdge>([]);
 
@@ -68,6 +82,7 @@ export function GraphCanvas(props: { document: GraphDocument; onChange: (next: G
 
   return (
     <ReactFlow
+      colorMode={colorMode}
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}
