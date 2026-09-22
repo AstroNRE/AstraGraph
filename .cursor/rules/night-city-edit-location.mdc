@@ -1,0 +1,11 @@
+---
+description: Submodule is D:\projects\AstraGraph, the build is D:\projects\night-city
+alwaysApply: true
+---
+
+# Where to edit
+
+- Submodule: `D:\projects\AstraGraph`. AstraGraph library changes go here.
+- Build: `D:\projects\night-city`. Content, Resources, prototypes, and Night City host projects go here.
+- Do not edit `D:\projects\night-city\AstraGraph`. That checkout is the pinned submodule; Yuri moves the pin.
+- Do not edit `D:\projects\night-city\RobustToolbox`.

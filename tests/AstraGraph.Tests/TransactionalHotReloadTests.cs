@@ -182,7 +182,8 @@ public sealed class TransactionalHotReloadTests
         memoryState.ClearAll();
 
         // Create a new server system with a clean host
-        var newServerSystem = new ServerAstraGraphSystem(layout);
+        var newServerSystem = new ServerAstraGraphSystem();
+        newServerSystem.UseStorage(layout);
         newServerSystem.ExecuteBootstrap();
 
         // 3. Verify graph is automatically loaded and active in the new host

@@ -141,14 +141,16 @@ public sealed class ProductionIntegrationTests
         var symbol = SymbolId.New();
         var document = Entry(graphId);
 
-        var first = new AstraGraph.Robust.Server.ServerAstraGraphSystem(layout);
+        var first = new AstraGraph.Robust.Server.ServerAstraGraphSystem();
+        first.UseStorage(layout);
         first.ExecuteBootstrap();
         var published = first.HotReloadManager.Publish(document, author: "dev", message: "initial");
         Assert.That(published.Success, Is.True);
         first.Host.State.SetVariable(graphId, symbol, "Score", AstraValue.FromInt64(4), isPersistent: true);
         first.SavePersistentState();
 
-        var restarted = new AstraGraph.Robust.Server.ServerAstraGraphSystem(layout);
+        var restarted = new AstraGraph.Robust.Server.ServerAstraGraphSystem();
+        restarted.UseStorage(layout);
         restarted.ExecuteBootstrap();
         var restored = restarted.Host.GetProgram(graphId);
         Assert.That(restored, Is.Not.Null);

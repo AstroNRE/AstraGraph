@@ -96,7 +96,8 @@ public class ServerHostCompositionTests
         var consumer = Path.Combine(Path.GetTempPath(), "astra-storage-" + Guid.NewGuid().ToString("N"));
         var project = Path.Combine(consumer, "Resources", "AstraGraph");
         var data = Path.Combine(consumer, "data", "AstraGraph");
-        var system = new AstraGraph.Robust.Server.ServerAstraGraphSystem(new AstraServerHostOptions
+        var system = new AstraGraph.Robust.Server.ServerAstraGraphSystem();
+        system.Configure(new AstraServerHostOptions
         {
             Storage = new StorageLayout(project, data),
             PermissionProvider = PolicyPermissionProvider.AllowLocalAuthor("dev")
@@ -137,7 +138,8 @@ public class ServerHostCompositionTests
         var manifest = Path.Combine(root, "AstraGraph", "Compatibility.json");
         Directory.CreateDirectory(Path.GetDirectoryName(manifest)!);
         File.Copy(EngineCompatibilityService.FindManifest()!, manifest);
-        var system = new AstraGraph.Robust.Server.ServerAstraGraphSystem(new AstraServerHostOptions
+        var system = new AstraGraph.Robust.Server.ServerAstraGraphSystem();
+        system.Configure(new AstraServerHostOptions
         {
             Storage = new StorageLayout(Path.Combine(root, "Resources", "AstraGraph"), Path.Combine(root, "data", "AstraGraph")),
             CompatibilityManifestPath = manifest,
@@ -156,7 +158,8 @@ public class ServerHostCompositionTests
         var robust = Path.Combine(root, "engine");
         Directory.CreateDirectory(robust);
         File.Copy(EngineCompatibilityService.FindManifest()!, manifest);
-        var system = new AstraGraph.Robust.Server.ServerAstraGraphSystem(new AstraServerHostOptions
+        var system = new AstraGraph.Robust.Server.ServerAstraGraphSystem();
+        system.Configure(new AstraServerHostOptions
         {
             Storage = new StorageLayout(Path.Combine(root, "Resources", "AstraGraph"), Path.Combine(root, "data", "AstraGraph")),
             CompatibilityManifestPath = manifest,
@@ -176,7 +179,8 @@ public class ServerHostCompositionTests
         Directory.CreateDirectory(root);
         File.Copy(EngineCompatibilityService.FindManifest()!, manifest);
         var expected = EngineCompatibilityService.Load(manifest).Manifest.TestedRobustCommit;
-        var system = new AstraGraph.Robust.Server.ServerAstraGraphSystem(new AstraServerHostOptions
+        var system = new AstraGraph.Robust.Server.ServerAstraGraphSystem();
+        system.Configure(new AstraServerHostOptions
         {
             Storage = new StorageLayout(Path.Combine(root, "Resources", "AstraGraph"), Path.Combine(root, "data", "AstraGraph")),
             CompatibilityManifestPath = manifest,
@@ -202,7 +206,8 @@ public class ServerHostCompositionTests
     private static AstraGraph.Robust.Server.ServerAstraGraphSystem Compose(IAstraAdminDirectory directory)
     {
         var root = Path.Combine(Path.GetTempPath(), "astra-admin-" + Guid.NewGuid().ToString("N"));
-        var system = new AstraGraph.Robust.Server.ServerAstraGraphSystem(new AstraServerHostOptions
+        var system = new AstraGraph.Robust.Server.ServerAstraGraphSystem();
+        system.Configure(new AstraServerHostOptions
         {
             Storage = new StorageLayout(Path.Combine(root, "Resources", "AstraGraph"), Path.Combine(root, "data", "AstraGraph")),
             AdminDirectory = directory

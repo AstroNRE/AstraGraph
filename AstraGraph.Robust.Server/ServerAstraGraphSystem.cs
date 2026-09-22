@@ -48,16 +48,18 @@ public sealed class ServerAstraGraphSystem : SharedAstraGraphSystem
     }
 
     /// <summary>
-    /// Legacy entry point. Prefer <see cref="AstraServerHostOptions"/> before initialization.
+    /// Robust registers entity systems through IoC and allows exactly one constructor.
+    /// Tests pass a storage layout here before bootstrap.
     /// </summary>
-    public ServerAstraGraphSystem(StorageLayout storageLayout)
+    public void UseStorage(StorageLayout storageLayout)
     {
-        _storageLayout = storageLayout;
-    }
+        ArgumentNullException.ThrowIfNull(storageLayout);
+        if (_composed)
+        {
+            throw new InvalidOperationException("AstraGraph server host is already initialized.");
+        }
 
-    public ServerAstraGraphSystem(AstraServerHostOptions options)
-    {
-        Configure(options);
+        _storageLayout = storageLayout;
     }
 
     public void Configure(AstraServerHostOptions options)
