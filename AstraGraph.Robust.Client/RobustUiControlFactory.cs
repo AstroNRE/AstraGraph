@@ -213,7 +213,7 @@ public sealed class RobustUiControlFactory : IRobustUiControlFactory
         return new NativeRobustUiControlWrapper(id, type, control, name);
     }
 
-    private static bool IsNativeUiAvailable()
+    public static bool IsNativeUiAvailable()
     {
         try
         {

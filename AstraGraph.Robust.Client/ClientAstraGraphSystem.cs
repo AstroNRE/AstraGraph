@@ -1,7 +1,9 @@
 using AstraGraph.Editor.Bridge;
+using AstraGraph.Editor.InGame;
 using AstraGraph.Editor.Protocol;
 using AstraGraph.Robust.Shared;
 using AstraGraph.UI.Runtime;
+using Robust.Shared.GameObjects;
 using Robust.Shared.IoC;
 
 namespace AstraGraph.Robust.Client;
@@ -15,10 +17,14 @@ public sealed class ClientAstraGraphSystem : SharedAstraGraphSystem
     private RobustUiControlFactory _controlFactory = default!;
     private RobustUiReconciler _reconciler = default!;
     private AstraLocalBridge? _localBridge;
+    private AstraInGameLauncher? _launcher;
+    private AstraRuntimeStatusReporter? _statusReporter;
 
     public RobustUiControlFactory ControlFactory => _controlFactory;
     public RobustUiReconciler Reconciler => _reconciler;
     public AstraLocalBridge? LocalBridge => _localBridge;
+    public AstraInGameLauncher? Launcher => _launcher;
+    public AstraRuntimeStatusReporter? StatusReporter => _statusReporter;
 
     public override void Initialize()
     {
@@ -29,8 +35,14 @@ public sealed class ClientAstraGraphSystem : SharedAstraGraphSystem
         _reconciler = new RobustUiReconciler(_controlFactory);
 
         // 2. Register in IoC
-        IoCManager.RegisterInstance<RobustUiControlFactory>(_controlFactory, overwrite: true);
-        IoCManager.RegisterInstance<RobustUiReconciler>(_reconciler, overwrite: true);
+        try
+        {
+            IoCManager.RegisterInstance<RobustUiControlFactory>(_controlFactory, overwrite: true);
+            IoCManager.RegisterInstance<RobustUiReconciler>(_reconciler, overwrite: true);
+        }
+        catch
+        {
+        }
 
         Log.Info("ClientAstraGraphSystem initialized with native RobustUiControlFactory.");
     }
@@ -40,13 +52,41 @@ public sealed class ClientAstraGraphSystem : SharedAstraGraphSystem
     /// </summary>
     public async Task<string> LaunchStudioAsync(IAuthoringMessageHandler? handler = null, StudioLaunchContext? context = null)
     {
-        if (_localBridge == null)
+        EnsureBridge(handler);
+        if (!_localBridge!.IsRunning)
         {
-            _localBridge = handler != null ? AstraLocalBridge.CreateWithHandler(handler) : AstraLocalBridge.CreateDefault();
             await _localBridge.StartAsync();
         }
 
         return _localBridge.LaunchStudioInBrowser(context);
+    }
+
+    public void EnsureBridge(IAuthoringMessageHandler? handler = null)
+    {
+        if (_localBridge == null)
+        {
+            _localBridge = handler != null ? AstraLocalBridge.CreateWithHandler(handler) : AstraLocalBridge.CreateDefault();
+            _statusReporter = new AstraRuntimeStatusReporter(_localBridge);
+            _launcher = new AstraInGameLauncher(_localBridge, _statusReporter);
+        }
+    }
+
+    public void OpenStudio()
+    {
+        EnsureBridge();
+        Launcher?.OpenStudio();
+    }
+
+    public void InspectEntity(EntityUid uid)
+    {
+        EnsureBridge();
+        Launcher?.InspectEntity(uid.ToString());
+    }
+
+    public void OpenRuntimeError(string graphId, string nodeId, string diagnosticCode, long executionTick)
+    {
+        EnsureBridge();
+        Launcher?.OpenRuntimeError(graphId, nodeId, diagnosticCode, executionTick);
     }
 
     public override void Shutdown()
@@ -54,5 +94,7 @@ public sealed class ClientAstraGraphSystem : SharedAstraGraphSystem
         base.Shutdown();
         _localBridge?.Dispose();
         _localBridge = null;
+        _launcher = null;
+        _statusReporter = null;
     }
 }
