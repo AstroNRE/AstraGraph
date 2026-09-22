@@ -68,18 +68,33 @@ public sealed class RobustEventBusSubscriptionAdapter
     {
         ArgumentNullException.ThrowIfNull(system);
 
-        var method = typeof(EntitySystem).GetMethods(BindingFlags.Instance | BindingFlags.NonPublic)
-            .FirstOrDefault(candidate =>
-                candidate.Name == "SubscribeLocalEvent" &&
-                candidate.IsGenericMethodDefinition &&
-                candidate.GetGenericArguments().Length == 1 &&
-                candidate.GetParameters().Length == 3 &&
-                candidate.GetParameters()[0].ParameterType.Name.StartsWith("EntityEventRefHandler", StringComparison.Ordinal));
-
-        if (method == null)
+        if (Attribute.IsDefined(typeof(TEvent), typeof(ByRefEventAttribute), inherit: false))
         {
-            throw new InvalidOperationException("EntitySystem.SubscribeLocalEvent ref handler was not found.");
+            SubscribeBroadcastByRef(system, customRefHandler);
+            return;
         }
+
+        var method = FindBroadcastSubscribe(byRef: false)
+            ?? throw new InvalidOperationException("EntitySystem.SubscribeLocalEvent value handler was not found.");
+
+        EntityEventHandler<TEvent> handler = args =>
+        {
+            if (customRefHandler != null)
+            {
+                customRefHandler(ref args);
+            }
+
+            _router.DispatchRefEvent(ref args);
+        };
+
+        method.MakeGenericMethod(typeof(TEvent)).Invoke(system, [handler, null, null]);
+    }
+
+    private void SubscribeBroadcastByRef<TEvent>(EntitySystem system, RefEventHandler<TEvent>? customRefHandler)
+        where TEvent : notnull
+    {
+        var method = FindBroadcastSubscribe(byRef: true)
+            ?? throw new InvalidOperationException("EntitySystem.SubscribeLocalEvent ref handler was not found.");
 
         EntityEventRefHandler<TEvent> handler = (ref TEvent args) =>
         {
@@ -88,6 +103,26 @@ public sealed class RobustEventBusSubscriptionAdapter
         };
 
         method.MakeGenericMethod(typeof(TEvent)).Invoke(system, [handler, null, null]);
+    }
+
+    private static MethodInfo? FindBroadcastSubscribe(bool byRef)
+    {
+        return typeof(EntitySystem).GetMethods(BindingFlags.Instance | BindingFlags.NonPublic)
+            .FirstOrDefault(candidate =>
+            {
+                if (candidate.Name != "SubscribeLocalEvent"
+                    || !candidate.IsGenericMethodDefinition
+                    || candidate.GetGenericArguments().Length != 1
+                    || candidate.GetParameters().Length != 3)
+                {
+                    return false;
+                }
+
+                var parameterName = candidate.GetParameters()[0].ParameterType.Name;
+                return byRef
+                    ? parameterName.StartsWith("EntityEventRefHandler", StringComparison.Ordinal)
+                    : parameterName.StartsWith("EntityEventHandler", StringComparison.Ordinal);
+            });
     }
 
     /// <summary>
