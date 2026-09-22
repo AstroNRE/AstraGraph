@@ -69,7 +69,7 @@ public sealed class AstraBootstrapService
 
                     foreach (var entryPoint in program.EntryPoints)
                     {
-                        _host.Vm.Execute(program, entryPoint, hostServices: null);
+                        _host.Vm.Execute(program, entryPoint, hostServices: _host.HostServices);
                     }
                 }));
             activated++;

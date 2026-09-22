@@ -20,6 +20,7 @@ public sealed class AstraGraphHost
     public AstraStateStore State { get; }
     public AstraVm Vm { get; }
     public IVmHostServices HostServices { get; }
+    public int ExecutedEntryPoints { get; private set; }
     public Debugging.GraphDebugger Debugger { get; }
 
     public AstraGraphHost(
@@ -55,6 +56,8 @@ public sealed class AstraGraphHost
 
     public BytecodeProgram? GetProgram(GraphId graphId) =>
         _activePrograms.GetValueOrDefault(graphId);
+
+    public void NoteEntryExecuted() => ExecutedEntryPoints++;
 
     public void Update(double currentTimeSeconds, int currentTick)
     {

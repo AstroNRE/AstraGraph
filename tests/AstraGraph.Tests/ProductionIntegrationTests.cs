@@ -218,6 +218,44 @@ public sealed class ProductionIntegrationTests
     }
 
     [Test]
+    public void PublishedGraph_RunsEntryPointThroughRobustEventBus()
+    {
+        var host = new AstraGraphHost();
+        var graphId = GraphId.New();
+        var document = Entry(graphId, "OnDamage", typeof(PublishedProbeEvent).AssemblyQualifiedName!);
+        Assert.That(new HotReloadManager(host).Publish(document).Success, Is.True);
+        Assert.That(host.EventRouter.GetSubscriptionCount(typeof(PublishedProbeEvent)), Is.EqualTo(1));
+
+        PublishedEventSystem.Router = host.EventRouter;
+        var simulation = RobustServerSimulation.NewSimulation()
+            .RegisterEntitySystems(factory => factory.LoadExtraSystemType<PublishedEventSystem>())
+            .InitializeInstance();
+        var ev = new PublishedProbeEvent { Damage = 10 };
+        simulation.Resolve<IEntityManager>().EventBus.RaiseEvent(EventSource.Local, ref ev);
+
+        Assert.That(host.ExecutedEntryPoints, Is.EqualTo(1));
+        Assert.That(ev.Damage, Is.EqualTo(10));
+    }
+
+    [ByRefEvent]
+    public struct PublishedProbeEvent
+    {
+        public int Damage { get; set; }
+    }
+
+    public sealed class PublishedEventSystem : EntitySystem
+    {
+        public static GraphEventRouter Router { get; set; } = null!;
+
+        public override void Initialize()
+        {
+            base.Initialize();
+            new RobustEventBusSubscriptionAdapter(Router)
+                .RegisterBroadcastSubscription<PublishedProbeEvent>(this, GraphId.New(), "OnDamage");
+        }
+    }
+
+    [Test]
     public void MixedQuery_UsesRealNativeComponentAndAstraSchema()
     {
         var simulation = RobustServerSimulation.NewSimulation().InitializeInstance();
@@ -233,7 +271,7 @@ public sealed class ProductionIntegrationTests
     }
 #endif
 
-    private static GraphDocument Entry(GraphId graphId) => new()
+    private static GraphDocument Entry(GraphId graphId, string entryName = "OnTick", string? eventType = null) => new()
     {
         Id = graphId,
         Name = "Lifecycle",
@@ -243,8 +281,9 @@ public sealed class ProductionIntegrationTests
             new NodeDocument
             {
                 Id = NodeId.New(),
-                Name = "OnTick",
+                Name = entryName,
                 NodeType = "Event.Tick",
+                Properties = eventType == null ? [] : new Dictionary<string, string> { ["eventType"] = eventType },
                 Pins = [new PinDocument { Id = PinId.New(), Name = "Out", Direction = PinDirection.Output, Kind = PinKind.Execution }]
             }
         ]

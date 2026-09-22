@@ -22,7 +22,7 @@ public sealed class RevisionArchive
         _layout.EnsureDirectories();
     }
 
-    public void Save(GraphDocument document, RevisionRecord record)
+    public void Save(GraphDocument document, RevisionRecord record, string bindingCatalogHash = "")
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(record);
@@ -50,7 +50,7 @@ public sealed class RevisionArchive
             parentRevisionId = record.ParentRevisionId?.ToString(),
             semanticHash = record.SemanticHash,
             schemaHash = SchemaHash(record.SchemaSnapshot),
-            bindingCatalogHash = "",
+            bindingCatalogHash,
             compatibilityProfile = "robust-api-v1",
             author = record.Author,
             timestamp = record.Timestamp,

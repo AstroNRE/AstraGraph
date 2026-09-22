@@ -54,11 +54,12 @@ public sealed class AstraGraphFacade :
     {
         ArgumentNullException.ThrowIfNull(layout);
         layout.EnsureDirectories();
-        var hotReload = new HotReloadManager(host, archive: new RevisionArchive(layout));
+        var catalog = new BindingCatalog();
+        var hotReload = new HotReloadManager(host, archive: new RevisionArchive(layout), catalog: catalog);
         var loader = new BootstrapLoader(layout);
         var state = new PersistentStateStore(layout);
         var pipeline = new AstraBootstrapService(host, hotReload, loader, state);
-        return new AstraGraphFacade(host, hotReload, new BindingCatalog(), permissions, loader, pipeline, state);
+        return new AstraGraphFacade(host, hotReload, catalog, permissions, loader, pipeline, state);
     }
 
     public AstraGraphHost Host { get; }

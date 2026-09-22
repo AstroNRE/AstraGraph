@@ -76,6 +76,20 @@ public sealed class GraphEventRouter
         }
     }
 
+    public void SubscribeRefInvoke(GraphEventSubscription descriptor, Action invoke)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        ArgumentNullException.ThrowIfNull(invoke);
+        var bind = GetType().GetMethod(nameof(BindRefInvoke), BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Ref invoke binder was not found.");
+        bind.MakeGenericMethod(descriptor.EventType).Invoke(this, [descriptor, invoke]);
+    }
+
+    private void BindRefInvoke<TEvent>(GraphEventSubscription descriptor, Action invoke)
+    {
+        SubscribeRef<TEvent>(descriptor.GraphId, descriptor.EntryPointId, (ref TEvent _) => invoke());
+    }
+
     public void SubscribeRef<TEvent>(
         GraphId graphId,
         string entryPointName,

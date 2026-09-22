@@ -1,4 +1,7 @@
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text;
+using AstraGraph.Binding;
 using AstraGraph.Core;
 using AstraGraph.Core.Events;
 using AstraGraph.Runtime;
@@ -22,6 +25,7 @@ public sealed class HotReloadManager
     private readonly Lock _lock = new();
     private readonly RevisionArchive? _archive;
     private readonly IEntryPointTypeResolver _typeResolver;
+    private readonly BindingCatalog? _catalog;
 
     public AstraGraphHost Host => _host;
     public event Action<IReadOnlyList<GraphEventSubscription>>? SubscriptionsCommitted;
@@ -30,12 +34,14 @@ public sealed class HotReloadManager
         AstraGraphHost host,
         SemanticAnalyzer? semanticAnalyzer = null,
         RevisionArchive? archive = null,
-        IEntryPointTypeResolver? typeResolver = null)
+        IEntryPointTypeResolver? typeResolver = null,
+        BindingCatalog? catalog = null)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _semanticAnalyzer = semanticAnalyzer ?? new SemanticAnalyzer();
         _archive = archive;
         _typeResolver = typeResolver ?? ReflectionEntryPointTypeResolver.Instance;
+        _catalog = catalog;
     }
 
     public void RegisterActiveSchema(SchemaType schema)
@@ -196,15 +202,24 @@ public sealed class HotReloadManager
                     {
                         foreach (var sub in tx.Subscriptions)
                         {
-                            _host.EventRouter.Subscribe(sub);
+                            var subscription = sub;
+                            void Run() => ExecuteEntry(subscription);
+                            if (subscription.ByRef && subscription.ComponentType == null)
+                            {
+                                _host.EventRouter.SubscribeRefInvoke(subscription, Run);
+                            }
+                            else
+                            {
+                                _host.EventRouter.Subscribe(subscription, (_, _) => Run());
+                            }
                         }
                     }
                     else
                     {
-                        // Fallback: register default entry point handlers
                         foreach (var ep in tx.PreparedProgram.EntryPoints)
                         {
-                            var epName = tx.PreparedProgram.Constants[ep.NameConstantIndex].Value?.ToString() ?? "unnamed";
+                            var entry = ep;
+                            var epName = tx.PreparedProgram.Constants[entry.NameConstantIndex].Value?.ToString() ?? "unnamed";
                             _host.EventRouter.Subscribe(
                                 componentType: null,
                                 eventType: typeof(object),
@@ -212,10 +227,14 @@ public sealed class HotReloadManager
                                 entryPointName: epName,
                                 handler: (_, _) =>
                                 {
-                                    if (IsDispatchAllowed(tx.GraphId))
+                                    if (!IsDispatchAllowed(tx.GraphId))
                                     {
-                                        _host.Vm.Execute(tx.PreparedProgram, ep, hostServices: null);
+                                        return;
                                     }
+
+                                    var program = _host.GetProgram(tx.GraphId) ?? tx.PreparedProgram;
+                                    _host.Vm.Execute(program, entry, hostServices: _host.HostServices);
+                                    _host.NoteEntryExecuted();
                                 });
                         }
                     }
@@ -245,7 +264,7 @@ public sealed class HotReloadManager
                         SubscriptionsCommitted?.Invoke(tx.Subscriptions);
                     }
 
-                    _archive?.Save(tx.Draft, record);
+                    _archive?.Save(tx.Draft, record, CatalogHash());
 
                     tx.Status = PublishTransactionStatus.Committed;
                     var diagnostics = new DiagnosticBag();
@@ -381,6 +400,35 @@ public sealed class HotReloadManager
                 _frozenGraphs.TryRemove(graphId, out _);
             }
         }
+    }
+
+    private void ExecuteEntry(GraphEventSubscription subscription)
+    {
+        if (!IsDispatchAllowed(subscription.GraphId))
+        {
+            return;
+        }
+
+        var program = _host.GetProgram(subscription.GraphId);
+        var entry = program?.FindEntryPoint(subscription.EntryPointId) ?? program?.EntryPoints.FirstOrDefault();
+        if (program == null || entry == null)
+        {
+            return;
+        }
+
+        _host.Vm.Execute(program, entry, hostServices: _host.HostServices);
+        _host.NoteEntryExecuted();
+    }
+
+    private string CatalogHash()
+    {
+        if (_catalog == null)
+        {
+            return "";
+        }
+
+        var text = string.Join("|", _catalog.Search("").Select(method => method.Descriptor).Order(StringComparer.Ordinal));
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
     }
 
     private List<GraphEventSubscription> CompileSubscriptions(GraphDocument draft)
