@@ -29,4 +29,36 @@ Content вызывает `IAstraGraphManager`. Ядро не ссылается 
 
 `AstraGraph.StudioWeb/wwwroot` отдаётся локальным мостом `AstraLocalBridge` через `DirectoryWebAssetProvider`.
 
+## Astra Studio development
+
+DevHost — отдельный инструмент разработки. Он не заменяет внутриигровой local bridge и не входит в поставку игрового сервера.
+
+### Preview
+
+```bash
+dotnet run --project AstraGraph.Studio.DevHost -- --mode preview
+```
+
+### Standalone
+
+```bash
+dotnet run --project AstraGraph.Studio.DevHost -- --mode standalone
+```
+
+### Codespaces
+
+Внешний адрес требует токен. В лог попадает только `Token: ********`. Порт 5173 открывайте как Private.
+
+```bash
+dotnet run \
+  --project AstraGraph.Studio.DevHost \
+  -- \
+  --mode standalone \
+  --listen 0.0.0.0 \
+  --port 5173 \
+  --token <your-token>
+```
+
+После старта: Ports → 5173 → Private → Open in Browser. Public для этого порта не используйте.
+
 Пока в Robust нет хуков подписки по `Type` и динамического порядка систем, хост использует `FixedPhaseScheduleHook`. Желаемые хуки перечислены в `Compatibility.json`.

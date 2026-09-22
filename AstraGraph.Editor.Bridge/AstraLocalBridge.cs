@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Net;
 using System.Net.WebSockets;
 using System.Text.Json;
 using AstraGraph.Editor.Protocol;
@@ -24,6 +25,11 @@ public sealed class AstraLocalBridge : IAsyncDisposable, IDisposable
     private readonly BridgeSecurityPolicy _security;
     private readonly IWebAssetProvider _assetProvider;
     private readonly Func<WebSocketBridgeContext, CancellationToken, Task> _sessionHandler;
+
+    /// <summary>
+    /// Optional routes handled before static assets. Return null to continue normal serving.
+    /// </summary>
+    public Func<HttpBridgeRequest, CancellationToken, Task<HttpBridgeResponse?>>? Routes { get; init; }
 
     private LoopbackHttpServer? _server;
     private DateTimeOffset? _startedAt;
@@ -111,6 +117,28 @@ public sealed class AstraLocalBridge : IAsyncDisposable, IDisposable
         _startedAt = DateTimeOffset.UtcNow;
     }
 
+    /// <summary>
+    /// Starts the bridge on a chosen address and port. The parameterless <see cref="StartAsync"/>
+    /// path stays a random loopback port for the local game bridge.
+    /// </summary>
+    public async Task StartBoundAsync(
+        IPAddress listen,
+        int port,
+        bool loopbackClientsOnly,
+        Func<string?, int, SecurityCheckResult>? originCheck = null,
+        CancellationToken ct = default)
+    {
+        if (_server != null)
+            throw new InvalidOperationException("Bridge is already running.");
+
+        Func<IPEndPoint?, SecurityCheckResult>? remoteCheck = loopbackClientsOnly
+            ? null
+            : static _ => SecurityCheckResult.Allowed;
+        _server = new LoopbackHttpServer(_security, HandleHttpRequestAsync, HandleWebSocketAsync, originCheck, remoteCheck);
+        await _server.StartBoundAsync(listen, port, ct);
+        _startedAt = DateTimeOffset.UtcNow;
+    }
+
     public async Task StopAsync()
     {
         if (_server == null) return;
@@ -155,6 +183,13 @@ public sealed class AstraLocalBridge : IAsyncDisposable, IDisposable
         string path = req.Path.TrimEnd('/');
         if (string.IsNullOrEmpty(path))
             path = "/index.html";
+
+        if (Routes != null)
+        {
+            var routed = await Routes(req, ct);
+            if (routed != null)
+                return routed;
+        }
 
         // Try to serve static asset
         var asset = _assetProvider.TryGetAsset(path);

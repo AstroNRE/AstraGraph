@@ -11,6 +11,7 @@
   <Project Path="AstraGraph.Editor.Core/AstraGraph.Editor.Core.csproj" />
   <Project Path="AstraGraph.Editor.UI/AstraGraph.Editor.UI.csproj" />
   <Project Path="AstraGraph.Editor.Bridge/AstraGraph.Editor.Bridge.csproj" />
+  <Project Path="AstraGraph.Studio.DevHost/AstraGraph.Studio.DevHost.csproj" />
   <Project Path="AstraGraph.Editor.InGame/AstraGraph.Editor.InGame.csproj" />
 <Project Path="AstraGraph.UI/AstraGraph.UI.csproj" />
   <Project Path="AstraGraph.Robust.Shared/AstraGraph.Robust.Shared.csproj" />

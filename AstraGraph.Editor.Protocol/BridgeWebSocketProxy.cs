@@ -32,7 +32,8 @@ public sealed class BridgeWebSocketProxy : IAsyncDisposable
         _ws = webSocket;
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         IDisposable? outbound = null;
-        if (_handler is AuthoringServerSession session)
+        var session = _handler as AuthoringServerSession ?? (_handler as IAuthoringSessionHost)?.Session;
+        if (session != null)
         {
             outbound = session.SubscribeOutbound(message =>
             {

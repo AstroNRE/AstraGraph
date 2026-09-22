@@ -9,6 +9,11 @@ using AstraGraph.Runtime.Security;
 
 namespace AstraGraph.Editor.Protocol;
 
+public interface IAuthoringSessionHost
+{
+    AuthoringServerSession Session { get; }
+}
+
 public sealed class AuthoringServerSession : IAuthoringMessageHandler
 {
     private sealed record ActiveSession(
@@ -70,6 +75,12 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         _sessions[sessionId] = new ActiveSession(sessionId, user, DateTime.UtcNow);
 
         return new AuthHandshakeResponse(AuthoringStatusCode.Success, sessionId, user.Permissions);
+    }
+
+    public void Publish(AuthoringMessage message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        PublishOutbound(message);
     }
 
     public IDisposable SubscribeOutbound(Action<AuthoringMessage> listener)
@@ -438,7 +449,15 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             Status = resp.Status,
             SessionId = resp.SessionId,
             Permissions = resp.Permissions,
-            ErrorMessage = resp.ErrorMessage
+            ErrorMessage = resp.ErrorMessage,
+            CanCompile = resp.Permissions.HasFlag(AstraPermission.Compile),
+            CanPublish = resp.Permissions.HasFlag(AstraPermission.PublishServer) || resp.Permissions.HasFlag(AstraPermission.PublishShared),
+            CanDebug = resp.Permissions.HasFlag(AstraPermission.Debug) && _debugger != null,
+            CanProfile = resp.Permissions.HasFlag(AstraPermission.Debug) && _profiler != null,
+            HasBindingCatalog = _bindingCatalog != null,
+            HasNativeEngine = false,
+            HasPrediction = false,
+            HasBui = false
         };
     }
 

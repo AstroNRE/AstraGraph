@@ -30,6 +30,14 @@ public sealed class AuthHandshakeResponseMsg : AuthoringMessage
     public string SessionId { get; init; } = string.Empty;
     public AstraPermission Permissions { get; init; }
     public string? ErrorMessage { get; init; }
+    public bool CanCompile { get; init; }
+    public bool CanPublish { get; init; }
+    public bool CanDebug { get; init; }
+    public bool CanProfile { get; init; }
+    public bool HasBindingCatalog { get; init; }
+    public bool HasNativeEngine { get; init; }
+    public bool HasPrediction { get; init; }
+    public bool HasBui { get; init; }
 }
 
 public sealed class GraphListRequestMsg : AuthoringMessage

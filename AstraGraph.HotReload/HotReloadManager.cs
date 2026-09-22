@@ -233,7 +233,7 @@ public sealed class HotReloadManager
                                     }
 
                                     var program = _host.GetProgram(tx.GraphId) ?? tx.PreparedProgram;
-                                    _host.Vm.Execute(program, entry, hostServices: _host.HostServices);
+                                    _host.Vm.Execute(program, entry, hostServices: _host.HostServices, debugHook: _host.Debugger);
                                     _host.NoteEntryExecuted();
                                 });
                         }
@@ -447,7 +447,7 @@ public sealed class HotReloadManager
             CopyEventToVariables(eventObject);
         }
 
-        _host.Vm.Execute(program, entry, hostServices: _host.HostServices);
+        _host.Vm.Execute(program, entry, hostServices: _host.HostServices, debugHook: _host.Debugger);
         if (eventObject != null)
         {
             CopyVariablesToEvent(eventObject);

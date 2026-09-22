@@ -18,6 +18,8 @@ public sealed class LoopbackHttpServer : IAsyncDisposable
     private readonly BridgeSecurityPolicy _security;
     private readonly Func<HttpBridgeRequest, CancellationToken, Task<HttpBridgeResponse>> _httpHandler;
     private readonly Func<WebSocketBridgeContext, CancellationToken, Task> _webSocketHandler;
+    private readonly Func<string?, int, SecurityCheckResult>? _originCheck;
+    private readonly Func<IPEndPoint?, SecurityCheckResult>? _remoteCheck;
 
     private HttpListener? _listener;
     private CancellationTokenSource? _cts;
@@ -29,11 +31,15 @@ public sealed class LoopbackHttpServer : IAsyncDisposable
     public LoopbackHttpServer(
         BridgeSecurityPolicy security,
         Func<HttpBridgeRequest, CancellationToken, Task<HttpBridgeResponse>> httpHandler,
-        Func<WebSocketBridgeContext, CancellationToken, Task> webSocketHandler)
+        Func<WebSocketBridgeContext, CancellationToken, Task> webSocketHandler,
+        Func<string?, int, SecurityCheckResult>? originCheck = null,
+        Func<IPEndPoint?, SecurityCheckResult>? remoteCheck = null)
     {
         _security = security;
         _httpHandler = httpHandler;
         _webSocketHandler = webSocketHandler;
+        _originCheck = originCheck;
+        _remoteCheck = remoteCheck;
     }
 
     public async Task StartAsync(CancellationToken ct = default)
@@ -53,6 +59,40 @@ public sealed class LoopbackHttpServer : IAsyncDisposable
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         State = LoopbackServerState.Running;
 
+        _acceptLoop = RunAcceptLoopAsync(_cts.Token);
+        await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Binds a specific address and port. Port 0 selects a free port.
+    /// An occupied port fails instead of moving to another port.
+    /// </summary>
+    public async Task StartBoundAsync(IPAddress listenAddress, int requestedPort, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(listenAddress);
+        if (State != LoopbackServerState.Stopped)
+            throw new InvalidOperationException($"Cannot start: current state is {State}.");
+
+        State = LoopbackServerState.Starting;
+        var port = requestedPort == 0 ? FindFreePort() : requestedPort;
+        var host = IPAddress.IsLoopback(listenAddress) ? "127.0.0.1" : "+";
+        _listener = new HttpListener();
+        _listener.Prefixes.Add($"http://{host}:{port}/");
+        try
+        {
+            _listener.Start();
+        }
+        catch (HttpListenerException ex)
+        {
+            _listener.Close();
+            _listener = null;
+            State = LoopbackServerState.Stopped;
+            throw new InvalidOperationException($"Port {port} is already in use.", ex);
+        }
+
+        Port = port;
+        _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        State = LoopbackServerState.Running;
         _acceptLoop = RunAcceptLoopAsync(_cts.Token);
         await Task.CompletedTask;
     }
@@ -95,8 +135,8 @@ public sealed class LoopbackHttpServer : IAsyncDisposable
     private async Task HandleContextAsync(HttpListenerContext ctx, CancellationToken ct)
     {
         var remoteEp = ctx.Request.RemoteEndPoint;
-        var originCheck = BridgeSecurityPolicy.ValidateRemoteEndPoint(remoteEp);
-        if (!originCheck.IsAllowed)
+        var remoteCheck = (_remoteCheck ?? BridgeSecurityPolicy.ValidateRemoteEndPoint)(remoteEp);
+        if (!remoteCheck.IsAllowed)
         {
             ctx.Response.StatusCode = 403;
             ctx.Response.Close();
@@ -104,7 +144,9 @@ public sealed class LoopbackHttpServer : IAsyncDisposable
         }
 
         string? originHeader = ctx.Request.Headers["Origin"];
-        var originResult = _security.ValidateOrigin(originHeader, Port);
+        var originResult = _originCheck != null
+            ? _originCheck(originHeader, Port)
+            : _security.ValidateOrigin(originHeader, Port);
         if (!originResult.IsAllowed)
         {
             ctx.Response.StatusCode = 403;

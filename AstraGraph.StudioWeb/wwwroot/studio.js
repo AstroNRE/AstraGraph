@@ -98,10 +98,37 @@ document.getElementById("debug").addEventListener("click", () => {
 
 connect();
 
-function connect() {
+async function connect() {
   const params = new URLSearchParams(window.location.search);
-  const nonce = params.get("nonce");
+  let config = null;
+  try {
+    const configResponse = await fetch("/api/config");
+    if (configResponse.ok) config = await configResponse.json();
+  } catch {
+    config = null;
+  }
+
+  const target = document.getElementById("target");
+  if (target && config?.targetLabel) target.textContent = config.targetLabel;
+  if (config && config.authoringAvailable === false) {
+    status.textContent = "PREVIEW";
+    for (const id of ["compile", "publish", "rollback", "debug"]) {
+      document.getElementById(id).disabled = true;
+    }
+    renderProblems(["Preview Mode", "No authoring backend connected"]);
+    return;
+  }
+
+  let nonce = params.get("nonce");
   const token = params.get("token") ?? "";
+  if (!nonce && config?.authoringAvailable) {
+    try {
+      const sessionResponse = await fetch("/api/session");
+      if (sessionResponse.ok) nonce = (await sessionResponse.json()).nonce;
+    } catch {
+      nonce = null;
+    }
+  }
   if (!nonce) {
     status.textContent = "offline";
     renderProblems(["Authoring backend unavailable"]);
@@ -125,6 +152,7 @@ function connect() {
     if (message.kind === "auth.handshake.response" && message.body.status === 0) {
       sessionId = message.body.sessionId;
       applyPermissions(message.body.permissions);
+      applyCapabilities(message.body);
       send("graph.list.request", { sessionId });
       send("catalog.query.request", { sessionId });
       return;
@@ -190,6 +218,13 @@ function applyPermissions(value) {
   document.getElementById("compile").disabled = (bits & 4) === 0;
   document.getElementById("publish").disabled = (bits & 8) === 0 && (bits & 16) === 0;
   document.getElementById("rollback").disabled = (bits & 32) === 0;
+  document.getElementById("debug").disabled = (bits & 64) === 0;
+}
+
+function applyCapabilities(body) {
+  if (body.canCompile === false) document.getElementById("compile").disabled = true;
+  if (body.canPublish === false) document.getElementById("publish").disabled = true;
+  if (body.canDebug === false) document.getElementById("debug").disabled = true;
 }
 
 function loadDraft(json) {
