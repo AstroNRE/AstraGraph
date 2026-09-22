@@ -20,6 +20,8 @@ public sealed class HotReloadManager
     private readonly ConcurrentQueue<PublishTransaction> _pendingTransactions = new();
     private readonly Lock _lock = new();
 
+    public AstraGraphHost Host => _host;
+
     public HotReloadManager(AstraGraphHost host, SemanticAnalyzer? semanticAnalyzer = null)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));

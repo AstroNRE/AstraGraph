@@ -88,7 +88,14 @@ public static class AstraAuthorizationService
 /// </summary>
 public interface IAstraPermissionProvider
 {
-    AstraUser? ResolveUser(object playerSession);
-    bool HasAccess(object playerSession);
+    bool CanEnterAstra(object session);
+    AstraUser? ResolveUser(object session);
+    AstraPermission GetEffectivePermissions(object session);
+    bool HasPermission(object session, AstraPermission permission);
+    SecurityProfile GetSecurityProfile(object session);
+    void InvalidateSession(object session);
+    event Action<object>? OnPermissionsChanged;
+
+    bool HasAccess(object session) => CanEnterAstra(session);
 }
 

@@ -5,6 +5,8 @@ using AstraGraph.Persistence.Discovery;
 using AstraGraph.Persistence.State;
 using AstraGraph.Robust.Shared;
 using AstraGraph.Runtime;
+using AstraGraph.Runtime.Debugging;
+using AstraGraph.Runtime.Profiling;
 using Robust.Shared.IoC;
 
 namespace AstraGraph.Robust.Server;
@@ -20,12 +22,14 @@ public sealed class ServerAstraGraphSystem : SharedAstraGraphSystem
     private RobustAdminPermissionProvider _permissionProvider = default!;
     private PersistentStateStore _persistentStateStore = default!;
     private BootstrapLoader _bootstrapLoader = default!;
+    private AstraAuthoringService _authoringService = default!;
 
     public StorageLayout StorageLayout => _storageLayout;
     public HotReloadManager HotReloadManager => _hotReloadManager;
     public RobustAdminPermissionProvider PermissionProvider => _permissionProvider;
     public PersistentStateStore PersistentStateStore => _persistentStateStore;
     public BootstrapLoader BootstrapLoader => _bootstrapLoader;
+    public IAstraAuthoringService AuthoringService => _authoringService;
 
     public ServerAstraGraphSystem()
     {
@@ -48,6 +52,7 @@ public sealed class ServerAstraGraphSystem : SharedAstraGraphSystem
             IoCManager.RegisterInstance<StorageLayout>(_storageLayout, overwrite: true);
             IoCManager.RegisterInstance<PersistentStateStore>(_persistentStateStore, overwrite: true);
             IoCManager.RegisterInstance<BootstrapLoader>(_bootstrapLoader, overwrite: true);
+            IoCManager.RegisterInstance<IAstraAuthoringService>(_authoringService, overwrite: true);
         }
         catch
         {
@@ -71,6 +76,15 @@ public sealed class ServerAstraGraphSystem : SharedAstraGraphSystem
         _permissionProvider ??= new RobustAdminPermissionProvider();
         _persistentStateStore ??= new PersistentStateStore(_storageLayout);
         _bootstrapLoader ??= new BootstrapLoader(_storageLayout);
+        _authoringService ??= new AstraAuthoringService(
+            _permissionProvider,
+            _hotReloadManager,
+            auditLogger: null,
+            debugger: new GraphDebugger(),
+            profiler: new GraphProfiler(),
+            bindingCatalog: null,
+            storageLayout: _storageLayout,
+            bootstrapLoader: _bootstrapLoader);
     }
 
     /// <summary>

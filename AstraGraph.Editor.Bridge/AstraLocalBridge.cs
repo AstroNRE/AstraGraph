@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text.Json;
+using AstraGraph.Editor.Protocol;
 
 namespace AstraGraph.Editor.Bridge;
 
@@ -71,6 +72,23 @@ public sealed class AstraLocalBridge : IAsyncDisposable, IDisposable
             new BridgeSecurityPolicy(),
             EmbeddedWebAssetProvider.CreateWithDefaultStudio(),
             sessionHandler ?? ((_, _) => Task.CompletedTask));
+    }
+
+    /// <summary>
+    /// Creates an AstraLocalBridge connected to an IAuthoringMessageHandler via BridgeWebSocketProxy.
+    /// </summary>
+    public static AstraLocalBridge CreateWithHandler(IAuthoringMessageHandler messageHandler)
+    {
+        ArgumentNullException.ThrowIfNull(messageHandler);
+        return new AstraLocalBridge(
+            new SessionNonceManager(),
+            new BridgeSecurityPolicy(),
+            EmbeddedWebAssetProvider.CreateWithDefaultStudio(),
+            async (ctx, ct) =>
+            {
+                var proxy = new BridgeWebSocketProxy(messageHandler);
+                await proxy.RunAsync(ctx.WebSocket, ct);
+            });
     }
 
     /// <summary>

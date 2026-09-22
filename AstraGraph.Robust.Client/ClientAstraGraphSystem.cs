@@ -1,4 +1,5 @@
 using AstraGraph.Editor.Bridge;
+using AstraGraph.Editor.Protocol;
 using AstraGraph.Robust.Shared;
 using AstraGraph.UI.Runtime;
 using Robust.Shared.IoC;
@@ -37,15 +38,15 @@ public sealed class ClientAstraGraphSystem : SharedAstraGraphSystem
     /// <summary>
     /// Launches the Astra Studio Web IDE in the default browser via the local loopback bridge.
     /// </summary>
-    public async Task<string> LaunchStudioAsync()
+    public async Task<string> LaunchStudioAsync(IAuthoringMessageHandler? handler = null, StudioLaunchContext? context = null)
     {
         if (_localBridge == null)
         {
-            _localBridge = AstraLocalBridge.CreateDefault();
+            _localBridge = handler != null ? AstraLocalBridge.CreateWithHandler(handler) : AstraLocalBridge.CreateDefault();
             await _localBridge.StartAsync();
         }
 
-        return _localBridge.LaunchStudioInBrowser();
+        return _localBridge.LaunchStudioInBrowser(context);
     }
 
     public override void Shutdown()

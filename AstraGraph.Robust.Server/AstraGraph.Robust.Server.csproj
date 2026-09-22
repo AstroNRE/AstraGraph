@@ -12,6 +12,7 @@
     <ProjectReference Include="..\AstraGraph.Runtime\AstraGraph.Runtime.csproj" />
     <ProjectReference Include="..\AstraGraph.Persistence\AstraGraph.Persistence.csproj" />
     <ProjectReference Include="..\AstraGraph.HotReload\AstraGraph.HotReload.csproj" />
+    <ProjectReference Include="..\AstraGraph.Editor.Protocol\AstraGraph.Editor.Protocol.csproj" />
     <ProjectReference Include="..\AstraGraph.Robust.Shared\AstraGraph.Robust.Shared.csproj" />
     <ProjectReference Include="$(RobustToolboxRoot)\Robust.Server\Robust.Server.csproj" Condition="'$(RobustToolboxRoot)' != '' and Exists('$(RobustToolboxRoot)\Robust.Server\Robust.Server.csproj')" />
   </ItemGroup>

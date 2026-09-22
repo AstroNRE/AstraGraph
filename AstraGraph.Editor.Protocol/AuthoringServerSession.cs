@@ -9,7 +9,7 @@ using AstraGraph.Runtime.Security;
 
 namespace AstraGraph.Editor.Protocol;
 
-public sealed class AuthoringServerSession
+public sealed class AuthoringServerSession : IAuthoringMessageHandler
 {
     private sealed record ActiveSession(
         string SessionId,
@@ -324,5 +324,92 @@ public sealed class AuthoringServerSession
         }
 
         return new DebuggerCommandResponse(AuthoringStatusCode.Success, true);
+    }
+
+    public async Task<AuthoringMessage?> HandleAsync(AuthoringMessage message, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        return message switch
+        {
+            AuthHandshakeRequestMsg req =>
+                HandleHandshakeMsg(req),
+
+            GraphListRequestMsg req =>
+                HandleGraphListMsg(req),
+
+            DraftCompileRequestMsg req =>
+                HandleDraftCompileMsg(req),
+
+            DraftPublishRequestMsg req =>
+                await HandleDraftPublishMsgAsync(req),
+
+            DebuggerCommandRequestMsg req =>
+                HandleDebuggerCommandMsg(req),
+
+            PingMsg =>
+                new PongMsg { MessageId = Guid.NewGuid().ToString("N") },
+
+            _ => new ErrorMsg { Code = "unsupported_message", Detail = $"Message kind '{message.Kind}' is not supported." }
+        };
+    }
+
+    private AuthHandshakeResponseMsg HandleHandshakeMsg(AuthHandshakeRequestMsg req)
+    {
+        var resp = HandleHandshake(new AuthHandshakeRequest(req.ClientVersion, req.AuthorToken, req.AuthorName));
+        return new AuthHandshakeResponseMsg
+        {
+            Status = resp.Status,
+            SessionId = resp.SessionId,
+            Permissions = resp.Permissions,
+            ErrorMessage = resp.ErrorMessage
+        };
+    }
+
+    private GraphListResponseMsg HandleGraphListMsg(GraphListRequestMsg req)
+    {
+        var resp = HandleGraphList(new GraphListRequest(req.SessionId));
+        return new GraphListResponseMsg
+        {
+            Status = resp.Status,
+            Graphs = resp.Graphs,
+            ErrorMessage = resp.ErrorMessage
+        };
+    }
+
+    private DraftCompileResponseMsg HandleDraftCompileMsg(DraftCompileRequestMsg req)
+    {
+        var resp = HandleDraftCompile(new DraftCompileRequest(req.SessionId, req.GraphId, req.DraftJson));
+        return new DraftCompileResponseMsg
+        {
+            Status = resp.Status,
+            HasErrors = resp.HasErrors,
+            Diagnostics = resp.Diagnostics,
+            BytecodeHash = resp.BytecodeHash,
+            ErrorMessage = resp.ErrorMessage
+        };
+    }
+
+    private async Task<DraftPublishResponseMsg> HandleDraftPublishMsgAsync(DraftPublishRequestMsg req)
+    {
+        var resp = await HandleDraftPublishAsync(new DraftPublishRequest(req.SessionId, req.GraphId, req.BaseRevisionId, req.DraftJson, req.PublishMessage));
+        return new DraftPublishResponseMsg
+        {
+            Status = resp.Status,
+            PublishedRevision = resp.PublishedRevision,
+            Diagnostics = resp.Diagnostics,
+            ErrorMessage = resp.ErrorMessage
+        };
+    }
+
+    private DebuggerCommandResponseMsg HandleDebuggerCommandMsg(DebuggerCommandRequestMsg req)
+    {
+        var resp = HandleDebuggerCommand(new DebuggerCommandRequest(req.SessionId, req.GraphId, req.Action, req.TargetNode));
+        return new DebuggerCommandResponseMsg
+        {
+            Status = resp.Status,
+            IsSuccess = resp.IsSuccess,
+            ErrorMessage = resp.ErrorMessage
+        };
     }
 }
