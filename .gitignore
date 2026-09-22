@@ -31,3 +31,5 @@ plan/
 **/node_modules/
 
 AstraGraph.StudioWeb/AstraGraphDev/
+
+.cursor/
