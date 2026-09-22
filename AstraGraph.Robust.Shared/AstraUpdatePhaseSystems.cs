@@ -14,21 +14,26 @@ public sealed class PreSharedAstraGraphSystem : EntitySystem
     [Dependency] private readonly IEntityManager _entMan = default!;
     [Dependency] private readonly IGameTiming _gameTiming = default!;
 
+    private SharedAstraGraphSystem? _shared;
+
     public override void Initialize()
     {
         base.Initialize();
         UpdatesBefore.Add(typeof(SharedAstraGraphSystem));
+        _entMan.TrySystem(out _shared);
     }
 
     public override void Update(float frameTime)
     {
         base.Update(frameTime);
-        if (IoCManager.Resolve<AstraGraphHost>() is { } host)
-        {
-            var curTime = _gameTiming != null ? _gameTiming.CurTime.TotalSeconds : 0.0;
-            var curTick = (int)_entMan.CurrentTick.Value;
-            host.Scheduler.UpdatePhase(AstraGraphPhase.PreSimulation, curTime, curTick);
-        }
+        var shared = _shared;
+        if (shared == null && !_entMan.TrySystem(out shared))
+            return;
+
+        _shared = shared;
+        var curTime = _gameTiming != null ? _gameTiming.CurTime.TotalSeconds : 0.0;
+        var curTick = (int)_entMan.CurrentTick.Value;
+        shared.Host.Scheduler.UpdatePhase(AstraGraphPhase.PreSimulation, curTime, curTick);
     }
 }
 
@@ -41,20 +46,25 @@ public sealed class PostSharedAstraGraphSystem : EntitySystem
     [Dependency] private readonly IEntityManager _entMan = default!;
     [Dependency] private readonly IGameTiming _gameTiming = default!;
 
+    private SharedAstraGraphSystem? _shared;
+
     public override void Initialize()
     {
         base.Initialize();
         UpdatesAfter.Add(typeof(SharedAstraGraphSystem));
+        _entMan.TrySystem(out _shared);
     }
 
     public override void Update(float frameTime)
     {
         base.Update(frameTime);
-        if (IoCManager.Resolve<AstraGraphHost>() is { } host)
-        {
-            var curTime = _gameTiming != null ? _gameTiming.CurTime.TotalSeconds : 0.0;
-            var curTick = (int)_entMan.CurrentTick.Value;
-            host.Scheduler.UpdatePhase(AstraGraphPhase.PostSimulation, curTime, curTick);
-        }
+        var shared = _shared;
+        if (shared == null && !_entMan.TrySystem(out shared))
+            return;
+
+        _shared = shared;
+        var curTime = _gameTiming != null ? _gameTiming.CurTime.TotalSeconds : 0.0;
+        var curTick = (int)_entMan.CurrentTick.Value;
+        shared.Host.Scheduler.UpdatePhase(AstraGraphPhase.PostSimulation, curTime, curTick);
     }
 }
