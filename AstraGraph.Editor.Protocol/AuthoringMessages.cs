@@ -246,6 +246,20 @@ public sealed record SchemaFieldDto(
     bool Persistent,
     bool Replicated);
 
+public sealed record UiNodeDto(
+    string Id,
+    string ElementType,
+    string? Name,
+    string? Text,
+    IReadOnlyList<UiNodeDto> Children);
+
+public sealed record UiDocumentDto(
+    string Id,
+    string Name,
+    int Width,
+    int Height,
+    UiNodeDto Root);
+
 public sealed record SchemaDto(
     string Id,
     string Name,

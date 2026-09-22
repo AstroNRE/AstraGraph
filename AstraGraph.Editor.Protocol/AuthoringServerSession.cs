@@ -6,6 +6,7 @@ using AstraGraph.Core;
 using AstraGraph.Editor.Core;
 using AstraGraph.Editor.Core.Search;
 using AstraGraph.HotReload;
+using AstraGraph.UI.Model;
 using AstraGraph.Persistence.Audit;
 using AstraGraph.Runtime.Debugging;
 using AstraGraph.Runtime.Profiling;
@@ -41,6 +42,7 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
     private readonly ConcurrentDictionary<RevisionId, string> _revisionSources = new();
     private readonly ConcurrentDictionary<string, Dictionary<string, string>> _watches = new();
     private readonly ConcurrentDictionary<SchemaId, SchemaType> _schemas = new();
+    private readonly ConcurrentDictionary<GraphId, UiDocument> _uiDocuments = new();
     private NodePaletteIndexer? _palette;
 
     public AuthoringServerSession(
@@ -181,6 +183,17 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         _activeDrafts[request.GraphId] = (draftRevision, request.DraftJson);
 
         return new DraftSaveResponse(AuthoringStatusCode.Success, draftRevision, false);
+    }
+
+    public GraphFetchResponse DiscardDraft(string sessionId, GraphId graphId)
+    {
+        if (!_sessions.ContainsKey(sessionId))
+        {
+            return new GraphFetchResponse(AuthoringStatusCode.Unauthorized, string.Empty, RevisionId.Empty, RevisionId.Empty, false, "Invalid session.");
+        }
+
+        _activeDrafts.TryRemove(graphId, out _);
+        return HandleGraphFetch(new GraphFetchRequest(sessionId, graphId));
     }
 
     public DraftCompileResponse HandleDraftCompile(DraftCompileRequest request)
@@ -678,6 +691,15 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
 
             DraftSaveRequestMsg req =>
                 HandleDraftSaveMsg(req),
+
+            DraftDiscardRequestMsg req =>
+                HandleDraftDiscardMsg(req),
+
+            UiSaveRequestMsg req =>
+                HandleUiSaveMsg(req),
+
+            UiListRequestMsg req =>
+                HandleUiListMsg(req),
 
             GraphFetchRequestMsg req =>
                 HandleGraphFetchMsg(req),
@@ -1297,4 +1319,115 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
     }
 
     private SchemaSaveResponseMsg HandleSchemaSaveMsg(SchemaSaveRequestMsg req) => SaveSchema(req.SessionId, req.Schema);
+
+    private DraftDiscardResponseMsg HandleDraftDiscardMsg(DraftDiscardRequestMsg req)
+    {
+        var fetched = DiscardDraft(req.SessionId, req.GraphId);
+        return new DraftDiscardResponseMsg
+        {
+            Status = fetched.Status,
+            DraftJson = fetched.DraftJson,
+            BaseRevisionId = fetched.BaseRevisionId,
+            ActiveRevisionId = fetched.ActiveRevisionId,
+            FromDraft = fetched.FromDraft,
+            ErrorMessage = fetched.ErrorMessage
+        };
+    }
+
+    public UiSaveResponseMsg SaveUi(string sessionId, UiDocumentDto? document)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var session))
+        {
+            return new UiSaveResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Invalid session." };
+        }
+
+        if (!AstraAuthorizationService.CanEditDraft(session.User))
+        {
+            return new UiSaveResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Insufficient permissions to edit UI." };
+        }
+
+        if (document?.Root == null || string.IsNullOrWhiteSpace(document.Name))
+        {
+            return new UiSaveResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = "UI document needs a name and a root control." };
+        }
+
+        if (!GraphId.TryParse(document.Id, out var id) || id == GraphId.Empty)
+        {
+            id = GraphId.New();
+        }
+
+        var built = new UiDocument
+        {
+            Id = id,
+            Name = document.Name.Trim(),
+            Title = document.Name.Trim(),
+            Kind = GraphKind.UI,
+            Side = GraphSide.Client,
+            DefaultWidth = document.Width <= 0 ? 400 : document.Width,
+            DefaultHeight = document.Height <= 0 ? 300 : document.Height,
+            Root = BuildUiNode(document.Root, 0)
+        };
+        _uiDocuments[id] = built;
+        return new UiSaveResponseMsg { Status = AuthoringStatusCode.Success, Document = ToUiDto(built) };
+    }
+
+    public IReadOnlyList<UiDocumentDto> ListUi() => _uiDocuments.Values.Select(ToUiDto).OrderBy(document => document.Name).ToArray();
+
+    private static UiElementNode BuildUiNode(UiNodeDto dto, int depth)
+    {
+        if (depth > 32)
+        {
+            throw new InvalidOperationException("UI tree is too deep.");
+        }
+
+        if (!Enum.TryParse<UiElementType>(dto.ElementType, ignoreCase: true, out var elementType))
+        {
+            throw new InvalidOperationException($"Unknown UI control '{dto.ElementType}'.");
+        }
+
+        return new UiElementNode
+        {
+            Id = string.IsNullOrWhiteSpace(dto.Id) ? Guid.NewGuid().ToString("D") : dto.Id,
+            ElementType = elementType,
+            Name = dto.Name,
+            Text = dto.Text,
+            Children = (dto.Children ?? []).Select(child => BuildUiNode(child, depth + 1)).ToList()
+        };
+    }
+
+    private static UiDocumentDto ToUiDto(UiDocument document) => new(
+        document.Id.ToString(),
+        document.Name,
+        document.DefaultWidth,
+        document.DefaultHeight,
+        ToUiNode(document.Root));
+
+    private static UiNodeDto ToUiNode(UiElementNode node) => new(
+        node.Id,
+        node.ElementType.ToString(),
+        node.Name,
+        node.Text,
+        node.Children.Select(ToUiNode).ToArray());
+
+    private UiSaveResponseMsg HandleUiSaveMsg(UiSaveRequestMsg req)
+    {
+        try
+        {
+            return SaveUi(req.SessionId, req.Document);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return new UiSaveResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = ex.Message };
+        }
+    }
+
+    private UiListResponseMsg HandleUiListMsg(UiListRequestMsg req)
+    {
+        if (!_sessions.ContainsKey(req.SessionId))
+        {
+            return new UiListResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Invalid session." };
+        }
+
+        return new UiListResponseMsg { Status = AuthoringStatusCode.Success, Documents = ListUi() };
+    }
 }

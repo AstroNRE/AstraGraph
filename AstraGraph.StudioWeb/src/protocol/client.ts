@@ -56,7 +56,8 @@ export class AuthoringClient {
     save: (graphId: string, baseRevisionId: string, draftJson: string) =>
       this.roundtrip("draft.save.request", { graphId, baseRevisionId, draftJson, authorMessage: "Studio save" }, "draft.save.response"),
     compile: (graphId: string, draftJson: string) =>
-      this.roundtrip("draft.compile.request", { graphId, draftJson }, "draft.compile.response")
+      this.roundtrip("draft.compile.request", { graphId, draftJson }, "draft.compile.response"),
+    discard: (graphId: string) => this.roundtrip("draft.discard.request", { graphId }, "draft.discard.response")
   };
 
   publish(graphId: string, baseRevisionId: string, draftJson: string, publishMessage = "Studio publish") {
@@ -109,6 +110,12 @@ export class AuthoringClient {
 
   audit = {
     query: () => this.roundtrip("audit.query.request", {}, "audit.query.response")
+  };
+
+  ui = {
+    list: () => this.roundtrip("ui.list.request", {}, "ui.list.response"),
+    save: (document: { id: string; name: string; width: number; height: number; root: unknown }) =>
+      this.roundtrip("ui.save.request", { document }, "ui.save.response")
   };
 
   schemas = {

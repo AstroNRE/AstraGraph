@@ -406,4 +406,55 @@ public sealed class AuthoringProtocolTests
         var audit = _server.QueryAudit();
         Assert.That(audit, Is.Not.Null);
     }
+
+    [Test]
+    public async Task DraftDiscard_DropsTheDraftAndReturnsLiveSource()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var created = _server.HandleGraphCreate(new GraphCreateRequest(_client.SessionId!, "Live", GraphKind.System, GraphSide.Server));
+        var graphId = created.Graph!.Id;
+        var live = GraphSerializer.Deserialize(created.SourceJson);
+        var draft = new GraphDocument
+        {
+            Id = live.Id,
+            Name = "Dirty",
+            Kind = live.Kind,
+            Side = live.Side,
+            Nodes = live.Nodes
+        };
+        var saved = await _client.SaveDraftAsync(graphId, RevisionId.Empty, GraphSerializer.Serialize(draft), "draft");
+        Assert.That(saved.Status, Is.EqualTo(AuthoringStatusCode.Success));
+
+        var discarded = _server.DiscardDraft(_client.SessionId!, graphId);
+        Assert.That(discarded.FromDraft, Is.False);
+        Assert.That(GraphSerializer.Deserialize(discarded.DraftJson).Name, Is.EqualTo("Live"));
+    }
+
+    [Test]
+    public async Task UiSave_KeepsElementIdentityWhenTextChanges()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var buttonId = Guid.NewGuid().ToString("D");
+        var saved = _server.SaveUi(_client.SessionId!, new UiDocumentDto(
+            GraphId.New().ToString(),
+            "Airlock",
+            480,
+            320,
+            new UiNodeDto(Guid.NewGuid().ToString("D"), "Window", "Airlock", "Airlock",
+            [
+                new UiNodeDto(buttonId, "Button", "Open", "Open", [])
+            ])));
+        Assert.That(saved.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        var edited = saved.Document! with
+        {
+            Root = saved.Document.Root with
+            {
+                Children = [saved.Document.Root.Children[0] with { Text = "Cycle" }]
+            }
+        };
+        var again = _server.SaveUi(_client.SessionId!, edited);
+        Assert.That(again.Document!.Root.Children[0].Id, Is.EqualTo(buttonId));
+        Assert.That(again.Document.Root.Children[0].Text, Is.EqualTo("Cycle"));
+        Assert.That(_server.ListUi().Single().Name, Is.EqualTo("Airlock"));
+    }
 }

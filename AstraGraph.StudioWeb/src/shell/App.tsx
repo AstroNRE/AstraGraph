@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AuthoringClient } from "../protocol/client";
-import { canCompile, canDebug, canPublish, canRollback, permissionBits } from "../permissions/gate";
+import { canCompile, canDebug, canEdit, canPublish, canRollback, permissionBits } from "../permissions/gate";
 import {
   addNode,
   connectPins,
@@ -26,6 +26,8 @@ import { readCatalog, type CatalogEntry } from "../bindings/catalog";
 import { BindingBrowser } from "./BindingBrowser";
 import { VariableEditor } from "./VariableEditor";
 import { SchemaEditor, type SchemaDocument } from "./SchemaEditor";
+import { UiDesigner, type UiDocumentModel } from "./UiDesigner";
+import { chooseRecovery, recallDraft, rememberDraft } from "../documents/recovery";
 
 const palette = [
   ["Event.Tick", "On Tick"],
@@ -35,9 +37,9 @@ const palette = [
 ] as const;
 
 interface GraphSummary { id: string; name: string; activeRevision?: string; kind?: string; side?: string }
-type Activity = "explorer" | "bindings" | "types" | "audit";
+type Activity = "explorer" | "bindings" | "types" | "design" | "audit" | "access";
 type DockTab = "problems" | "watch" | "debug" | "profiler" | "history" | "output";
-const activities: Activity[] = ["explorer", "bindings", "types", "audit"];
+const activities: Activity[] = ["explorer", "bindings", "types", "design", "audit", "access"];
 const dockTabs: DockTab[] = ["problems", "watch", "debug", "profiler", "history", "output"];
 interface Problem { severity: string; code: string; message: string; nodeId?: string; pinId?: string }
 interface RevisionRecord { revisionId: string; author: string; timestamp: string; message: string; semanticHash: string }
@@ -59,6 +61,9 @@ export function App() {
   const [capabilities, setCapabilities] = useState({ compile: false, publish: false, debug: false });
   const [client, setClient] = useState<AuthoringClient | null>(null);
   const [baseRevision, setBaseRevision] = useState(emptyRevision);
+  const [headRevision, setHeadRevision] = useState(emptyRevision);
+  const [recoveryJson, setRecoveryJson] = useState("");
+  const [uiDocuments, setUiDocuments] = useState<UiDocumentModel[]>([]);
   const [stack, setStack] = useState<UndoStack<GraphDocument>>({ past: [], present: createGraph("Untitled"), future: [] });
   const [selected, setSelected] = useState("");
   const [focusToken, setFocusToken] = useState(0);
@@ -189,7 +194,11 @@ export function App() {
       socket.binaryType = "arraybuffer";
       const authoring = new AuthoringClient(socket);
       authoring.onUnsolicited = (message) => {
-        if (message.kind === "session.updated") setBits(permissionBits(message.body.permissions));
+        if (message.kind === "session.updated") {
+          const nextBits = permissionBits(message.body.permissions);
+          setBits(nextBits);
+          if ((nextBits & 64) === 0) setDockTab((tab) => tab === "debug" || tab === "watch" || tab === "profiler" ? "problems" : tab);
+        }
         if (message.kind === "debug.stream.event") {
           setProblems((current) => [...current, { severity: "info", code: "DEBUG", message: `${message.body.action ?? "event"} ${message.body.currentNode ?? ""}` }]);
         }
@@ -236,11 +245,20 @@ export function App() {
 
     async function openGraph(authoring: AuthoringClient, summary: GraphSummary) {
       const fetched = await authoring.graphs.fetch(summary.id);
-      setBaseRevision(String(fetched.body.baseRevisionId || summary.activeRevision || emptyRevision));
+      const revision = String(fetched.body.baseRevisionId || summary.activeRevision || emptyRevision);
+      setBaseRevision(revision);
+      setHeadRevision(String(fetched.body.activeRevisionId || revision));
       const source = String(fetched.body.draftJson ?? "");
       const next = source
         ? parseGraph(source)
         : { ...createGraph(summary.name), id: summary.id };
+      const local = await recallDraft(next.id);
+      if (source && chooseRecovery(source, local) === "local" && local) {
+        setRecoveryJson(local);
+        setProblems([{ severity: "warning", code: "RECOVERY", message: "Local recovery differs from the server draft" }]);
+      } else {
+        setRecoveryJson("");
+      }
       setStack({ past: [], present: next, future: [] });
       setSelected("");
       const history = await authoring.history.list(summary.id);
@@ -257,18 +275,67 @@ export function App() {
     localStorage.setItem("astra-dock", dockTab);
   }, [activity, dockTab]);
 
+  useEffect(() => {
+    if (!graph.id) return;
+    void rememberDraft(graph.id, serializeGraph(graph));
+  }, [graph]);
+
+  useEffect(() => {
+    if (!client || preview || !canEdit(bits) || stack.past.length === 0) return;
+    const timer = window.setTimeout(() => { void save(true); }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [bits, client, graph, preview, stack.past.length]);
+
+  useEffect(() => {
+    if (!client) return;
+    const timer = window.setInterval(() => {
+      void client.graphs.list().then((listed) => {
+        const items = (listed.body.graphs as GraphSummary[] | undefined) ?? [];
+        const match = items.find((item) => item.id === graph.id);
+        if (match?.activeRevision) setHeadRevision(match.activeRevision);
+      });
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [client, graph.id]);
+
+  useEffect(() => {
+    if (!publishOpen || !client) return;
+    void compareRevision(baseRevision);
+  }, [publishOpen]);
+
   const publishAllowed = canPublish(bits, capabilities.publish) && !preview;
   const compileAllowed = canCompile(bits, capabilities.compile) && !preview;
   const rollbackAllowed = canRollback(bits) && !preview;
   const debugAllowed = canDebug(bits, capabilities.debug) && !preview;
   const json = useMemo(() => serializeGraph(graph), [graph]);
 
-  async function save() {
+  async function save(quiet = false) {
     if (!client) return;
     const response = await client.drafts.save(graph.id, baseRevision, json);
-    setProblems(response.body.hasConflict
-      ? [{ severity: "error", code: "CONFLICT", message: "OUT OF DATE" }]
-      : [{ severity: "info", code: "SAVE", message: "Draft saved" }]);
+    if (response.body.hasConflict) {
+      setHeadRevision(String(response.body.errorMessage ?? headRevision));
+      setProblems([{ severity: "error", code: "CONFLICT", message: "OUT OF DATE" }]);
+      return;
+    }
+    if (!quiet) setProblems([{ severity: "info", code: "SAVE", message: "Draft saved" }]);
+  }
+
+  async function discardDraft() {
+    if (!client) return;
+    const response = await client.drafts.discard(graph.id);
+    const source = String(response.body.draftJson ?? "");
+    if (!source) return;
+    const revision = String(response.body.baseRevisionId || emptyRevision);
+    setBaseRevision(revision);
+    setHeadRevision(String(response.body.activeRevisionId || revision));
+    setRecoveryJson("");
+    setStack({ past: [], present: parseGraph(source), future: [] });
+  }
+
+  function restoreRecovery() {
+    if (!recoveryJson) return;
+    setStack({ past: [], present: parseGraph(recoveryJson), future: [] });
+    setRecoveryJson("");
   }
 
   async function compile() {
@@ -354,7 +421,9 @@ export function App() {
   async function openListed(item: GraphSummary) {
     if (!client) return;
     const fetched = await client.graphs.fetch(item.id);
-    setBaseRevision(String(fetched.body.baseRevisionId || item.activeRevision || emptyRevision));
+    const revision = String(fetched.body.baseRevisionId || item.activeRevision || emptyRevision);
+    setBaseRevision(revision);
+    setHeadRevision(String(fetched.body.activeRevisionId || revision));
     const source = String(fetched.body.draftJson ?? "");
     setStack({ past: [], present: source ? parseGraph(source) : { ...createGraph(item.name), id: item.id }, future: [] });
     setSelected("");
@@ -499,6 +568,17 @@ export function App() {
     setAuditEntries(Array.isArray(response.body.entries) ? response.body.entries as { action: string; author: string; message: string }[] : []);
   }
 
+  async function saveUi(document: UiDocumentModel) {
+    if (!client) return;
+    const response = await client.ui.save(document);
+    if (Number(response.body.status) !== 0) {
+      setProblems([{ severity: "error", code: "UI", message: String(response.body.errorMessage ?? "UI was not saved") }]);
+      return;
+    }
+    const listed = await client.ui.list();
+    setUiDocuments(Array.isArray(listed.body.documents) ? listed.body.documents as UiDocumentModel[] : []);
+  }
+
   async function saveSchema(schema: SchemaDocument) {
     if (!client) return;
     const response = await client.schemas.save(schema);
@@ -597,6 +677,14 @@ export function App() {
             />
           ) : null}
           {activity === "types" ? <SchemaEditor schemas={schemas} onSave={(schema) => void saveSchema(schema)} /> : null}
+          {activity === "design" ? <UiDesigner documents={uiDocuments} onSave={(document) => void saveUi(document)} /> : null}
+          {activity === "access" ? (
+            <ul className="list">
+              {(["ViewGraphs", "EditDrafts", "Compile", "PublishServer", "PublishShared", "Rollback", "Debug"] as const).map((name, index) => (
+                <li key={name} className={(bits & (1 << index)) !== 0 ? "" : "muted"}>{name}</li>
+              ))}
+            </ul>
+          ) : null}
           {activity === "audit" ? (
             <ul className="list">
               {auditEntries.map((entry, index) => <li key={`${entry.action}-${index}`}>{entry.action} · {entry.author} · {entry.message}</li>)}
@@ -606,11 +694,21 @@ export function App() {
         </aside>
         <main className="canvas">
           {preview ? <div className="banner"><strong>Preview Mode</strong><span>No authoring backend connected</span></div> : null}
+          {headRevision !== baseRevision && headRevision !== emptyRevision && baseRevision !== emptyRevision ? (
+            <div className="banner">
+              <strong>OUT OF DATE</strong>
+              <span>Head {headRevision.slice(0, 8)} · base {baseRevision.slice(0, 8)}</span>
+              <button onClick={() => void discardDraft()}>Discard</button>
+              {recoveryJson ? <button onClick={restoreRecovery}>Restore local</button> : null}
+            </div>
+          ) : null}
+          {recoveryJson && headRevision === baseRevision ? <div className="banner"><strong>Local recovery</strong><button onClick={restoreRecovery}>Restore</button></div> : null}
           <GraphCanvas
             document={graph}
             selectedId={selected}
             focusToken={focusToken}
             alertPin={alertPin}
+            heat={Object.fromEntries((profile?.hottest ?? []).map((item) => [item.nodeId, item.hits]))}
             pinMarks={pinMarks}
             pinReasons={pinReasons}
             onSelect={(id) => { setSelected(id); setAlertPin(""); }}
@@ -783,7 +881,11 @@ export function App() {
         <div className="dialog-back" onClick={() => setPublishOpen(false)}>
           <form className="dialog" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); void publish(); }}>
             <h2>Publish</h2>
-            <p className="muted">{graph.side} · base {baseRevision} · {graph.nodes.length} nodes</p>
+            <p className="muted">{graph.side} · base {baseRevision.slice(0, 8)} · head {headRevision.slice(0, 8)} · {graph.nodes.length} nodes</p>
+            <ul className="list">
+              {diffLines.map((line, index) => <li key={`${line.kind}-${index}`} className="muted">{line.kind}: {line.detail}</li>)}
+              {diffLines.length === 0 ? <li className="muted">No semantic changes</li> : null}
+            </ul>
             <label className="field">Message<input value={publishMessage} onChange={(event) => setPublishMessage(event.target.value)} /></label>
             <div className="dialog-actions">
               <button type="button" onClick={() => setPublishOpen(false)}>Cancel</button>

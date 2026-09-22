@@ -13,6 +13,10 @@ export function permissionBits(value: unknown): number {
   return Number.isFinite(bits) ? bits : 0;
 }
 
+export function canEdit(bits: number) {
+  return (bits & Permission.EditDrafts) !== 0;
+}
+
 export function canCompile(bits: number, capability: boolean | undefined) {
   return (bits & Permission.Compile) !== 0 && capability !== false;
 }

@@ -29,7 +29,7 @@
 .workspace {
   min-height: 0;
   display: grid;
-  grid-template-columns: 44px 240px minmax(0, 1fr) 260px;
+  grid-template-columns: 72px 220px minmax(0, 1fr) 260px;
 }
 .activity {
   display: flex;

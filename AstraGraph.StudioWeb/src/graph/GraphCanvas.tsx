@@ -27,6 +27,7 @@ type AstraData = {
   outputs: PinDocument[];
   pure?: boolean;
   side?: string;
+  heat?: number;
   marks?: Record<string, PinMark>;
   reasons?: Record<string, string>;
   alertPin?: string;
@@ -56,6 +57,7 @@ function AstraNodeView({ data }: NodeProps<Node<AstraData, "astra">>) {
         {data.label}
         {data.pure ? <span className="node-badge">pure</span> : null}
         {data.side ? <span className="node-badge">{data.side}</span> : null}
+        {data.heat ? <span className="node-badge">{data.heat}</span> : null}
       </div>
       <div className="astra-node-type">{data.nodeType}</div>
       {data.outputs.map((pin, index) => (
@@ -92,6 +94,7 @@ export function GraphCanvas(props: {
   selectedId?: string;
   focusToken?: number;
   alertPin?: string;
+  heat?: Record<string, number>;
   pinMarks?: Record<string, PinMark>;
   pinReasons?: Record<string, string>;
   onChange: (next: GraphDocument) => void;
@@ -113,6 +116,7 @@ function CanvasSurface(props: {
   selectedId?: string;
   focusToken?: number;
   alertPin?: string;
+  heat?: Record<string, number>;
   pinMarks?: Record<string, PinMark>;
   pinReasons?: Record<string, string>;
   onChange: (next: GraphDocument) => void;
@@ -135,13 +139,14 @@ function CanvasSurface(props: {
       selected: node.id === props.selectedId,
       data: {
         ...node.data,
+        heat: props.heat?.[node.id],
         marks: props.pinMarks,
         reasons: props.pinReasons,
         alertPin: props.alertPin
       }
     })));
     setEdges(flow.edges);
-  }, [props.alertPin, props.document, props.pinMarks, props.pinReasons, props.selectedId, setEdges, setNodes]);
+  }, [props.alertPin, props.document, props.heat, props.pinMarks, props.pinReasons, props.selectedId, setEdges, setNodes]);
 
   useEffect(() => {
     if (!props.focusToken || !props.selectedId) return;

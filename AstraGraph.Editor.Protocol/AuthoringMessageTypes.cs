@@ -108,6 +108,53 @@ public sealed class DraftSaveRequestMsg : AuthoringMessage
     public string AuthorMessage { get; init; } = string.Empty;
 }
 
+public sealed class DraftDiscardRequestMsg : AuthoringMessage
+{
+    public override string Kind => "draft.discard.request";
+    public string SessionId { get; init; } = string.Empty;
+    public GraphId GraphId { get; init; }
+}
+
+public sealed class DraftDiscardResponseMsg : AuthoringMessage
+{
+    public override string Kind => "draft.discard.response";
+    public AuthoringStatusCode Status { get; init; }
+    public string DraftJson { get; init; } = string.Empty;
+    public RevisionId BaseRevisionId { get; init; }
+    public RevisionId ActiveRevisionId { get; init; }
+    public bool FromDraft { get; init; }
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class UiSaveRequestMsg : AuthoringMessage
+{
+    public override string Kind => "ui.save.request";
+    public string SessionId { get; init; } = string.Empty;
+    public UiDocumentDto? Document { get; init; }
+}
+
+public sealed class UiSaveResponseMsg : AuthoringMessage
+{
+    public override string Kind => "ui.save.response";
+    public AuthoringStatusCode Status { get; init; }
+    public UiDocumentDto? Document { get; init; }
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class UiListRequestMsg : AuthoringMessage
+{
+    public override string Kind => "ui.list.request";
+    public string SessionId { get; init; } = string.Empty;
+}
+
+public sealed class UiListResponseMsg : AuthoringMessage
+{
+    public override string Kind => "ui.list.response";
+    public AuthoringStatusCode Status { get; init; }
+    public IReadOnlyList<UiDocumentDto> Documents { get; init; } = [];
+    public string? ErrorMessage { get; init; }
+}
+
 public sealed class DraftSaveResponseMsg : AuthoringMessage
 {
     public override string Kind => "draft.save.response";

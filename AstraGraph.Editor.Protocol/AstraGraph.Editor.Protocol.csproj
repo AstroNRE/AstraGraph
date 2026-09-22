@@ -11,6 +11,7 @@
     <ProjectReference Include="..\AstraGraph.Runtime\AstraGraph.Runtime.csproj" />
     <ProjectReference Include="..\AstraGraph.Persistence\AstraGraph.Persistence.csproj" />
     <ProjectReference Include="..\AstraGraph.HotReload\AstraGraph.HotReload.csproj" />
+    <ProjectReference Include="..\AstraGraph.UI\AstraGraph.UI.csproj" />
   </ItemGroup>
 
 </Project>
