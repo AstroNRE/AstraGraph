@@ -49,7 +49,9 @@ export class AuthoringClient {
       this.roundtrip("graph.create.request", { name, kind, side }, "graph.create.response"),
     rename: (graphId: string, name: string) =>
       this.roundtrip("graph.rename.request", { graphId, name }, "graph.rename.response"),
-    delete: (graphId: string) => this.roundtrip("graph.delete.request", { graphId }, "graph.delete.response")
+    delete: (graphId: string) => this.roundtrip("graph.delete.request", { graphId }, "graph.delete.response"),
+    disable: (graphId: string, disabled = true) =>
+      this.roundtrip("graph.disable.request", { graphId, disabled }, "graph.disable.response")
   };
 
   drafts = {
@@ -68,6 +70,7 @@ export class AuthoringClient {
     list: (graphId: string) => this.roundtrip("history.list.request", { graphId }, "history.list.response"),
     rollback: (graphId: string, targetRevisionId: string) =>
       this.roundtrip("history.rollback.request", { graphId, targetRevisionId }, "history.rollback.response"),
+    lkg: (graphId: string) => this.roundtrip("history.lkg.request", { graphId }, "history.lkg.response"),
     diff: (graphId: string, revisionId: string, draftJson: string) =>
       this.roundtrip("history.diff.request", { graphId, revisionId, draftJson }, "history.diff.response")
   };
@@ -90,8 +93,8 @@ export class AuthoringClient {
   };
 
   debug = {
-    setBreakpoint: (graphId: string, targetNode: string) =>
-      this.roundtrip("debugger.command.request", { graphId, action: 0, targetNode }, "debugger.command.response"),
+    setBreakpoint: (graphId: string, targetNode: string, condition = "") =>
+      this.roundtrip("debugger.command.request", { graphId, action: 0, targetNode, condition }, "debugger.command.response"),
     pause: (graphId: string) => this.roundtrip("debugger.command.request", { graphId, action: 2 }, "debugger.command.response"),
     resume: (graphId: string) => this.roundtrip("debugger.command.request", { graphId, action: 3 }, "debugger.command.response"),
     stepOver: (graphId: string) => this.roundtrip("debugger.command.request", { graphId, action: 4 }, "debugger.command.response"),
@@ -115,7 +118,17 @@ export class AuthoringClient {
   ui = {
     list: () => this.roundtrip("ui.list.request", {}, "ui.list.response"),
     save: (document: { id: string; name: string; width: number; height: number; root: unknown }) =>
-      this.roundtrip("ui.save.request", { document }, "ui.save.response")
+      this.roundtrip("ui.save.request", { document }, "ui.save.response"),
+    compile: (document: { id: string; name: string; width: number; height: number; root: unknown }) =>
+      this.roundtrip("ui.compile.request", { document }, "ui.compile.response")
+  };
+
+  sandbox = {
+    run: (draftJson: string) => this.roundtrip("sandbox.run.request", { draftJson }, "sandbox.run.response")
+  };
+
+  runtime = {
+    status: () => this.roundtrip("runtime.status.request", {}, "runtime.status.response")
   };
 
   schemas = {

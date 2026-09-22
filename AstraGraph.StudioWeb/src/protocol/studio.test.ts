@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { frame, unframe } from "./frame";
+import handshakeFixture from "../../../tests/fixtures/handshake.json";
 import { canCompile, canPublish, permissionBits } from "../permissions/gate";
 import { addNode, createGraph, edit, redo, undo } from "../documents/graph";
 
@@ -10,6 +11,14 @@ describe("protocol frame", () => {
     expect(message?.kind).toBe("draft.publish.request");
     expect(message?.body.graphId).toBe("abc");
     expect(String(message?.body.kind)).not.toContain("fetch(\"/api/status\")");
+  });
+});
+
+describe("shared handshake fixture", () => {
+  it("parses the same status and session the server accepts", () => {
+    expect(handshakeFixture.status).toBe(0);
+    expect(handshakeFixture.sessionId).toBe("abc");
+    expect(handshakeFixture.protocolVersion).toBe(1);
   });
 });
 

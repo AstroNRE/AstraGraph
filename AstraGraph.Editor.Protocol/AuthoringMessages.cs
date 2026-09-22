@@ -42,7 +42,9 @@ public sealed record GraphSummaryDto(
     GraphKind Kind,
     GraphSide Side,
     RevisionId ActiveRevision,
-    int RevisionCount);
+    int RevisionCount,
+    string Status = "Live",
+    bool HasDraft = false);
 
 public sealed record GraphListRequest(string SessionId);
 
@@ -75,7 +77,8 @@ public sealed record DraftCompileResponse(
     bool HasErrors,
     IReadOnlyList<Diagnostic> Diagnostics,
     string? BytecodeHash = null,
-    string? ErrorMessage = null);
+    string? ErrorMessage = null,
+    string Stage = "Verify");
 
 public sealed record DraftPublishRequest(
     string SessionId,
@@ -88,7 +91,8 @@ public sealed record DraftPublishResponse(
     AuthoringStatusCode Status,
     RevisionId? PublishedRevision,
     IReadOnlyList<Diagnostic> Diagnostics,
-    string? ErrorMessage = null);
+    string? ErrorMessage = null,
+    int ActivationTick = 0);
 
 public sealed record RollbackRequest(
     string SessionId,
@@ -165,7 +169,9 @@ public sealed record RevisionSummaryDto(
     string Author,
     string Timestamp,
     string Message,
-    string SemanticHash);
+    string SemanticHash,
+    string ParentRevisionId = "",
+    int ActivationTick = 0);
 
 public sealed record CatalogParameterDto(
     string Name,
@@ -202,7 +208,8 @@ public sealed record DebuggerCommandRequest(
     string SessionId,
     GraphId GraphId,
     DebuggerAction Action,
-    NodeId? TargetNode = null);
+    NodeId? TargetNode = null,
+    string? Condition = null);
 
 public sealed record DebuggerCommandResponse(
     AuthoringStatusCode Status,
@@ -228,7 +235,19 @@ public sealed record ProfilerSnapshotDto(
     long Instructions,
     long NativeCalls,
     long Yields,
-    IReadOnlyList<ProfilerNodeDto> Hottest);
+    IReadOnlyList<ProfilerNodeDto> Hottest,
+    double P95Microseconds = 0,
+    long BudgetViolations = 0,
+    long AllocatedBytes = 0,
+    int NetworkBytes = 0);
+
+public sealed record RuntimeFieldDto(string Name, string Value);
+
+public sealed record RuntimeEntityDto(int EntityId, string Schema, IReadOnlyList<RuntimeFieldDto> Fields);
+
+public sealed record SandboxRunDto(string Stage, string? SemanticHash, string? Result, bool HasErrors);
+
+public sealed record RuntimeGraphDto(string Id, string Name, string ActiveRevision, int RevisionCount);
 
 public sealed record AuditEntryDto(
     string Timestamp,
@@ -251,20 +270,44 @@ public sealed record UiNodeDto(
     string ElementType,
     string? Name,
     string? Text,
-    IReadOnlyList<UiNodeDto> Children);
+    IReadOnlyList<UiNodeDto> Children,
+    bool Visible = true,
+    bool Enabled = true,
+    string Orientation = "Vertical",
+    int? MinWidth = null,
+    int? MinHeight = null,
+    IReadOnlyList<string>? StyleClasses = null);
+
+public sealed record UiBindingDto(
+    string BindingId,
+    string ElementId,
+    string TargetProperty,
+    string StateVariable,
+    string Direction);
+
+public sealed record UiEventDto(
+    string SubscriptionId,
+    string ElementId,
+    string EventName,
+    string TargetAction);
 
 public sealed record UiDocumentDto(
     string Id,
     string Name,
     int Width,
     int Height,
-    UiNodeDto Root);
+    UiNodeDto Root,
+    IReadOnlyList<UiBindingDto>? Bindings = null,
+    IReadOnlyList<UiEventDto>? Events = null,
+    IReadOnlyDictionary<string, string>? LocalState = null);
 
 public sealed record SchemaDto(
     string Id,
     string Name,
     bool IsComponent,
-    IReadOnlyList<SchemaFieldDto> Fields);
+    IReadOnlyList<SchemaFieldDto> Fields,
+    string Kind = "Component",
+    IReadOnlyList<string>? Members = null);
 
 public sealed record ProfilerStreamEvent(
     GraphId GraphId,

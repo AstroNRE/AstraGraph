@@ -79,6 +79,34 @@ public sealed class DeltaReplicationManager
         return packets;
     }
 
+    public static int MeasurePendingBytes(DynamicComponentStore store)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        var total = 0;
+        foreach (var schemaId in store.GetAllSchemas())
+        {
+            foreach (var entity in store.GetEntitiesWithComponent(schemaId))
+            {
+                if (!store.TryGetComponent(entity, schemaId, out var storage) || storage is null || !storage.HasAnyDirty)
+                {
+                    continue;
+                }
+
+                for (var slot = 0; slot < storage.FieldCount; slot++)
+                {
+                    if (!storage.IsDirty(slot) || !storage.Schema.Fields[slot].IsReplicated)
+                    {
+                        continue;
+                    }
+
+                    total += System.Text.Encoding.UTF8.GetByteCount(storage.GetField(slot).ToString());
+                }
+            }
+        }
+
+        return total;
+    }
+
     /// <summary>
     /// Collects dirty field deltas only for fields marked with SchemaFieldOptions.Replicated.
     /// </summary>

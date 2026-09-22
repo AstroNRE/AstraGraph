@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using AstraGraph.Core;
+using AstraGraph.Runtime.Network;
 using AstraGraph.State;
 using AstraGraph.VM;
 
@@ -61,6 +62,29 @@ public sealed class AstraGraphHost
 
     public void NoteEntryExecuted() => ExecutedEntryPoints++;
 
+    public IReadOnlyList<EntityComponentView> InspectEntities()
+    {
+        var list = new List<EntityComponentView>();
+        foreach (var schemaId in Components.GetAllSchemas())
+        {
+            foreach (var entity in Components.GetEntitiesWithComponent(schemaId))
+            {
+                var storage = Components.GetComponent(entity, schemaId);
+                var fields = new EntityFieldView[storage.FieldCount];
+                for (var slot = 0; slot < storage.FieldCount; slot++)
+                {
+                    fields[slot] = new EntityFieldView(storage.Schema.Fields[slot].Name, storage.GetField(slot).ToString());
+                }
+
+                list.Add(new EntityComponentView(entity.Value, storage.Schema.Name, fields));
+            }
+        }
+
+        return list.OrderBy(item => item.EntityId).ThenBy(item => item.SchemaName).ToList();
+    }
+
+    public int PendingReplicationBytes() => DeltaReplicationManager.MeasurePendingBytes(Components);
+
     public void Update(double currentTimeSeconds, int currentTick)
     {
         // 1. Update systems DAG
@@ -70,3 +94,7 @@ public sealed class AstraGraphHost
         Continuations.Update(currentTimeSeconds, currentTick);
     }
 }
+
+public sealed record EntityFieldView(string Name, string Value);
+
+public sealed record EntityComponentView(int EntityId, string SchemaName, IReadOnlyList<EntityFieldView> Fields);

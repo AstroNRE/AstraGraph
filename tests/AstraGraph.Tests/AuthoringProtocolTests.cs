@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text.Json;
 using System.Threading.Tasks;
 using AstraGraph.Binding;
 using AstraGraph.Core;
@@ -80,7 +81,7 @@ public sealed class AuthoringProtocolTests
         }
     }
 
-    private static GraphDocument CreateTestGraphDocument(GraphId graphId, string name = "ProtoTestGraph")
+    private static GraphDocument CreateTestGraphDocument(GraphId graphId, string name = "ProtoTestGraph", GraphSide side = GraphSide.Server)
     {
         var entryId = NodeId.New();
         var execOut = PinId.New();
@@ -90,7 +91,7 @@ public sealed class AuthoringProtocolTests
             Id = graphId,
             Name = name,
             Kind = GraphKind.System,
-            Side = GraphSide.Server,
+            Side = side,
             Metadata = new GraphMetadata
             {
                 Author = "AdminUser",
@@ -456,5 +457,231 @@ public sealed class AuthoringProtocolTests
         Assert.That(again.Document!.Root.Children[0].Id, Is.EqualTo(buttonId));
         Assert.That(again.Document.Root.Children[0].Text, Is.EqualTo("Cycle"));
         Assert.That(_server.ListUi().Single().Name, Is.EqualTo("Airlock"));
+    }
+
+    [Test]
+    public async Task UiSave_KeepsStyleBindingAndEvent()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var buttonId = Guid.NewGuid().ToString("D");
+        var saved = _server.SaveUi(_client.SessionId!, new UiDocumentDto(
+            GraphId.New().ToString(),
+            "Airlock",
+            480,
+            320,
+            new UiNodeDto(buttonId, "Button", "Open", "Open", [], StyleClasses: ["danger"], MinWidth: 96),
+            [new UiBindingDto(Guid.NewGuid().ToString("D"), buttonId, "Text", "DoorState", "OneWay")],
+            [new UiEventDto(Guid.NewGuid().ToString("D"), buttonId, "OnPressed", "CycleDoor")],
+            new Dictionary<string, string> { ["DoorState"] = "closed" }));
+        Assert.That(saved.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        Assert.That(saved.Document!.Root.StyleClasses, Does.Contain("danger"));
+        Assert.That(saved.Document.Root.MinWidth, Is.EqualTo(96));
+        Assert.That(saved.Document.Bindings!.Single().StateVariable, Is.EqualTo("DoorState"));
+        Assert.That(saved.Document.Events!.Single().TargetAction, Is.EqualTo("CycleDoor"));
+        Assert.That(saved.Document.LocalState!["DoorState"], Is.EqualTo("closed"));
+    }
+
+    [Test]
+    public void Profiler_P95UsesTheSlowSamples()
+    {
+        var graphId = GraphId.New();
+        for (var i = 1; i <= 20; i++) _profiler.RecordElapsed(graphId, i);
+        var metric = _profiler.GetMetrics(graphId);
+        Assert.That(metric.P95Microseconds, Is.GreaterThanOrEqualTo(19));
+        var snapshot = _server.CaptureProfiler(graphId, reset: true);
+        Assert.That(snapshot.P95Microseconds, Is.GreaterThanOrEqualTo(19));
+        Assert.That(_profiler.GetMetrics(graphId).Invocations, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task BreakpointCondition_PausesOnlyWhenTheRegisterMatches()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var node = NodeId.New();
+        var rejected = _server.HandleDebuggerCommand(new DebuggerCommandRequest(_client.SessionId!, GraphId.New(), DebuggerAction.SetBreakpoint, node, "nope"));
+        Assert.That(rejected.Status, Is.EqualTo(AuthoringStatusCode.ValidationError));
+
+        var set = _server.HandleDebuggerCommand(new DebuggerCommandRequest(_client.SessionId!, GraphId.New(), DebuggerAction.SetBreakpoint, node, "r0==7"));
+        Assert.That(set.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        Assert.That(_debugger.ShouldSuspend(node, 1, new[] { AstraValue.FromInt64(3) }), Is.False);
+        Assert.That(_debugger.ShouldSuspend(node, 2, new[] { AstraValue.FromInt64(7) }), Is.True);
+    }
+
+    [Test]
+    public async Task SandboxRun_ReportsTheCompileStage()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var graphId = GraphId.New();
+        var json = GraphSerializer.Serialize(CreateTestGraphDocument(graphId, "Sandbox"));
+        var run = _server.RunSandbox(_client.SessionId!, json);
+        Assert.That(run.Stage, Is.EqualTo("Verify"));
+        Assert.That(run.SemanticHash, Is.Not.Null.And.Not.Empty);
+    }
+
+    [Test]
+    public async Task RuntimeStatus_ListsTheOpenProject()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        _server.HandleGraphCreate(new GraphCreateRequest(_client.SessionId!, "Visible", GraphKind.System, GraphSide.Server));
+        var listed = _server.RuntimeGraphs();
+        Assert.That(listed.Any(graph => graph.Name == "Visible"), Is.True);
+    }
+
+    [Test]
+    public void HandshakeFixture_MatchesTheSharedContract()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "tests", "fixtures", "handshake.json")))
+        {
+            dir = dir.Parent;
+        }
+
+        Assert.That(dir, Is.Not.Null);
+        var json = File.ReadAllText(Path.Combine(dir!.FullName, "tests", "fixtures", "handshake.json"));
+        var message = JsonSerializer.Deserialize<AuthHandshakeResponseMsg>(json, AuthoringJsonContext.Default);
+        Assert.That(message, Is.Not.Null);
+        Assert.That(message!.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        Assert.That(message.SessionId, Is.EqualTo("abc"));
+        Assert.That(message.ProtocolVersion, Is.EqualTo(1));
+        Assert.That(message.Permissions, Is.EqualTo(AstraPermission.ViewGraphs));
+    }
+
+    [Test]
+    public async Task GraphDisable_KeepsTheSourceAndMarksTheSummary()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var created = _server.HandleGraphCreate(new GraphCreateRequest(_client.SessionId!, "Door", GraphKind.System, GraphSide.Server));
+        var disabled = _server.HandleGraphDisable(created.Graph!.Id, _client.SessionId!, disabled: true);
+        Assert.That(disabled.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        Assert.That(disabled.Graph!.Status, Is.EqualTo("Disabled"));
+
+        var listed = _server.HandleGraphList(new GraphListRequest(_client.SessionId!));
+        Assert.That(listed.Graphs.Single(graph => graph.Id == created.Graph.Id).Status, Is.EqualTo("Disabled"));
+
+        var fetched = _server.HandleGraphFetch(new GraphFetchRequest(_client.SessionId!, created.Graph.Id));
+        Assert.That(fetched.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        Assert.That(fetched.DraftJson, Does.Contain("Door"));
+
+        var enabled = _server.HandleGraphDisable(created.Graph.Id, _client.SessionId!, disabled: false);
+        Assert.That(enabled.Graph!.Status, Is.EqualTo("Live"));
+    }
+
+    [Test]
+    public async Task SchemaSave_StoresStructAndEnum()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var structure = _server.SaveSchema(_client.SessionId!, new SchemaDto(
+            SchemaId.New().ToString(),
+            "DoorSpan",
+            false,
+            [new SchemaFieldDto(FieldId.New().ToString(), "Ticks", "int32", "0", false, false)],
+            "Struct"));
+        Assert.That(structure.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        Assert.That(structure.Schema!.Kind, Is.EqualTo("Struct"));
+        Assert.That(structure.Schema.IsComponent, Is.False);
+
+        var enumerated = _server.SaveSchema(_client.SessionId!, new SchemaDto(
+            SymbolId.New().ToString(),
+            "DoorState",
+            false,
+            [],
+            "Enum",
+            ["Closed", "Open"]));
+        Assert.That(enumerated.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        Assert.That(enumerated.Schema!.Members, Is.EqualTo(new[] { "Closed", "Open" }));
+        Assert.That(_server.ListSchemas().Select(schema => schema.Kind), Does.Contain("Struct").And.Contain("Enum"));
+    }
+
+    [Test]
+    public async Task SchemaSave_ReportsPreserveWhenAFieldIsRenamed()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var schemaId = SchemaId.New();
+        var fieldId = FieldId.New();
+        var first = _server.SaveSchema(_client.SessionId!, new SchemaDto(
+            schemaId.ToString(),
+            "Door",
+            true,
+            [new SchemaFieldDto(fieldId.ToString(), "State", "int32", "0", true, false)]));
+        Assert.That(first.Status, Is.EqualTo(AuthoringStatusCode.Success));
+
+        var renamed = _server.SaveSchema(_client.SessionId!, new SchemaDto(
+            schemaId.ToString(),
+            "Door",
+            true,
+            [new SchemaFieldDto(fieldId.ToString(), "DoorState", "int32", "0", true, false)]));
+        Assert.That(renamed.Changes.Single().Kind, Is.EqualTo("Preserve"));
+        Assert.That(renamed.Changes.Single().Detail, Does.Contain("DoorState"));
+    }
+
+    [Test]
+    public async Task LastKnownGood_RollsBackToThePreviousPublish()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var graphId = GraphId.New();
+        var baseRev = RevisionId.New();
+        _server.RegisterGraph(new GraphSummaryDto(graphId, "Door", GraphKind.System, GraphSide.Server, baseRev, 1));
+        var firstJson = GraphSerializer.Serialize(CreateTestGraphDocument(graphId, "Door"));
+        var first = await _client.PublishDraftAsync(graphId, baseRev, firstJson, "v1");
+        Assert.That(first.Status, Is.EqualTo(AuthoringStatusCode.Success));
+
+        var secondJson = GraphSerializer.Serialize(CreateTestGraphDocument(graphId, "Door v2"));
+        var second = await _client.PublishDraftAsync(graphId, first.PublishedRevision!.Value, secondJson, "v2");
+        Assert.That(second.Status, Is.EqualTo(AuthoringStatusCode.Success));
+
+        var restored = await _server.RestoreLastKnownGoodAsync(_client.SessionId!, graphId);
+        Assert.That(restored.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        Assert.That(restored.ActivatedRevision, Is.EqualTo(first.PublishedRevision));
+    }
+
+    [Test]
+    public async Task SharedPublish_AssignsAnActivationTick()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var graphId = GraphId.New();
+        var baseRev = RevisionId.New();
+        _server.RegisterGraph(new GraphSummaryDto(graphId, "Predicted", GraphKind.System, GraphSide.Shared, baseRev, 1));
+        var published = await _client.PublishDraftAsync(graphId, baseRev, GraphSerializer.Serialize(CreateTestGraphDocument(graphId, "Predicted", GraphSide.Shared)), "shared");
+        Assert.That(published.Status, Is.EqualTo(AuthoringStatusCode.Success));
+        Assert.That(published.ActivationTick, Is.GreaterThan(0));
+    }
+
+    [Test]
+    public async Task UiCompile_ReportsADuplicateElement()
+    {
+        await _client.ConnectAsync("token_admin", "AdminUser");
+        var sharedId = Guid.NewGuid().ToString("D");
+        var compiled = _server.CompileUi(_client.SessionId!, new UiDocumentDto(
+            GraphId.New().ToString(),
+            "Airlock",
+            320,
+            240,
+            new UiNodeDto(sharedId, "Window", "Airlock", "Airlock",
+            [
+                new UiNodeDto(sharedId, "Button", "Open", "Open", [])
+            ])));
+        Assert.That(compiled.Status, Is.EqualTo(AuthoringStatusCode.ValidationError));
+        Assert.That(compiled.Diagnostics.Any(item => item.Code == "UI0005"), Is.True);
+    }
+
+    [Test]
+    public void RuntimeInspect_ListsEntityFieldsAndPendingBytes()
+    {
+        var field = new SchemaField(FieldId.New(), "State", PrimitiveType.Int32, "0", SchemaFieldOptions.Replicated);
+        var schema = new SchemaType(SchemaId.New(), "Door", true, [field]);
+        var storage = _host.Components.AddComponent(7, schema);
+        storage.SetField(0, AstraValue.FromInt64(9));
+
+        var listed = _server.RuntimeEntities();
+        Assert.That(listed.Single().EntityId, Is.EqualTo(7));
+        Assert.That(listed.Single().Schema, Is.EqualTo("Door"));
+        Assert.That(listed.Single().Fields.Single().Value, Is.EqualTo("9"));
+        Assert.That(_host.PendingReplicationBytes(), Is.GreaterThan(0));
+
+        var graphId = GraphId.New();
+        _profiler.RecordAllocation(graphId, 128);
+        var snapshot = _server.CaptureProfiler(graphId, reset: false);
+        Assert.That(snapshot.AllocatedBytes, Is.EqualTo(128));
+        Assert.That(snapshot.NetworkBytes, Is.GreaterThan(0));
     }
 }

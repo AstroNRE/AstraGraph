@@ -14,6 +14,8 @@ export interface SchemaDocument {
   name: string;
   isComponent: boolean;
   fields: SchemaField[];
+  kind?: "Component" | "Struct" | "Enum";
+  members?: string[];
 }
 
 const fieldTypes = ["int32", "int64", "float32", "float64", "bool", "string"];
@@ -29,17 +31,51 @@ export function SchemaEditor(props: {
   }, [props.schemas]);
 
   if (!draft) {
-    return <button type="button" onClick={() => setDraft({ id: crypto.randomUUID(), name: "Component", isComponent: true, fields: [] })}>New component schema</button>;
+    return (
+      <div>
+        {(["Component", "Struct", "Enum"] as const).map((kind) => (
+          <button key={kind} type="button" onClick={() => setDraft({
+            id: crypto.randomUUID(),
+            name: kind,
+            isComponent: kind === "Component",
+            kind,
+            fields: [],
+            members: kind === "Enum" ? ["None"] : []
+          })}>New {kind}</button>
+        ))}
+      </div>
+    );
   }
+
+  const kind = draft.kind ?? (draft.isComponent ? "Component" : "Struct");
 
   return (
     <div>
       <label className="field">Schema
         <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
       </label>
-      <label className="field">Component
-        <input type="checkbox" checked={draft.isComponent} onChange={(event) => setDraft({ ...draft, isComponent: event.target.checked })} />
+      <label className="field">Kind
+        <select value={kind} onChange={(event) => {
+          const next = event.target.value as "Component" | "Struct" | "Enum";
+          setDraft({ ...draft, kind: next, isComponent: next === "Component", members: next === "Enum" ? (draft.members?.length ? draft.members : ["None"]) : draft.members });
+        }}>
+          <option>Component</option>
+          <option>Struct</option>
+          <option>Enum</option>
+        </select>
       </label>
+      {kind === "Enum" ? (
+        <ul className="list">
+          {(draft.members ?? []).map((member, index) => (
+            <li key={`${member}-${index}`}>
+              <input aria-label="Enum member" value={member} onChange={(event) => setDraft({
+                ...draft,
+                members: (draft.members ?? []).map((item, itemIndex) => itemIndex === index ? event.target.value : item)
+              })} />
+            </li>
+          ))}
+        </ul>
+      ) : (
       <ul className="list">
         {draft.fields.map((field) => (
           <li key={field.id}>
@@ -57,11 +93,16 @@ export function SchemaEditor(props: {
           </li>
         ))}
       </ul>
-      <button type="button" onClick={() => setDraft({
-        ...draft,
-        fields: [...draft.fields, { id: crypto.randomUUID(), name: "Field", typeName: "int32", persistent: true, replicated: false }]
-      })}>Add field</button>
-      <button type="button" onClick={() => props.onSave(draft)}>Save schema</button>
+      )}
+      {kind === "Enum" ? (
+        <button type="button" onClick={() => setDraft({ ...draft, members: [...(draft.members ?? []), "Member"] })}>Add member</button>
+      ) : (
+        <button type="button" onClick={() => setDraft({
+          ...draft,
+          fields: [...draft.fields, { id: crypto.randomUUID(), name: "Field", typeName: "int32", persistent: true, replicated: false }]
+        })}>Add field</button>
+      )}
+      <button type="button" onClick={() => props.onSave({ ...draft, kind, isComponent: kind === "Component" })}>Save schema</button>
     </div>
   );
 }

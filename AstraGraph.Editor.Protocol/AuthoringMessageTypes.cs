@@ -77,6 +77,7 @@ public sealed class DraftCompileResponseMsg : AuthoringMessage
     public IReadOnlyList<Diagnostic> Diagnostics { get; init; } = Array.Empty<Diagnostic>();
     public string? BytecodeHash { get; init; }
     public string? ErrorMessage { get; init; }
+    public string Stage { get; init; } = "Verify";
 }
 
 public sealed class DraftPublishRequestMsg : AuthoringMessage
@@ -96,6 +97,7 @@ public sealed class DraftPublishResponseMsg : AuthoringMessage
     public RevisionId? PublishedRevision { get; init; }
     public IReadOnlyList<Diagnostic> Diagnostics { get; init; } = Array.Empty<Diagnostic>();
     public string? ErrorMessage { get; init; }
+    public int ActivationTick { get; init; }
 }
 
 public sealed class DraftSaveRequestMsg : AuthoringMessage
@@ -228,6 +230,22 @@ public sealed class GraphDeleteResponseMsg : AuthoringMessage
 {
     public override string Kind => "graph.delete.response";
     public AuthoringStatusCode Status { get; init; }
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class GraphDisableRequestMsg : AuthoringMessage
+{
+    public override string Kind => "graph.disable.request";
+    public string SessionId { get; init; } = string.Empty;
+    public GraphId GraphId { get; init; }
+    public bool Disabled { get; init; } = true;
+}
+
+public sealed class GraphMutationResponseMsg : AuthoringMessage
+{
+    public override string Kind => "graph.disable.response";
+    public AuthoringStatusCode Status { get; init; }
+    public GraphSummaryDto? Graph { get; init; }
     public string? ErrorMessage { get; init; }
 }
 
@@ -387,6 +405,40 @@ public sealed class SchemaSaveResponseMsg : AuthoringMessage
     public AuthoringStatusCode Status { get; init; }
     public SchemaDto? Schema { get; init; }
     public string? ErrorMessage { get; init; }
+    public IReadOnlyList<SemanticChangeDto> Changes { get; init; } = [];
+}
+
+public sealed class SandboxRunRequestMsg : AuthoringMessage
+{
+    public override string Kind => "sandbox.run.request";
+    public string SessionId { get; init; } = string.Empty;
+    public string DraftJson { get; init; } = string.Empty;
+}
+
+public sealed class SandboxRunResponseMsg : AuthoringMessage
+{
+    public override string Kind => "sandbox.run.response";
+    public AuthoringStatusCode Status { get; init; }
+    public string Stage { get; init; } = string.Empty;
+    public string? SemanticHash { get; init; }
+    public string? Result { get; init; }
+    public bool HasErrors { get; init; }
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class RuntimeStatusRequestMsg : AuthoringMessage
+{
+    public override string Kind => "runtime.status.request";
+    public string SessionId { get; init; } = string.Empty;
+}
+
+public sealed class RuntimeStatusResponseMsg : AuthoringMessage
+{
+    public override string Kind => "runtime.status.response";
+    public AuthoringStatusCode Status { get; init; }
+    public IReadOnlyList<RuntimeGraphDto> Graphs { get; init; } = [];
+    public IReadOnlyList<RuntimeEntityDto> Entities { get; init; } = [];
+    public string? ErrorMessage { get; init; }
 }
 
 public sealed class CatalogQueryRequestMsg : AuthoringMessage
@@ -437,6 +489,38 @@ public sealed class HistoryListResponseMsg : AuthoringMessage
     public string? ErrorMessage { get; init; }
 }
 
+public sealed class HistoryLkgRequestMsg : AuthoringMessage
+{
+    public override string Kind => "history.lkg.request";
+    public string SessionId { get; init; } = string.Empty;
+    public GraphId GraphId { get; init; }
+}
+
+public sealed class HistoryLkgResponseMsg : AuthoringMessage
+{
+    public override string Kind => "history.lkg.response";
+    public AuthoringStatusCode Status { get; init; }
+    public GraphId GraphId { get; init; }
+    public RevisionId ActiveRevision { get; init; }
+    public RevisionId ActivatedRevision { get; init; }
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class UiCompileRequestMsg : AuthoringMessage
+{
+    public override string Kind => "ui.compile.request";
+    public string SessionId { get; init; } = string.Empty;
+    public UiDocumentDto? Document { get; init; }
+}
+
+public sealed class UiCompileResponseMsg : AuthoringMessage
+{
+    public override string Kind => "ui.compile.response";
+    public AuthoringStatusCode Status { get; init; }
+    public IReadOnlyList<Diagnostic> Diagnostics { get; init; } = [];
+    public string? ErrorMessage { get; init; }
+}
+
 public sealed class HistoryRollbackRequestMsg : AuthoringMessage
 {
     public override string Kind => "history.rollback.request";
@@ -469,6 +553,7 @@ public sealed class DebuggerCommandRequestMsg : AuthoringMessage
     public GraphId GraphId { get; init; }
     public DebuggerAction Action { get; init; }
     public NodeId? TargetNode { get; init; }
+    public string? Condition { get; init; }
 }
 
 public sealed class DebuggerCommandResponseMsg : AuthoringMessage

@@ -23,6 +23,11 @@ public sealed class GraphVariableDocument : IEquatable<GraphVariableDocument>
     /// </summary>
     public bool IsReplicated { get; init; }
 
+    /// <summary>
+    /// Marks a function input. Display rename keeps the same symbol id.
+    /// </summary>
+    public bool IsParameter { get; init; }
+
     public bool Equals(GraphVariableDocument? other)
     {
         if (other is null) return false;
@@ -32,10 +37,11 @@ public sealed class GraphVariableDocument : IEquatable<GraphVariableDocument>
                TypeName == other.TypeName &&
                DefaultValue == other.DefaultValue &&
                IsPersistent == other.IsPersistent &&
-               IsReplicated == other.IsReplicated;
+               IsReplicated == other.IsReplicated &&
+               IsParameter == other.IsParameter;
     }
 
     public override bool Equals(object? obj) => Equals(obj as GraphVariableDocument);
 
-    public override int GetHashCode() => HashCode.Combine(Id, Name, TypeName, IsPersistent, IsReplicated);
+    public override int GetHashCode() => HashCode.Combine(Id, Name, TypeName, IsPersistent, IsReplicated, IsParameter);
 }

@@ -1,3 +1,7 @@
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+}
 .shell {
   height: 100%;
   display: grid;
@@ -62,7 +66,7 @@
   color: var(--text-muted);
 }
 .section-label:first-child { margin-top: 6px; }
-.list { list-style: none; margin: 0; padding: 0; }
+.list { content-visibility: auto; list-style: none; margin: 0; padding: 0; }
 .graph-row { display: flex; align-items: center; }
 .graph-row > button:first-child { flex: 1; min-width: 0; }
 .blocked {

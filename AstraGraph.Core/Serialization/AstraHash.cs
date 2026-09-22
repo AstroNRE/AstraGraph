@@ -57,6 +57,7 @@ public static class AstraHash
                 writer.WriteString("defaultValue", v.DefaultValue ?? string.Empty);
                 writer.WriteBoolean("isPersistent", v.IsPersistent);
                 writer.WriteBoolean("isReplicated", v.IsReplicated);
+                writer.WriteBoolean("isParameter", v.IsParameter);
                 writer.WriteEndObject();
             }
             writer.WriteEndArray();

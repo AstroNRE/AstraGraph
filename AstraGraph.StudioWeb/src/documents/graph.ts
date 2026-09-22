@@ -29,7 +29,10 @@ export interface GraphDocument {
   side: string;
   nodes: NodeDocument[];
   connections: ConnectionDocument[];
-  variables: { id: string; name: string; typeName: string; defaultValue?: string; persistent?: boolean; replicated?: boolean }[];
+  description: string;
+  tags: string;
+  version: string;
+  variables: { id: string; name: string; typeName: string; defaultValue?: string; persistent?: boolean; replicated?: boolean; parameter?: boolean }[];
   editorLayout: {
     nodePositions: Record<string, { x: number; y: number }>;
     comments: [];
@@ -62,14 +65,21 @@ export function serializeGraph(document: GraphDocument): string {
     name: document.name,
     kind: document.kind,
     side: document.side,
-    metadata: { author: "", description: "", version: "1.0.0", tags: [], customAttributes: {} },
+    metadata: {
+      author: "",
+      description: document.description ?? "",
+      version: document.version || "1.0.0",
+      tags: (document.tags ?? "").split(",").map((tag) => tag.trim()).filter(Boolean),
+      customAttributes: {}
+    },
     variables: document.variables.map((variable) => ({
       id: variable.id,
       name: variable.name,
       typeName: variable.typeName,
       defaultValue: variable.defaultValue ?? "",
       isPersistent: variable.persistent === true,
-      isReplicated: variable.replicated === true
+      isReplicated: variable.replicated === true,
+      isParameter: variable.parameter === true
     })),
     nodes: document.nodes.map((node) => ({
       id: node.id,
@@ -90,10 +100,13 @@ export function serializeGraph(document: GraphDocument): string {
 }
 
 export function parseGraph(json: string): GraphDocument {
-  const raw = JSON.parse(json) as GraphDocument;
+  const raw = JSON.parse(json) as GraphDocument & { metadata?: { description?: string; version?: string; tags?: string[] } };
   return {
     ...createGraph(raw.name || "Untitled"),
     ...raw,
+    description: raw.metadata?.description ?? raw.description ?? "",
+    tags: raw.metadata?.tags?.join(", ") ?? raw.tags ?? "",
+    version: raw.metadata?.version ?? raw.version ?? "1.0.0",
     nodes: raw.nodes ?? [],
     connections: raw.connections ?? [],
     variables: (raw.variables ?? []).map((variable) => ({
@@ -102,7 +115,8 @@ export function parseGraph(json: string): GraphDocument {
       typeName: variable.typeName,
       defaultValue: variable.defaultValue,
       persistent: variable.persistent === true || (variable as { isPersistent?: boolean }).isPersistent === true,
-      replicated: variable.replicated === true || (variable as { isReplicated?: boolean }).isReplicated === true
+      replicated: variable.replicated === true || (variable as { isReplicated?: boolean }).isReplicated === true,
+      parameter: variable.parameter === true || (variable as { isParameter?: boolean }).isParameter === true
     })),
     editorLayout: raw.editorLayout ?? createGraph("").editorLayout
   };
@@ -115,6 +129,9 @@ export function createGraph(name: string): GraphDocument {
     name,
     kind: "system",
     side: "server",
+    description: "",
+    tags: "",
+    version: "1.0.0",
     nodes: [],
     connections: [],
     variables: [],

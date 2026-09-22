@@ -135,6 +135,7 @@ public sealed class BridgeWebSocketProxy : IAsyncDisposable
             "graph.create.request" => JsonSerializer.Deserialize<GraphCreateRequestMsg>(payload, AuthoringJsonContext.Default),
             "graph.rename.request" => JsonSerializer.Deserialize<GraphRenameRequestMsg>(payload, AuthoringJsonContext.Default),
             "graph.delete.request" => JsonSerializer.Deserialize<GraphDeleteRequestMsg>(payload, AuthoringJsonContext.Default),
+            "graph.disable.request" => JsonSerializer.Deserialize<GraphDisableRequestMsg>(payload, AuthoringJsonContext.Default),
             "catalog.query.request" => JsonSerializer.Deserialize<CatalogQueryRequestMsg>(payload, AuthoringJsonContext.Default),
             "binding.materialize.request" => JsonSerializer.Deserialize<BindingMaterializeRequestMsg>(payload, AuthoringJsonContext.Default),
             "connection.validate.request" => JsonSerializer.Deserialize<ConnectionValidateRequestMsg>(payload, AuthoringJsonContext.Default),
@@ -143,6 +144,8 @@ public sealed class BridgeWebSocketProxy : IAsyncDisposable
             "history.list.request" => JsonSerializer.Deserialize<HistoryListRequestMsg>(payload, AuthoringJsonContext.Default),
             "history.diff.request" => JsonSerializer.Deserialize<HistoryDiffRequestMsg>(payload, AuthoringJsonContext.Default),
             "history.rollback.request" => JsonSerializer.Deserialize<HistoryRollbackRequestMsg>(payload, AuthoringJsonContext.Default),
+            "history.lkg.request" => JsonSerializer.Deserialize<HistoryLkgRequestMsg>(payload, AuthoringJsonContext.Default),
+            "ui.compile.request" => JsonSerializer.Deserialize<UiCompileRequestMsg>(payload, AuthoringJsonContext.Default),
             "debugger.command.request" => JsonSerializer.Deserialize<DebuggerCommandRequestMsg>(payload, AuthoringJsonContext.Default),
             "debugger.inspect.request" => JsonSerializer.Deserialize<DebuggerInspectRequestMsg>(payload, AuthoringJsonContext.Default),
             "debugger.watch.request" => JsonSerializer.Deserialize<DebuggerWatchRequestMsg>(payload, AuthoringJsonContext.Default),
@@ -150,6 +153,8 @@ public sealed class BridgeWebSocketProxy : IAsyncDisposable
             "audit.query.request" => JsonSerializer.Deserialize<AuditQueryRequestMsg>(payload, AuthoringJsonContext.Default),
             "schema.list.request" => JsonSerializer.Deserialize<SchemaListRequestMsg>(payload, AuthoringJsonContext.Default),
             "schema.save.request" => JsonSerializer.Deserialize<SchemaSaveRequestMsg>(payload, AuthoringJsonContext.Default),
+            "sandbox.run.request" => JsonSerializer.Deserialize<SandboxRunRequestMsg>(payload, AuthoringJsonContext.Default),
+            "runtime.status.request" => JsonSerializer.Deserialize<RuntimeStatusRequestMsg>(payload, AuthoringJsonContext.Default),
             "ping" => JsonSerializer.Deserialize<PingMsg>(payload, AuthoringJsonContext.Default),
             _ => null
         };

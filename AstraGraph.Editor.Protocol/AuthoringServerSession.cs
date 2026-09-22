@@ -6,6 +6,7 @@ using AstraGraph.Core;
 using AstraGraph.Editor.Core;
 using AstraGraph.Editor.Core.Search;
 using AstraGraph.HotReload;
+using AstraGraph.UI.Compiler;
 using AstraGraph.UI.Model;
 using AstraGraph.Persistence.Audit;
 using AstraGraph.Runtime.Debugging;
@@ -42,6 +43,10 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
     private readonly ConcurrentDictionary<RevisionId, string> _revisionSources = new();
     private readonly ConcurrentDictionary<string, Dictionary<string, string>> _watches = new();
     private readonly ConcurrentDictionary<SchemaId, SchemaType> _schemas = new();
+    private readonly ConcurrentDictionary<string, EnumType> _enums = new();
+    private readonly ConcurrentDictionary<GraphId, string> _status = new();
+    private readonly ConcurrentDictionary<RevisionId, int> _activation = new();
+    private int _authoringTick;
     private readonly ConcurrentDictionary<GraphId, UiDocument> _uiDocuments = new();
     private NodePaletteIndexer? _palette;
 
@@ -149,7 +154,14 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             return new GraphListResponse(AuthoringStatusCode.Unauthorized, [], "Invalid session.");
         }
 
-        return new GraphListResponse(AuthoringStatusCode.Success, _graphs.Values.ToList());
+        var graphs = _graphs.Values
+            .Select(graph => graph with
+            {
+                Status = _status.TryGetValue(graph.Id, out var status) ? status : "Live",
+                HasDraft = _activeDrafts.ContainsKey(graph.Id)
+            })
+            .ToList();
+        return new GraphListResponse(AuthoringStatusCode.Success, graphs);
     }
 
     public DraftSaveResponse HandleDraftSave(DraftSaveRequest request)
@@ -217,7 +229,7 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
 
             if (analysis.Diagnostics.HasErrors)
             {
-                return new DraftCompileResponse(AuthoringStatusCode.ValidationError, true, analysis.Diagnostics);
+                return FinishCompile(request.GraphId, new DraftCompileResponse(AuthoringStatusCode.ValidationError, true, analysis.Diagnostics, Stage: "Type Check"));
             }
 
             var irProgram = AstToIrCompiler.Compile(analysis.Program!);
@@ -225,16 +237,25 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
 
             if (verification.HasErrors)
             {
-                return new DraftCompileResponse(AuthoringStatusCode.ValidationError, true, verification);
+                return FinishCompile(request.GraphId, new DraftCompileResponse(AuthoringStatusCode.ValidationError, true, verification, Stage: "Verify"));
             }
 
             var bytecode = IrToBytecodeCompiler.Compile(irProgram);
-            return new DraftCompileResponse(AuthoringStatusCode.Success, false, analysis.Diagnostics, bytecode.SemanticHash);
+            return FinishCompile(request.GraphId, new DraftCompileResponse(AuthoringStatusCode.Success, false, analysis.Diagnostics, bytecode.SemanticHash, Stage: "Verify"));
         }
         catch (Exception ex)
         {
-            return new DraftCompileResponse(AuthoringStatusCode.InternalError, true, [], null, $"Compilation exception: {ex.Message}");
+            return FinishCompile(request.GraphId, new DraftCompileResponse(AuthoringStatusCode.InternalError, true, [], null, $"Compilation exception: {ex.Message}", "Parse"));
         }
+    }
+
+    private DraftCompileResponse FinishCompile(GraphId graphId, DraftCompileResponse response)
+    {
+        if (graphId == GraphId.Empty || !_graphs.ContainsKey(graphId)) return response;
+        if (_status.TryGetValue(graphId, out var status) && status == "Disabled") return response;
+        if (response.HasErrors) _status[graphId] = "Failed";
+        else _status.TryRemove(graphId, out _);
+        return response;
     }
 
     public Task<DraftPublishResponse> HandleDraftPublishAsync(DraftPublishRequest request)
@@ -297,6 +318,7 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         _revisionSources[newRevision] = request.DraftJson;
         _liveSources[request.GraphId] = request.DraftJson;
         _activeDrafts.TryRemove(request.GraphId, out _);
+        _status.TryRemove(request.GraphId, out _);
 
         if (_auditLogger != null)
         {
@@ -311,7 +333,14 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
                 true));
         }
 
-        return Task.FromResult(new DraftPublishResponse(AuthoringStatusCode.Success, newRevision, []));
+        var activationTick = 0;
+        if (graphDoc.Side is GraphSide.Shared or GraphSide.SharedPredicted)
+        {
+            activationTick = System.Threading.Interlocked.Increment(ref _authoringTick) + 4;
+            _activation[newRevision] = activationTick;
+        }
+
+        return Task.FromResult(new DraftPublishResponse(AuthoringStatusCode.Success, newRevision, [], ActivationTick: activationTick));
     }
 
     public Task<RollbackResponse> HandleRollbackAsync(RollbackRequest request)
@@ -353,6 +382,28 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         }
 
         return Task.FromResult(new RollbackResponse(AuthoringStatusCode.Success, active, null, request.TargetRevision));
+    }
+
+    public Task<RollbackResponse> RestoreLastKnownGoodAsync(string sessionId, GraphId graphId)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var session))
+        {
+            return Task.FromResult(new RollbackResponse(AuthoringStatusCode.Unauthorized, RevisionId.Empty, "Invalid session."));
+        }
+
+        if (!AstraAuthorizationService.CanRollback(session.User))
+        {
+            return Task.FromResult(new RollbackResponse(AuthoringStatusCode.Unauthorized, RevisionId.Empty, "Insufficient permissions to rollback."));
+        }
+
+        var history = _hotReloadManager?.GetRevisionHistory(graphId) ?? [];
+        if (history.Count < 2)
+        {
+            var current = _graphs.TryGetValue(graphId, out var head) ? head.ActiveRevision : RevisionId.Empty;
+            return Task.FromResult(new RollbackResponse(AuthoringStatusCode.ValidationError, current, "No last known good revision."));
+        }
+
+        return HandleRollbackAsync(new RollbackRequest(sessionId, graphId, history[^2].RevisionId));
     }
 
     public GraphCreateResponse HandleGraphCreate(GraphCreateRequest request)
@@ -442,8 +493,41 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
 
         _activeDrafts.TryRemove(request.GraphId, out _);
         _liveSources.TryRemove(request.GraphId, out _);
+        _status.TryRemove(request.GraphId, out _);
         _hotReloadManager?.Deactivate(request.GraphId);
         return new GraphMutationResponse(AuthoringStatusCode.Success, summary);
+    }
+
+    public GraphMutationResponse HandleGraphDisable(GraphId graphId, string sessionId, bool disabled)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var session))
+        {
+            return new GraphMutationResponse(AuthoringStatusCode.Unauthorized, null, "Invalid session.");
+        }
+
+        if (!AstraAuthorizationService.CanEditDraft(session.User))
+        {
+            return new GraphMutationResponse(AuthoringStatusCode.Unauthorized, null, "Insufficient permissions to disable a graph.");
+        }
+
+        if (!_graphs.TryGetValue(graphId, out var summary))
+        {
+            return new GraphMutationResponse(AuthoringStatusCode.NotFound, null, "Graph was not found.");
+        }
+
+        if (disabled)
+        {
+            _status[graphId] = "Disabled";
+            _hotReloadManager?.Deactivate(graphId);
+        }
+        else
+        {
+            _status.TryRemove(graphId, out _);
+        }
+
+        var updated = summary with { Status = disabled ? "Disabled" : "Live" };
+        _graphs[graphId] = updated;
+        return new GraphMutationResponse(AuthoringStatusCode.Success, updated);
     }
 
     public GraphFetchResponse HandleGraphFetch(GraphFetchRequest request)
@@ -652,7 +736,12 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         switch (request.Action)
         {
             case DebuggerAction.SetBreakpoint when request.TargetNode.HasValue:
-                _debugger.SetBreakpoint(new Breakpoint(request.TargetNode.Value, BreakpointMode.GraphPause));
+                if (!TryBreakpointCondition(request.Condition, out var condition, out var conditionError))
+                {
+                    return new DebuggerCommandResponse(AuthoringStatusCode.ValidationError, false, conditionError);
+                }
+
+                _debugger.SetBreakpoint(new Breakpoint(request.TargetNode.Value, BreakpointMode.GraphPause, condition));
                 break;
             case DebuggerAction.RemoveBreakpoint when request.TargetNode.HasValue:
                 _debugger.RemoveBreakpoint(request.TargetNode.Value);
@@ -713,6 +802,9 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             GraphDeleteRequestMsg req =>
                 HandleGraphDeleteMsg(req),
 
+            GraphDisableRequestMsg req =>
+                HandleGraphDisableMsg(req),
+
             CatalogQueryRequestMsg req =>
                 HandleCatalogQueryMsg(req),
 
@@ -736,6 +828,12 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
 
             HistoryRollbackRequestMsg req =>
                 await HandleHistoryRollbackMsgAsync(req),
+
+            HistoryLkgRequestMsg req =>
+                await HandleHistoryLkgMsgAsync(req),
+
+            UiCompileRequestMsg req =>
+                CompileUi(req.SessionId, req.Document),
 
             DraftCompileRequestMsg req =>
                 HandleDraftCompileMsg(req),
@@ -763,6 +861,12 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
 
             SchemaSaveRequestMsg req =>
                 HandleSchemaSaveMsg(req),
+
+            SandboxRunRequestMsg req =>
+                HandleSandboxRunMsg(req),
+
+            RuntimeStatusRequestMsg req =>
+                HandleRuntimeStatusMsg(req),
 
             PingMsg =>
                 new PongMsg { MessageId = Guid.NewGuid().ToString("N") },
@@ -868,6 +972,17 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         return new GraphDeleteResponseMsg
         {
             Status = resp.Status,
+            ErrorMessage = resp.ErrorMessage
+        };
+    }
+
+    private GraphMutationResponseMsg HandleGraphDisableMsg(GraphDisableRequestMsg req)
+    {
+        var resp = HandleGraphDisable(req.GraphId, req.SessionId, req.Disabled);
+        return new GraphMutationResponseMsg
+        {
+            Status = resp.Status,
+            Graph = resp.Graph,
             ErrorMessage = resp.ErrorMessage
         };
     }
@@ -1024,13 +1139,28 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
                 record.Author,
                 record.Timestamp.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
                 record.Message,
-                record.SemanticHash))
+                record.SemanticHash,
+                record.ParentRevisionId?.ToString() ?? "",
+                _activation.TryGetValue(record.RevisionId, out var tick) ? tick : 0))
             .ToArray();
         return new HistoryListResponseMsg
         {
             Status = AuthoringStatusCode.Success,
             Records = records,
             Revisions = records.Select(record => record.RevisionId + "|" + record.Message).ToArray()
+        };
+    }
+
+    private async Task<HistoryLkgResponseMsg> HandleHistoryLkgMsgAsync(HistoryLkgRequestMsg req)
+    {
+        var resp = await RestoreLastKnownGoodAsync(req.SessionId, req.GraphId);
+        return new HistoryLkgResponseMsg
+        {
+            Status = resp.Status,
+            GraphId = req.GraphId,
+            ActiveRevision = resp.CurrentRevision,
+            ActivatedRevision = resp.ActivatedRevision ?? resp.CurrentRevision,
+            ErrorMessage = resp.ErrorMessage
         };
     }
 
@@ -1056,7 +1186,8 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             HasErrors = resp.HasErrors,
             Diagnostics = resp.Diagnostics,
             BytecodeHash = resp.BytecodeHash,
-            ErrorMessage = resp.ErrorMessage
+            ErrorMessage = resp.ErrorMessage,
+            Stage = resp.Stage
         };
     }
 
@@ -1068,13 +1199,14 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             Status = resp.Status,
             PublishedRevision = resp.PublishedRevision,
             Diagnostics = resp.Diagnostics,
-            ErrorMessage = resp.ErrorMessage
+            ErrorMessage = resp.ErrorMessage,
+            ActivationTick = resp.ActivationTick
         };
     }
 
     private DebuggerCommandResponseMsg HandleDebuggerCommandMsg(DebuggerCommandRequestMsg req)
     {
-        var resp = HandleDebuggerCommand(new DebuggerCommandRequest(req.SessionId, req.GraphId, req.Action, req.TargetNode));
+        var resp = HandleDebuggerCommand(new DebuggerCommandRequest(req.SessionId, req.GraphId, req.Action, req.TargetNode, req.Condition));
         return new DebuggerCommandResponseMsg
         {
             Status = resp.Status,
@@ -1148,7 +1280,11 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             metric.InstructionsExecuted,
             metric.NativeCallsExecuted,
             metric.Yields,
-            hottest);
+            hottest,
+            metric.P95Microseconds,
+            metric.BudgetViolations,
+            metric.AllocatedBytes,
+            _hotReloadManager?.Host.PendingReplicationBytes() ?? 0);
         if (reset) _profiler?.Reset();
         return snapshot;
     }
@@ -1184,14 +1320,24 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             return new SchemaSaveResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = "Schema name is required." };
         }
 
+        var kind = string.IsNullOrWhiteSpace(schema.Kind)
+            ? schema.IsComponent ? "Component" : "Struct"
+            : schema.Kind.Trim();
+        if (kind.Equals("Enum", StringComparison.OrdinalIgnoreCase))
+        {
+            return SaveEnum(schema);
+        }
+
         if (!SchemaId.TryParse(string.IsNullOrWhiteSpace(schema.Id) ? null : schema.Id, out var schemaId) || schemaId == SchemaId.Empty)
         {
             schemaId = SchemaId.New();
         }
 
+        _enums.TryRemove(schemaId.ToString(), out _);
+
         var fields = new List<SchemaField>();
         var names = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var field in schema.Fields)
+        foreach (var field in schema.Fields ?? [])
         {
             if (string.IsNullOrWhiteSpace(field.Name) || !names.Add(field.Name))
             {
@@ -1210,12 +1356,56 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             fields.Add(new SchemaField(fieldId, field.Name.Trim(), type, field.DefaultValue, options));
         }
 
-        var stored = new SchemaType(schemaId, schema.Name.Trim(), schema.IsComponent, fields);
+        var isComponent = kind.Equals("Component", StringComparison.OrdinalIgnoreCase);
+        var stored = new SchemaType(schemaId, schema.Name.Trim(), isComponent, fields);
+        var migration = _schemas.TryGetValue(schemaId, out var previous)
+            ? StateMigrationPlanner.CreatePlan(previous, stored).Steps
+                .Select(step => new SemanticChangeDto(step.Action.ToString(), $"{step.SourceFieldName} → {step.TargetFieldName}"))
+                .ToArray()
+            : [];
         _schemas[schemaId] = stored;
-        return new SchemaSaveResponseMsg { Status = AuthoringStatusCode.Success, Schema = ToSchemaDto(stored) };
+        return new SchemaSaveResponseMsg { Status = AuthoringStatusCode.Success, Schema = ToSchemaDto(stored), Changes = migration };
     }
 
-    public IReadOnlyList<SchemaDto> ListSchemas() => _schemas.Values.Select(ToSchemaDto).OrderBy(schema => schema.Name).ToArray();
+    private SchemaSaveResponseMsg SaveEnum(SchemaDto schema)
+    {
+        if (!SymbolId.TryParse(schema.Id, out var symbolId) || symbolId == SymbolId.Empty)
+        {
+            symbolId = SymbolId.New();
+        }
+
+        var names = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var member in schema.Members ?? [])
+        {
+            var name = member.Trim();
+            if (name.Length == 0 || !seen.Add(name))
+            {
+                return new SchemaSaveResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = "Enum members need unique names." };
+            }
+
+            names.Add(name);
+        }
+
+        if (names.Count == 0)
+        {
+            return new SchemaSaveResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = "Enum needs at least one member." };
+        }
+
+        if (SchemaId.TryParse(symbolId.ToString(), out var schemaId))
+        {
+            _schemas.TryRemove(schemaId, out _);
+        }
+
+        var stored = new EnumType(symbolId, schema.Name.Trim(), names.Select((name, index) => new EnumMember(name, index)).ToArray());
+        _enums[symbolId.ToString()] = stored;
+        return new SchemaSaveResponseMsg { Status = AuthoringStatusCode.Success, Schema = ToEnumDto(stored) };
+    }
+
+    public IReadOnlyList<SchemaDto> ListSchemas() => _schemas.Values.Select(ToSchemaDto)
+        .Concat(_enums.Values.Select(ToEnumDto))
+        .OrderBy(schema => schema.Name)
+        .ToArray();
 
     private static SchemaDto ToSchemaDto(SchemaType schema) => new(
         schema.Id.ToString(),
@@ -1227,7 +1417,16 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             field.Type.TypeName,
             field.DefaultValue,
             field.IsPersistent,
-            field.IsReplicated)).ToArray());
+            field.IsReplicated)).ToArray(),
+        schema.IsComponentSchema ? "Component" : "Struct");
+
+    private static SchemaDto ToEnumDto(EnumType type) => new(
+        type.Id.ToString(),
+        type.Name,
+        false,
+        [],
+        "Enum",
+        type.Members.Select(member => member.Name).ToArray());
 
     private static bool TryPrimitive(string typeName, out AstraType type)
     {
@@ -1244,6 +1443,74 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         type = parsed ?? PrimitiveType.String;
         return parsed != null;
     }
+
+    private static bool TryBreakpointCondition(string? text, out Func<IReadOnlyList<AstraValue>, bool>? condition, out string? error)
+    {
+        condition = null;
+        error = null;
+        if (string.IsNullOrWhiteSpace(text)) return true;
+        var parts = text.Split("==", StringSplitOptions.TrimEntries);
+        if (parts.Length == 2 && parts[0].Length > 1 && parts[0][0] == 'r' && int.TryParse(parts[0].AsSpan(1), out var index) && long.TryParse(parts[1], out var expected))
+        {
+            condition = registers => index < registers.Count && registers[index].AsInt64() == expected;
+            return true;
+        }
+
+        error = "Condition must look like r0==7.";
+        return false;
+    }
+
+    public SandboxRunDto RunSandbox(string sessionId, string draftJson)
+    {
+        var compiled = HandleDraftCompile(new DraftCompileRequest(sessionId, GraphId.Empty, draftJson));
+        if (compiled.HasErrors)
+        {
+            return new SandboxRunDto(compiled.Stage, compiled.BytecodeHash, compiled.ErrorMessage, true);
+        }
+
+        try
+        {
+            var document = GraphSerializer.Deserialize(draftJson);
+            var analysis = new SemanticAnalyzer().Analyze(document);
+            var ir = AstToIrCompiler.Compile(analysis.Program!);
+            var bytecode = IrToBytecodeCompiler.Compile(ir);
+            var function = bytecode.EntryPoints.FirstOrDefault() ?? bytecode.Functions.FirstOrDefault();
+            if (function == null) return new SandboxRunDto("Verify", bytecode.SemanticHash, "No function to run", true);
+            var started = System.Diagnostics.Stopwatch.GetTimestamp();
+            var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+            var executed = new AstraGraph.VM.AstraVm().Execute(bytecode, function);
+            var allocated = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+            var elapsed = (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1_000_000.0 / System.Diagnostics.Stopwatch.Frequency;
+            if (document.Id != GraphId.Empty)
+            {
+                _profiler?.RecordElapsed(document.Id, elapsed);
+                _profiler?.RecordAllocation(document.Id, allocated);
+                if (executed.Status == AstraGraph.VM.VmExecutionStatus.ExceededBudget)
+                {
+                    _profiler?.RecordBudgetViolation(document.Id);
+                }
+            }
+
+            var failed = executed.Status is AstraGraph.VM.VmExecutionStatus.Faulted or AstraGraph.VM.VmExecutionStatus.ExceededBudget;
+            return new SandboxRunDto("Verify", bytecode.SemanticHash, executed.Exception?.Message ?? executed.ReturnValue.ToString(), failed);
+        }
+        catch (Exception ex)
+        {
+            return new SandboxRunDto(compiled.Stage, compiled.BytecodeHash, ex.Message, true);
+        }
+    }
+
+    public IReadOnlyList<RuntimeGraphDto> RuntimeGraphs() => _graphs.Values
+        .Select(graph => new RuntimeGraphDto(graph.Id.ToString(), graph.Name, graph.ActiveRevision.ToString(), graph.RevisionCount))
+        .OrderBy(graph => graph.Name)
+        .ToArray();
+
+    public IReadOnlyList<RuntimeEntityDto> RuntimeEntities() => (_hotReloadManager?.Host.InspectEntities() ?? [])
+        .Select(item => new RuntimeEntityDto(
+            item.EntityId,
+            item.SchemaName,
+            item.Fields.Select(field => new RuntimeFieldDto(field.Name, field.Value)).ToArray()))
+        .ToArray();
 
     private static string EvaluateWatch(string expression, AstraValue[]? registers)
     {
@@ -1365,10 +1632,60 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             Side = GraphSide.Client,
             DefaultWidth = document.Width <= 0 ? 400 : document.Width,
             DefaultHeight = document.Height <= 0 ? 300 : document.Height,
-            Root = BuildUiNode(document.Root, 0)
+            Root = BuildUiNode(document.Root, 0),
+            Bindings = (document.Bindings ?? []).Select(binding => new UiBindingDefinition
+            {
+                BindingId = string.IsNullOrWhiteSpace(binding.BindingId) ? Guid.NewGuid().ToString("D") : binding.BindingId,
+                ElementId = binding.ElementId,
+                TargetProperty = binding.TargetProperty,
+                StateVariable = binding.StateVariable,
+                Direction = Enum.TryParse<BindingDirection>(binding.Direction, ignoreCase: true, out var direction) ? direction : BindingDirection.OneWay
+            }).ToList(),
+            Events = (document.Events ?? []).Select(item => new UiEventSubscription
+            {
+                SubscriptionId = string.IsNullOrWhiteSpace(item.SubscriptionId) ? Guid.NewGuid().ToString("D") : item.SubscriptionId,
+                ElementId = item.ElementId,
+                EventName = item.EventName,
+                TargetAction = item.TargetAction
+            }).ToList(),
+            LocalStateDefaults = (document.LocalState ?? new Dictionary<string, string>()).ToDictionary(pair => pair.Key, pair => (object?)pair.Value)
         };
         _uiDocuments[id] = built;
         return new UiSaveResponseMsg { Status = AuthoringStatusCode.Success, Document = ToUiDto(built) };
+    }
+
+    public UiCompileResponseMsg CompileUi(string sessionId, UiDocumentDto? document)
+    {
+        if (!_sessions.ContainsKey(sessionId))
+        {
+            return new UiCompileResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Invalid session." };
+        }
+
+        if (document?.Root == null || string.IsNullOrWhiteSpace(document.Name))
+        {
+            return new UiCompileResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = "UI document needs a name and a root control." };
+        }
+
+        try
+        {
+            var saved = SaveUi(sessionId, document);
+            if (saved.Status != AuthoringStatusCode.Success || saved.Document == null)
+            {
+                return new UiCompileResponseMsg { Status = saved.Status, ErrorMessage = saved.ErrorMessage };
+            }
+
+            var stored = _uiDocuments[GraphId.FromString(saved.Document.Id)];
+            var compiled = UiCompiler.Compile(stored);
+            return new UiCompileResponseMsg
+            {
+                Status = compiled.Diagnostics.Any(item => item.Severity == DiagnosticSeverity.Error) ? AuthoringStatusCode.ValidationError : AuthoringStatusCode.Success,
+                Diagnostics = compiled.Diagnostics
+            };
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or FormatException)
+        {
+            return new UiCompileResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = ex.Message };
+        }
     }
 
     public IReadOnlyList<UiDocumentDto> ListUi() => _uiDocuments.Values.Select(ToUiDto).OrderBy(document => document.Name).ToArray();
@@ -1385,12 +1702,23 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             throw new InvalidOperationException($"Unknown UI control '{dto.ElementType}'.");
         }
 
+        if (!Enum.TryParse<UiOrientation>(dto.Orientation, ignoreCase: true, out var orientation))
+        {
+            orientation = UiOrientation.Vertical;
+        }
+
         return new UiElementNode
         {
             Id = string.IsNullOrWhiteSpace(dto.Id) ? Guid.NewGuid().ToString("D") : dto.Id,
             ElementType = elementType,
             Name = dto.Name,
             Text = dto.Text,
+            Visible = dto.Visible,
+            Enabled = dto.Enabled,
+            Orientation = orientation,
+            MinWidth = dto.MinWidth,
+            MinHeight = dto.MinHeight,
+            StyleClasses = (dto.StyleClasses ?? []).Where(item => !string.IsNullOrWhiteSpace(item)).ToList(),
             Children = (dto.Children ?? []).Select(child => BuildUiNode(child, depth + 1)).ToList()
         };
     }
@@ -1400,14 +1728,23 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         document.Name,
         document.DefaultWidth,
         document.DefaultHeight,
-        ToUiNode(document.Root));
+        ToUiNode(document.Root),
+        document.Bindings.Select(binding => new UiBindingDto(binding.BindingId, binding.ElementId, binding.TargetProperty, binding.StateVariable, binding.Direction.ToString())).ToArray(),
+        document.Events.Select(item => new UiEventDto(item.SubscriptionId, item.ElementId, item.EventName, item.TargetAction)).ToArray(),
+        document.LocalStateDefaults.ToDictionary(pair => pair.Key, pair => pair.Value?.ToString() ?? ""));
 
     private static UiNodeDto ToUiNode(UiElementNode node) => new(
         node.Id,
         node.ElementType.ToString(),
         node.Name,
         node.Text,
-        node.Children.Select(ToUiNode).ToArray());
+        node.Children.Select(ToUiNode).ToArray(),
+        node.Visible,
+        node.Enabled,
+        node.Orientation.ToString(),
+        node.MinWidth,
+        node.MinHeight,
+        node.StyleClasses);
 
     private UiSaveResponseMsg HandleUiSaveMsg(UiSaveRequestMsg req)
     {
@@ -1429,5 +1766,34 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         }
 
         return new UiListResponseMsg { Status = AuthoringStatusCode.Success, Documents = ListUi() };
+    }
+
+    private SandboxRunResponseMsg HandleSandboxRunMsg(SandboxRunRequestMsg req)
+    {
+        if (!_sessions.ContainsKey(req.SessionId))
+        {
+            return new SandboxRunResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Invalid session." };
+        }
+
+        var run = RunSandbox(req.SessionId, req.DraftJson);
+        return new SandboxRunResponseMsg
+        {
+            Status = run.HasErrors ? AuthoringStatusCode.ValidationError : AuthoringStatusCode.Success,
+            Stage = run.Stage,
+            SemanticHash = run.SemanticHash,
+            Result = run.Result,
+            HasErrors = run.HasErrors,
+            ErrorMessage = run.HasErrors ? run.Result : null
+        };
+    }
+
+    private RuntimeStatusResponseMsg HandleRuntimeStatusMsg(RuntimeStatusRequestMsg req)
+    {
+        if (!_sessions.ContainsKey(req.SessionId))
+        {
+            return new RuntimeStatusResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Invalid session." };
+        }
+
+        return new RuntimeStatusResponseMsg { Status = AuthoringStatusCode.Success, Graphs = RuntimeGraphs(), Entities = RuntimeEntities() };
     }
 }

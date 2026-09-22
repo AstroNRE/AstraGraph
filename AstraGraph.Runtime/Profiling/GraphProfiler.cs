@@ -13,7 +13,10 @@ public sealed record GraphPerformanceMetric(
     double AverageMicroseconds,
     long InstructionsExecuted,
     long NativeCallsExecuted,
-    long Yields);
+    long Yields,
+    double P95Microseconds = 0,
+    long BudgetViolations = 0,
+    long AllocatedBytes = 0);
 
 /// <summary>
 /// High-resolution profiler measuring execution timing, instruction throughput,
@@ -49,10 +52,13 @@ public sealed class GraphProfiler
         public long InstructionsExecuted;
         public long NativeCallsExecuted;
         public long Yields;
+        public long BudgetViolations;
+        public long AllocatedBytes;
     }
 
     private readonly ConcurrentDictionary<GraphId, MetricsAccumulator> _metrics = new();
     private readonly ConcurrentDictionary<NodeId, long> _nodeHits = new();
+    private readonly ConcurrentDictionary<GraphId, List<double>> _samples = new();
 
     public ProfileScope BeginScope(GraphId graphId) => new(this, graphId);
 
@@ -63,6 +69,13 @@ public sealed class GraphProfiler
         {
             acc.Invocations++;
             acc.TotalMicroseconds += microseconds;
+        }
+
+        var samples = _samples.GetOrAdd(graphId, _ => []);
+        lock (samples)
+        {
+            samples.Add(microseconds);
+            if (samples.Count > 256) samples.RemoveAt(0);
         }
     }
 
@@ -89,6 +102,19 @@ public sealed class GraphProfiler
         System.Threading.Interlocked.Increment(ref acc.Yields);
     }
 
+    public void RecordBudgetViolation(GraphId graphId)
+    {
+        var acc = _metrics.GetOrAdd(graphId, _ => new MetricsAccumulator());
+        System.Threading.Interlocked.Increment(ref acc.BudgetViolations);
+    }
+
+    public void RecordAllocation(GraphId graphId, long bytes)
+    {
+        if (bytes <= 0) return;
+        var acc = _metrics.GetOrAdd(graphId, _ => new MetricsAccumulator());
+        System.Threading.Interlocked.Add(ref acc.AllocatedBytes, bytes);
+    }
+
     public GraphPerformanceMetric GetMetrics(GraphId graphId)
     {
         if (_metrics.TryGetValue(graphId, out var acc))
@@ -102,7 +128,10 @@ public sealed class GraphProfiler
                     avg,
                     acc.InstructionsExecuted,
                     acc.NativeCallsExecuted,
-                    acc.Yields);
+                    acc.Yields,
+                    Percentile(graphId),
+                    acc.BudgetViolations,
+                    acc.AllocatedBytes);
             }
         }
 
@@ -121,5 +150,18 @@ public sealed class GraphProfiler
     {
         _metrics.Clear();
         _nodeHits.Clear();
+        _samples.Clear();
+    }
+
+    private double Percentile(GraphId graphId)
+    {
+        if (!_samples.TryGetValue(graphId, out var samples)) return 0;
+        lock (samples)
+        {
+            if (samples.Count == 0) return 0;
+            var ordered = samples.OrderBy(value => value).ToArray();
+            var index = Math.Clamp((int)Math.Ceiling(0.95 * ordered.Length) - 1, 0, ordered.Length - 1);
+            return ordered[index];
+        }
     }
 }

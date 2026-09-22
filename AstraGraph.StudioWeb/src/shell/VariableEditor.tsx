@@ -21,6 +21,7 @@ export function VariableEditor(props: { variables: Variable[]; onChange: (variab
           <input aria-label="Default" value={variable.defaultValue ?? ""} placeholder="Default" onChange={(event) => update(variable.id, { defaultValue: event.target.value })} />
           <label><input type="checkbox" checked={variable.persistent === true} onChange={(event) => update(variable.id, { persistent: event.target.checked })} /> Persistent</label>
           <label><input type="checkbox" checked={variable.replicated === true} onChange={(event) => update(variable.id, { replicated: event.target.checked })} /> Replicated</label>
+          <label><input type="checkbox" checked={variable.parameter === true} onChange={(event) => update(variable.id, { parameter: event.target.checked })} /> Parameter</label>
           <button type="button" onClick={() => props.onFind?.(variable)}>Uses</button>
           <button type="button" onClick={() => props.onChange(props.variables.filter((item) => item.id !== variable.id))}>Remove</button>
         </div>

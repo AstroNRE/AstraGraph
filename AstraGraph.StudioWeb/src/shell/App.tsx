@@ -26,6 +26,7 @@ import { readCatalog, type CatalogEntry } from "../bindings/catalog";
 import { BindingBrowser } from "./BindingBrowser";
 import { VariableEditor } from "./VariableEditor";
 import { SchemaEditor, type SchemaDocument } from "./SchemaEditor";
+import { problemGroup, suggestedFixFor } from "./problems";
 import { UiDesigner, type UiDocumentModel } from "./UiDesigner";
 import { chooseRecovery, recallDraft, rememberDraft } from "../documents/recovery";
 
@@ -36,13 +37,13 @@ const palette = [
   ["Core.VariableAssign", "Assign"]
 ] as const;
 
-interface GraphSummary { id: string; name: string; activeRevision?: string; kind?: string; side?: string }
-type Activity = "explorer" | "bindings" | "types" | "design" | "audit" | "access";
+interface GraphSummary { id: string; name: string; activeRevision?: string; kind?: string; side?: string; status?: string; hasDraft?: boolean }
+type Activity = "explorer" | "bindings" | "types" | "design" | "runtime" | "audit" | "access";
 type DockTab = "problems" | "watch" | "debug" | "profiler" | "history" | "output";
-const activities: Activity[] = ["explorer", "bindings", "types", "design", "audit", "access"];
+const activities: Activity[] = ["explorer", "bindings", "types", "design", "runtime", "audit", "access"];
 const dockTabs: DockTab[] = ["problems", "watch", "debug", "profiler", "history", "output"];
-interface Problem { severity: string; code: string; message: string; nodeId?: string; pinId?: string }
-interface RevisionRecord { revisionId: string; author: string; timestamp: string; message: string; semanticHash: string }
+interface Problem { severity: string; code: string; message: string; nodeId?: string; pinId?: string; suggestedFix?: string }
+interface RevisionRecord { revisionId: string; author: string; timestamp: string; message: string; semanticHash: string; parentRevisionId?: string; activationTick?: number }
 interface Suggestion { bindingId: string; nodeType: string; displayName: string; pinName: string }
 const graphKinds = ["System", "Behavior", "Function", "Library", "Schema", "UI"] as const;
 const graphSides = ["Server", "Client", "Shared", "SharedPredicted"] as const;
@@ -64,6 +65,20 @@ export function App() {
   const [headRevision, setHeadRevision] = useState(emptyRevision);
   const [recoveryJson, setRecoveryJson] = useState("");
   const [uiDocuments, setUiDocuments] = useState<UiDocumentModel[]>([]);
+  const [graphQuery, setGraphQuery] = useState("");
+  const [sideFilter, setSideFilter] = useState("All");
+  const [compileMs, setCompileMs] = useState(0);
+  const [historyLimit, setHistoryLimit] = useState(40);
+  const [publishConfirm, setPublishConfirm] = useState(false);
+  const [activationTick, setActivationTick] = useState(0);
+  const [openTabs, setOpenTabs] = useState<GraphSummary[]>([]);
+  const [bindingQuery, setBindingQuery] = useState("");
+  const [reconnectToken, setReconnectToken] = useState(0);
+  const [compileStage, setCompileStage] = useState("Parse → Type Check → Binding → Side → Verify");
+  const [runtimeGraphs, setRuntimeGraphs] = useState<{ id: string; name: string; activeRevision: string }[]>([]);
+  const [runtimeEntities, setRuntimeEntities] = useState<{ entityId: number; schema: string; fields: { name: string; value: string }[] }[]>([]);
+  const [selectedEntity, setSelectedEntity] = useState<number | null>(null);
+  const [sandboxResult, setSandboxResult] = useState("");
   const [stack, setStack] = useState<UndoStack<GraphDocument>>({ past: [], present: createGraph("Untitled"), future: [] });
   const [selected, setSelected] = useState("");
   const [focusToken, setFocusToken] = useState(0);
@@ -90,7 +105,8 @@ export function App() {
   const [trace, setTrace] = useState<{ nodeId: string; instructionPointer: number }[]>([]);
   const [watchName, setWatchName] = useState("Value");
   const [watchExpr, setWatchExpr] = useState("r0");
-  const [profile, setProfile] = useState<{ invocations?: number; averageMicroseconds?: number; instructions?: number; nativeCalls?: number; yields?: number; hottest?: { nodeId: string; hits: number }[] } | null>(null);
+  const [breakpointCondition, setBreakpointCondition] = useState("");
+  const [profile, setProfile] = useState<{ invocations?: number; averageMicroseconds?: number; p95Microseconds?: number; budgetViolations?: number; allocatedBytes?: number; networkBytes?: number; instructions?: number; nativeCalls?: number; yields?: number; hottest?: { nodeId: string; hits: number }[] } | null>(null);
   const [compileHash, setCompileHash] = useState("");
   const [commandsOpen, setCommandsOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
@@ -101,10 +117,12 @@ export function App() {
   const graph = stack.present;
   const preview = mode === "preview";
   const graphRef = useRef(graph);
+  const problemsRef = useRef(problems);
   const selectedRef = useRef(selected);
   const clipboardRef = useRef<string[]>([]);
   graphRef.current = graph;
   selectedRef.current = selected;
+  problemsRef.current = problems;
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -124,11 +142,22 @@ export function App() {
         event.preventDefault();
         setPaletteOpen(true);
       }
+      if ((event.ctrlKey || event.metaKey) && event.key === " ") {
+        event.preventDefault();
+        setPaletteOpen(true);
+      }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z" && !typing) {
         event.preventDefault();
         setStack((current) => event.shiftKey ? redo(current) : undo(current));
       }
       if (typing) return;
+      if (event.altKey && event.key === "Enter") {
+        const problem = problemsRef.current.find((item) => item.nodeId && item.suggestedFix === "remove-node");
+        if (problem?.nodeId) {
+          event.preventDefault();
+          setStack((current) => edit(current, removeNodes(current.present, [problem.nodeId!])));
+        }
+      }
       const id = selectedRef.current;
       if (!id) return;
       if (event.key === "Delete" || event.key === "Backspace") {
@@ -146,6 +175,27 @@ export function App() {
         setStack((current) => edit(current, duplicateNodes(current.present, clipboardRef.current)));
       }
       const step = event.shiftKey ? 16 : 1;
+      if (event.key === "F12" && event.shiftKey) {
+        event.preventDefault();
+        const node = graphRef.current.nodes.find((item) => item.id === id);
+        const bindingId = node?.properties.bindingId;
+        const uses = graphRef.current.nodes.filter((item) => item.id !== id && (bindingId ? item.properties.bindingId === bindingId : item.nodeType === node?.nodeType));
+        setProblems(uses.length > 0
+          ? uses.map((item) => ({ severity: "info", code: "REF", message: `${item.name} uses ${bindingId || node?.nodeType}`, nodeId: item.id }))
+          : [{ severity: "info", code: "REF", message: "No other usages" }]);
+        setDockTab("problems");
+        setDockOpen(true);
+        return;
+      }
+      if (event.key === "F12") {
+        const node = graphRef.current.nodes.find((item) => item.id === id);
+        const bindingId = node?.properties.bindingId;
+        if (bindingId) {
+          event.preventDefault();
+          setActivity("bindings");
+          setBindingQuery(bindingId);
+        }
+      }
       if (event.key.startsWith("Arrow")) event.preventDefault();
       if (event.key === "ArrowLeft") setStack((current) => edit(current, nudgeNodes(current.present, [id], -step, 0)));
       if (event.key === "ArrowRight") setStack((current) => edit(current, nudgeNodes(current.present, [id], step, 0)));
@@ -158,8 +208,12 @@ export function App() {
 
   useEffect(() => {
     let disposed = false;
+    let socket: WebSocket | null = null;
     void connect();
-    return () => { disposed = true; };
+    return () => {
+      disposed = true;
+      socket?.close();
+    };
 
     async function connect() {
       const params = new URLSearchParams(window.location.search);
@@ -190,8 +244,14 @@ export function App() {
       }
 
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const socket = new WebSocket(`${protocol}//${window.location.host}/ws?nonce=${encodeURIComponent(nonce)}`);
+      socket = new WebSocket(`${protocol}//${window.location.host}/ws?nonce=${encodeURIComponent(nonce)}`);
       socket.binaryType = "arraybuffer";
+      socket.addEventListener("close", () => {
+        if (disposed) return;
+        setStatus("offline");
+        setClient(null);
+        setProblems([{ severity: "warning", code: "OFFLINE", message: "Authoring backend unavailable" }]);
+      });
       const authoring = new AuthoringClient(socket);
       authoring.onUnsolicited = (message) => {
         if (message.kind === "session.updated") {
@@ -238,7 +298,25 @@ export function App() {
             setCatalogStatus("error");
             setCatalogError(error instanceof Error ? error.message : "Catalog request failed.");
           }
-          if (items[0]) await openGraph(authoring, items[0]);
+          const requested = params.get("graph");
+          const chosen = items.find((item) => item.id === requested) ?? items[0];
+          if (chosen) {
+            await openGraph(authoring, chosen);
+            setOpenTabs((tabs) => tabs.some((tab) => tab.id === chosen.id) ? tabs : [...tabs, chosen]);
+            const node = params.get("node");
+            if (node) {
+              setSelected(node);
+              setFocusToken((token) => token + 1);
+            }
+            const entity = params.get("entity");
+            if (entity) {
+              setActivity("runtime");
+              setSelectedEntity(Number(entity));
+              const runtime = await authoring.runtime.status();
+              setRuntimeGraphs(Array.isArray(runtime.body.graphs) ? runtime.body.graphs as { id: string; name: string; activeRevision: string }[] : []);
+              setRuntimeEntities(Array.isArray(runtime.body.entities) ? runtime.body.entities as { entityId: number; schema: string; fields: { name: string; value: string }[] }[] : []);
+            }
+          }
         });
       });
     }
@@ -264,7 +342,7 @@ export function App() {
       const history = await authoring.history.list(summary.id);
       setRevisions(readRevisions(history.body));
     }
-  }, []);
+  }, [reconnectToken]);
 
   useEffect(() => {
     if (problems.length > 0 || revisions.length > 0) setDockOpen(true);
@@ -340,9 +418,32 @@ export function App() {
 
   async function compile() {
     if (!client) return;
+    const started = performance.now();
     const response = await client.drafts.compile(graph.id, json);
+    setCompileMs(Math.round(performance.now() - started));
     setProblems(readProblems(response.body.diagnostics, response.body.errorMessage));
     setCompileHash(String(response.body.bytecodeHash ?? ""));
+    setCompileStage(String(response.body.stage ?? pipelineStage(readProblems(response.body.diagnostics, response.body.errorMessage))));
+    const listed = await client.graphs.list();
+    setGraphs((listed.body.graphs as GraphSummary[] | undefined) ?? []);
+    setDockTab("output");
+    setDockOpen(true);
+  }
+
+  async function runSandbox() {
+    if (!client) return;
+    const response = await client.sandbox.run(json);
+    setCompileStage(String(response.body.stage ?? ""));
+    setSandboxResult(String(response.body.result ?? response.body.errorMessage ?? ""));
+    setDockTab("output");
+    setDockOpen(true);
+  }
+
+  async function loadRuntime() {
+    if (!client) return;
+    const response = await client.runtime.status();
+    setRuntimeGraphs(Array.isArray(response.body.graphs) ? response.body.graphs as { id: string; name: string; activeRevision: string }[] : []);
+    setRuntimeEntities(Array.isArray(response.body.entities) ? response.body.entities as { entityId: number; schema: string; fields: { name: string; value: string }[] }[] : []);
   }
 
   async function publish() {
@@ -350,6 +451,7 @@ export function App() {
     setPublishOpen(false);
     const response = await client.publish(graph.id, baseRevision, json, publishMessage);
     if (response.body.publishedRevision) setBaseRevision(String(response.body.publishedRevision));
+    setActivationTick(Number(response.body.activationTick ?? 0));
     setProblems(readProblems(response.body.diagnostics, response.body.errorMessage));
     const listed = await client.graphs.list();
     setGraphs((listed.body.graphs as GraphSummary[] | undefined) ?? []);
@@ -398,6 +500,17 @@ export function App() {
     setSelected("");
   }
 
+  async function disableGraph(id: string, disabled: boolean) {
+    if (!client) return;
+    const response = await client.graphs.disable(id, disabled);
+    if (Number(response.body.status) !== 0) {
+      setProblems([{ severity: "error", code: "GRAPH", message: String(response.body.errorMessage ?? "Disable failed") }]);
+      return;
+    }
+    const listed = await client.graphs.list();
+    setGraphs((listed.body.graphs as GraphSummary[] | undefined) ?? []);
+  }
+
   async function deleteGraph(id: string) {
     if (!client || !window.confirm("Delete this graph?")) return;
     const response = await client.graphs.delete(id);
@@ -418,8 +531,32 @@ export function App() {
     }
   }
 
+  async function restoreLkg() {
+    if (!client) return;
+    const response = await client.history.lkg(graph.id);
+    if (Number(response.body.status) !== 0) {
+      setProblems([{ severity: "error", code: "LKG", message: String(response.body.errorMessage ?? "No last known good revision.") }]);
+      return;
+    }
+    if (response.body.activeRevision) setBaseRevision(String(response.body.activeRevision));
+    const fetched = await client.graphs.fetch(graph.id);
+    const source = String(fetched.body.draftJson ?? "");
+    if (source) setStack({ past: [], present: parseGraph(source), future: [] });
+    const history = await client.history.list(graph.id);
+    setRevisions(readRevisions(history.body));
+  }
+
+  async function diagnoseUi(document: UiDocumentModel) {
+    if (!client) return;
+    const response = await client.ui.compile(document);
+    setProblems(readProblems(response.body.diagnostics, response.body.errorMessage));
+    setDockTab("problems");
+    setDockOpen(true);
+  }
+
   async function openListed(item: GraphSummary) {
     if (!client) return;
+    setOpenTabs((tabs) => tabs.some((tab) => tab.id === item.id) ? tabs : [...tabs, item]);
     const fetched = await client.graphs.fetch(item.id);
     const revision = String(fetched.body.baseRevisionId || item.activeRevision || emptyRevision);
     setBaseRevision(revision);
@@ -530,7 +667,7 @@ export function App() {
     const enabled = selectedNode.properties.breakpoint === "true";
     setStack((current) => edit(current, setNodeProperty(current.present, selectedNode.id, "breakpoint", enabled ? "false" : "true")));
     if (enabled) await client.debug.removeBreakpoint(graph.id, selectedNode.id);
-    else await client.debug.setBreakpoint(graph.id, selectedNode.id);
+    else await client.debug.setBreakpoint(graph.id, selectedNode.id, breakpointCondition);
   }
 
   async function inspectDebug() {
@@ -582,6 +719,8 @@ export function App() {
   async function saveSchema(schema: SchemaDocument) {
     if (!client) return;
     const response = await client.schemas.save(schema);
+    const changes = Array.isArray(response.body.changes) ? response.body.changes as { kind: string; detail: string }[] : [];
+    setDiffLines(changes);
     if (Number(response.body.status) !== 0) {
       setProblems([{ severity: "error", code: "SCHEMA", message: String(response.body.errorMessage ?? "Schema was not saved") }]);
       return;
@@ -615,6 +754,7 @@ export function App() {
         <button onClick={() => setPaletteOpen(true)}>Add node</button>
         <button disabled={!client} onClick={() => void save()}>Save</button>
         <button disabled={!compileAllowed} onClick={() => void compile()}>Compile</button>
+        <button disabled={!compileAllowed} onClick={() => void runSandbox()}>Sandbox</button>
         <button className="primary" disabled={!publishAllowed} onClick={() => setPublishOpen(true)}>Publish</button>
         <button disabled={!debugAllowed} onClick={() => void client?.debug.pause(graph.id)}>Pause</button>
         <button disabled={!debugAllowed} onClick={() => void client?.debug.resume(graph.id)}>Continue</button>
@@ -645,21 +785,31 @@ export function App() {
         <aside className="panel">
           {activity === "explorer" ? (
             <>
-              <div className="section-label">Live</div>
-              {graphKinds.map((kind) => {
-                const items = graphs.filter((item) => (item.kind ?? "System") === kind);
+              <input value={graphQuery} placeholder="Filter graphs" onChange={(event) => setGraphQuery(event.target.value)} />
+              <label className="field">Side
+                <select value={sideFilter} onChange={(event) => setSideFilter(event.target.value)}>
+                  <option>All</option>
+                  {graphSides.map((side) => <option key={side}>{side}</option>)}
+                </select>
+              </label>
+              {(["Live", "Drafts", "Disabled", "Failed"] as const).map((bucket) => {
+                const items = graphs.filter((item) => graphBucket(item) === bucket && matchesGraph(item, graphQuery, sideFilter));
                 if (items.length === 0) return null;
                 return (
-                  <div key={kind}>
-                    <div className="section-label">{kind}</div>
-                    <ul className="list">
-                      {items.map((item) => (
-                        <li key={item.id} className="graph-row">
-                          <button className={item.id === graph.id ? "active" : ""} onClick={() => void openListed(item)}>{item.name}</button>
-                          <button onClick={() => void deleteGraph(item.id)}>Delete</button>
-                        </li>
-                      ))}
-                    </ul>
+                  <div key={bucket}>
+                    <div className="section-label">{bucket}</div>
+                    {bucket === "Live" ? graphKinds.map((kind) => {
+                      const grouped = items.filter((item) => (item.kind ?? "System") === kind);
+                      if (grouped.length === 0) return null;
+                      return (
+                        <div key={kind}>
+                          <div className="muted">{kind}</div>
+                          <ul className="list">{grouped.map((item) => <GraphRow key={item.id} item={item} currentId={graph.id} onOpen={() => void openListed(item)} onDisable={() => void disableGraph(item.id, true)} onDelete={() => void deleteGraph(item.id)} />)}</ul>
+                        </div>
+                      );
+                    }) : (
+                      <ul className="list">{items.map((item) => <GraphRow key={item.id} item={item} currentId={graph.id} onOpen={() => void openListed(item)} onDisable={() => void disableGraph(item.id, item.status !== "Disabled")} onDelete={() => void deleteGraph(item.id)} />)}</ul>
+                    )}
                   </div>
                 );
               })}
@@ -673,11 +823,35 @@ export function App() {
               entries={catalog}
               status={catalogStatus}
               error={catalogError}
+              query={bindingQuery}
+              onQuery={setBindingQuery}
               onInsert={(entry) => void insertBinding(entry)}
             />
           ) : null}
           {activity === "types" ? <SchemaEditor schemas={schemas} onSave={(schema) => void saveSchema(schema)} /> : null}
-          {activity === "design" ? <UiDesigner documents={uiDocuments} onSave={(document) => void saveUi(document)} /> : null}
+          {activity === "design" ? <UiDesigner documents={uiDocuments} onSave={(document) => void saveUi(document)} onDiagnose={(document) => void diagnoseUi(document)} /> : null}
+          {activity === "runtime" ? (
+            <div>
+              <button type="button" onClick={() => void loadRuntime()}>Refresh runtime</button>
+              <div className="section-label">Graphs</div>
+              <ul className="list">
+                {runtimeGraphs.map((item) => <li key={item.id}>{item.name} <span className="muted">{item.activeRevision.slice(0, 8)}</span></li>)}
+                {runtimeGraphs.length === 0 ? <li className="muted">No active graphs</li> : null}
+              </ul>
+              <div className="section-label">Entities</div>
+              <ul className="list">
+                {runtimeEntities.map((item) => (
+                  <li key={`${item.entityId}-${item.schema}`}>
+                    <button type="button" className={selectedEntity === item.entityId ? "active" : ""} onClick={() => setSelectedEntity(item.entityId)}>
+                      {item.entityId} · {item.schema}
+                    </button>
+                    {selectedEntity === item.entityId ? item.fields.map((field) => <div key={field.name} className="muted">{field.name}: {field.value}</div>) : null}
+                  </li>
+                ))}
+                {runtimeEntities.length === 0 ? <li className="muted">No entity components</li> : null}
+              </ul>
+            </div>
+          ) : null}
           {activity === "access" ? (
             <ul className="list">
               {(["ViewGraphs", "EditDrafts", "Compile", "PublishServer", "PublishShared", "Rollback", "Debug"] as const).map((name, index) => (
@@ -693,6 +867,13 @@ export function App() {
           ) : null}
         </aside>
         <main className="canvas">
+          {openTabs.length > 0 ? (
+            <div className="dock-bar" role="tablist" aria-label="Open graphs">
+              {openTabs.map((tab) => (
+                <button key={tab.id} type="button" role="tab" aria-selected={tab.id === graph.id} className={tab.id === graph.id ? "active" : ""} onClick={() => void openListed(tab)}>{tab.name}</button>
+              ))}
+            </div>
+          ) : null}
           {preview ? <div className="banner"><strong>Preview Mode</strong><span>No authoring backend connected</span></div> : null}
           {headRevision !== baseRevision && headRevision !== emptyRevision && baseRevision !== emptyRevision ? (
             <div className="banner">
@@ -752,10 +933,20 @@ export function App() {
                     : <input value={value} onChange={(event) => setStack((current) => edit(current, setNodeProperty(current.present, selectedNode.id, key, event.target.value)))} />}
                 </label>
               ))}
+              <label className="field">Condition<input value={breakpointCondition} placeholder="r0==7" onChange={(event) => setBreakpointCondition(event.target.value)} /></label>
               <button disabled={!debugAllowed} onClick={() => void toggleBreakpoint()}>{selectedNode.properties.breakpoint === "true" ? "Clear breakpoint" : "Breakpoint"}</button>
             </div>
           ) : (
             <>
+              <label className="field">Description
+                <input value={graph.description ?? ""} onChange={(event) => setStack((current) => edit(current, { ...current.present, description: event.target.value }))} />
+              </label>
+              <label className="field">Tags
+                <input value={graph.tags ?? ""} onChange={(event) => setStack((current) => edit(current, { ...current.present, tags: event.target.value }))} />
+              </label>
+              <label className="field">Version
+                <input value={graph.version ?? "1.0.0"} onChange={(event) => setStack((current) => edit(current, { ...current.present, version: event.target.value }))} />
+              </label>
               <label className="field">Kind
                 <select value={graph.kind} onChange={(event) => setStack((current) => edit(current, { ...current.present, kind: event.target.value }))}>
                   {graphKinds.map((kind) => <option key={kind}>{kind}</option>)}
@@ -768,7 +959,7 @@ export function App() {
               </label>
             </>
           )}
-          <div className="section-label">Variables</div>
+          <div className="section-label">{graph.kind === "Function" ? "Parameters" : "Variables"}</div>
           <VariableEditor
             variables={graph.variables}
             onChange={(variables) => setStack((current) => edit(current, { ...current.present, variables }))}
@@ -792,31 +983,44 @@ export function App() {
         {dockOpen ? (
           <div className="dock-body">
             {dockTab === "problems" ? <section>
-              <ul className="list">
-                {problems.map((problem, index) => (
-                  <li key={`${problem.code}-${index}`}>
-                    <button className={`problem ${problem.severity}`} onClick={() => {
-                      if (!problem.nodeId) return;
-                      setSelected(problem.nodeId);
-                      setAlertPin(problem.pinId ?? "");
-                      setFocusToken((token) => token + 1);
-                    }}>{problem.code}: {problem.message}</button>
-                  </li>
-                ))}
-                {problems.length === 0 ? <li className="muted">No problems</li> : null}
-              </ul>
+              {(["Errors", "Warnings", "Security", "Prediction", "Performance", "Migration"] as const).map((group) => {
+                const items = problems.filter((problem) => problemGroup(problem.code, problem.severity) === group);
+                if (items.length === 0) return null;
+                return (
+                  <div key={group}>
+                    <div className="section-label">{group}</div>
+                    <ul className="list">
+                      {items.map((problem, index) => (
+                        <li key={`${problem.code}-${index}`}>
+                          <button className={`problem ${problem.severity}`} onClick={() => {
+                            if (!problem.nodeId) return;
+                            setSelected(problem.nodeId);
+                            setAlertPin(problem.pinId ?? "");
+                            setFocusToken((token) => token + 1);
+                          }}>{problem.code}: {problem.message}</button>
+                          {problem.suggestedFix === "remove-node" && problem.nodeId ? <button type="button" onClick={() => setStack((current) => edit(current, removeNodes(current.present, [problem.nodeId!])))}>Remove node</button> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+              {problems.length === 0 ? <p className="muted">No problems</p> : null}
             </section> : null}
             {dockTab === "history" ? <section>
               <ul className="list">
-                {revisions.map((revision) => (
+                {revisions.slice(0, historyLimit).map((revision) => (
                   <li key={revision.revisionId}>
                     <span className="mono">{revision.message || revision.revisionId}</span>
+                    {revision.activationTick ? <span className="muted">tick {revision.activationTick}</span> : null}
                     <span className="muted">{revision.author}</span>
                     <button onClick={() => void compareRevision(revision.revisionId)}>Diff</button>
                     <button disabled={!rollbackAllowed} onClick={() => void rollback(revision.revisionId)}>Rollback</button>
+                    <button disabled={!rollbackAllowed} onClick={() => void restoreLkg()}>Last known good</button>
                   </li>
                 ))}
                 {revisions.length === 0 ? <li className="muted">No revisions</li> : null}
+                {revisions.length > historyLimit ? <li><button type="button" onClick={() => setHistoryLimit((value) => value + 40)}>Show more</button></li> : null}
                 {diffLines.map((line, index) => <li key={`${line.kind}-${index}`} className="muted">{line.kind}: {line.detail}</li>)}
               </ul>
             </section> : null}
@@ -835,17 +1039,17 @@ export function App() {
             ) : null}
             {dockTab === "profiler" ? (
               <section>
-                <p className="muted">invocations {profile?.invocations ?? 0} · avg {Math.round(profile?.averageMicroseconds ?? 0)} µs · instructions {profile?.instructions ?? 0} · native {profile?.nativeCalls ?? 0} · yields {profile?.yields ?? 0}</p>
+                <p className="muted">invocations {profile?.invocations ?? 0} · avg {Math.round(profile?.averageMicroseconds ?? 0)} µs · p95 {Math.round(profile?.p95Microseconds ?? 0)} µs · budget {profile?.budgetViolations ?? 0} · alloc {profile?.allocatedBytes ?? 0} B · net {profile?.networkBytes ?? 0} B · instructions {profile?.instructions ?? 0} · native {profile?.nativeCalls ?? 0} · yields {profile?.yields ?? 0}</p>
                 <ul className="list">
                   {(profile?.hottest ?? []).map((item) => <li key={item.nodeId}>{item.hits} · {item.nodeId}</li>)}
                 </ul>
               </section>
             ) : null}
-            {dockTab === "output" ? <section><p className="muted">{compileHash ? `SemanticHash ${compileHash}` : "Compile to see the semantic hash"} · {pipelineStage(problems)}</p></section> : null}
+            {dockTab === "output" ? <section><p className="muted">{compileHash ? `SemanticHash ${compileHash}` : "Compile to see the semantic hash"} · {compileStage}{compileMs > 0 ? ` · ${compileMs} ms` : ""}</p>{sandboxResult ? <p>{sandboxResult}</p> : null}</section> : null}
           </div>
         ) : null}
       </footer>
-      <footer className="statusline">
+      <footer className="statusline" role="status">
         <span>{statusLabel}</span>
         <span>{graph.side}</span>
         <span>{graph.kind}</span>
@@ -853,6 +1057,7 @@ export function App() {
         <span>{errorCount} errors</span>
         <span>{warningCount} warnings</span>
         <span className="grow" />
+        <button type="button" onClick={() => setReconnectToken((token) => token + 1)}>Reconnect</button>
         <span>{target}</span>
       </footer>
       {createOpen ? (
@@ -881,15 +1086,20 @@ export function App() {
         <div className="dialog-back" onClick={() => setPublishOpen(false)}>
           <form className="dialog" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); void publish(); }}>
             <h2>Publish</h2>
-            <p className="muted">{graph.side} · base {baseRevision.slice(0, 8)} · head {headRevision.slice(0, 8)} · {graph.nodes.length} nodes</p>
+            <p className="muted">{graph.side} · base {baseRevision.slice(0, 8)} · head {headRevision.slice(0, 8)} · {graph.nodes.length} nodes{activationTick > 0 ? ` · activation tick ${activationTick}` : ""}</p>
             <ul className="list">
               {diffLines.map((line, index) => <li key={`${line.kind}-${index}`} className="muted">{line.kind}: {line.detail}</li>)}
               {diffLines.length === 0 ? <li className="muted">No semantic changes</li> : null}
             </ul>
             <label className="field">Message<input value={publishMessage} onChange={(event) => setPublishMessage(event.target.value)} /></label>
+            {graph.side === "Shared" || graph.side === "SharedPredicted" ? (
+              <label className="field">Confirm shared publish
+                <input type="checkbox" checked={publishConfirm} onChange={(event) => setPublishConfirm(event.target.checked)} />
+              </label>
+            ) : null}
             <div className="dialog-actions">
               <button type="button" onClick={() => setPublishOpen(false)}>Cancel</button>
-              <button className="primary" type="submit">Publish</button>
+              <button className="primary" type="submit" disabled={(graph.side === "Shared" || graph.side === "SharedPredicted") && !publishConfirm}>Publish</button>
             </div>
           </form>
         </div>
@@ -970,15 +1180,42 @@ function pipelineStage(problems: Problem[]): string {
   return "Stopped at Verify";
 }
 
+function graphBucket(item: GraphSummary): "Live" | "Drafts" | "Disabled" | "Failed" {
+  if (item.status === "Disabled") return "Disabled";
+  if (item.status === "Failed") return "Failed";
+  if (item.hasDraft) return "Drafts";
+  return "Live";
+}
+
+function matchesGraph(item: GraphSummary, query: string, side: string): boolean {
+  const name = item.name.toLowerCase().includes(query.trim().toLowerCase());
+  const sideMatches = side === "All" || (item.side ?? "Server") === side;
+  return name && sideMatches;
+}
+
+function GraphRow(props: { item: GraphSummary; currentId: string; onOpen: () => void; onDisable: () => void; onDelete: () => void }) {
+  return (
+    <li className="graph-row">
+      <button className={props.item.id === props.currentId ? "active" : ""} onClick={props.onOpen}>{props.item.name}</button>
+      <button type="button" onClick={props.onDisable}>{props.item.status === "Disabled" ? "Enable" : "Disable"}</button>
+      <button type="button" onClick={props.onDelete}>Delete</button>
+    </li>
+  );
+}
+
 function readProblems(value: unknown, error: unknown): Problem[] {
-  const diagnostics = Array.isArray(value) ? value as { severity?: unknown; code?: unknown; message?: unknown; nodeId?: unknown; pinId?: unknown }[] : [];
-  if (diagnostics.length > 0) return diagnostics.map((item) => ({
-    severity: String(item.severity ?? "error"),
-    code: String(item.code ?? "DIAG"),
-    message: String(item.message ?? ""),
-    nodeId: item.nodeId ? String(item.nodeId) : undefined,
-    pinId: item.pinId ? String(item.pinId) : undefined
-  }));
+  const diagnostics = Array.isArray(value) ? value as { severity?: unknown; code?: unknown; message?: unknown; nodeId?: unknown; pinId?: unknown; suggestedFix?: unknown }[] : [];
+  if (diagnostics.length > 0) return diagnostics.map((item) => {
+    const code = String(item.code ?? "DIAG");
+    return {
+      severity: String(item.severity ?? "error"),
+      code,
+      message: String(item.message ?? ""),
+      nodeId: item.nodeId ? String(item.nodeId) : undefined,
+      pinId: item.pinId ? String(item.pinId) : undefined,
+      suggestedFix: suggestedFixFor(code, item.suggestedFix ? String(item.suggestedFix) : undefined)
+    };
+  });
   if (error) return [{ severity: "error", code: "ERROR", message: String(error) }];
   return [{ severity: "info", code: "OK", message: "Completed" }];
 }

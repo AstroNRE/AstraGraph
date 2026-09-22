@@ -59,6 +59,8 @@ jobs:
           npm test
           npm run build
           git -C .. diff --exit-code -- AstraGraph.StudioWeb/dist
+          npx playwright install --with-deps chromium
+          npm run e2e
 
       - name: Upload Test Results
         if: always()
