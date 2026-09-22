@@ -300,10 +300,11 @@ public sealed class GraphDefinedComponentTests
 
         spawned.Clear();
         deleted.Clear();
+        var projectile = new ProjectileProbe { Weapon = new EntityUid(7), Target = new EntityUid(30) };
         host.PushEventContext(new AstraEventInvocationContext(
-            AstraValue.Null,
-            null,
-            new ProjectileProbe { Weapon = new EntityUid(7), Target = new EntityUid(30) }));
+            AstraValue.FromEntityUid(9),
+            projectile,
+            projectile));
         Execute(host, weapon, "Projectile");
         Assert.That(spawned.Count, Is.EqualTo(3));
         Assert.That(deleted, Is.EqualTo(new[] { 30 }));
@@ -318,6 +319,35 @@ public sealed class GraphDefinedComponentTests
         Assert.That(spawned.Count, Is.EqualTo(3));
         Assert.That(spawned.All(item => item.Prototype == "MobMothroach" && item.Target == 40), Is.True);
         Assert.That(deleted, Is.EqualTo(new[] { 40 }));
+    }
+
+    [Test]
+    public void Bootstrap_RegistersReplaceEntityBeforeStartup()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "astra-fn-" + Guid.NewGuid().ToString("N"));
+        var project = Path.Combine(root, "project");
+        Directory.CreateDirectory(project);
+        var deleted = 0;
+        var services = new DefaultVmHostServices();
+        services.RegisterNativeMethod("Entity.GetCoordinates", args => AstraValue.FromInt64(args[0].AsEntityUid()));
+        services.RegisterNativeMethod("Entity.SpawnAt", _ => AstraValue.FromEntityUid(1));
+        services.RegisterNativeMethod("Entity.QueueDelete", _ =>
+        {
+            deleted++;
+            return AstraValue.Null;
+        });
+        var function = new BuiltGraph();
+        AddReplaceEntity(function);
+        File.WriteAllText(Path.Combine(project, "ReplaceEntity.agraph"), GraphSerializer.Serialize(function.Document("ReplaceEntity", GraphKind.Function)));
+        var system = new BuiltGraph();
+        var start = system.Node("Event.Start", "Start", null, system.ExecOut("Out"));
+        var call = system.Node("Graph.Call", "Call", new Dictionary<string, string> { ["Function"] = "ReplaceEntity" },
+            system.ExecIn("In"), system.DataIn("Target", "EntityUid", "4"), system.DataIn("Prototype", "EntProtoId", "Mob"), system.DataIn("Count", "int32", "0"));
+        system.Wire(start, "Out", call, "In");
+        File.WriteAllText(Path.Combine(project, "Caller.agraph"), GraphSerializer.Serialize(system.Document("Caller")));
+        var host = new AstraGraphHost(hostServices: services);
+        new AstraBootstrapService(host, new HotReloadManager(host), new BootstrapLoader(new StorageLayout(project, Path.Combine(root, "data")))).Activate();
+        Assert.That(deleted, Is.EqualTo(1));
     }
 
     private static AstraValue Count(Dictionary<string, int> counts, string name)
@@ -370,6 +400,12 @@ public sealed class GraphDefinedComponentTests
     private static BuiltGraph ReplaceEntityGraph()
     {
         var graph = new BuiltGraph();
+        AddReplaceEntity(graph);
+        return graph;
+    }
+
+    private static void AddReplaceEntity(BuiltGraph graph)
+    {
         graph.Variables.Add(new GraphVariableDocument { Name = "Target", TypeName = "EntityUid", IsParameter = true });
         graph.Variables.Add(new GraphVariableDocument { Name = "Prototype", TypeName = "EntProtoId", IsParameter = true });
         graph.Variables.Add(new GraphVariableDocument { Name = "Count", TypeName = "int32", IsParameter = true });
@@ -394,12 +430,12 @@ public sealed class GraphDefinedComponentTests
         graph.Wire(prototype, "Value", spawn, "Prototype");
         graph.Wire(coordinates, "Value", spawn, "Coordinates");
         graph.Wire(target, "Value", delete, "Entity");
-        return graph;
     }
 
     private static BuiltGraph WeaponGraph(SchemaType schema)
     {
         var graph = new BuiltGraph();
+        AddReplaceEntity(graph);
         graph.Schemas.Add(new ComponentSchemaDocument
         {
             Id = schema.Id,
@@ -413,9 +449,12 @@ public sealed class GraphDefinedComponentTests
                 DefaultValue = field.DefaultValue
             }).ToList()
         });
-        var melee = graph.Node("Event.MeleeHit", "Melee", null, graph.ExecOut("Out"), graph.DataOut("Entity", "EntityUid"), graph.DataOut("Event", "object"));
-        var projectile = graph.Node("Event.ProjectileHit", "Projectile", null, graph.ExecOut("Out"), graph.DataOut("Event", "object"));
-        var hitscan = graph.Node("Event.Hitscan", "Hitscan", null, graph.ExecOut("Out"), graph.DataOut("Event", "object"));
+        var melee = graph.Node("Event.MeleeHit", "Melee", EventProps("MeleeHitEvent", "MeleeWeaponComponent"),
+            graph.ExecOut("Out"), graph.DataOut("Entity", "EntityUid"), graph.DataOut("Component", "object"), graph.DataOut("Event", "object"));
+        var projectile = graph.Node("Event.ProjectileHit", "Projectile", EventProps("ProjectileHitEvent", "ProjectileComponent"),
+            graph.ExecOut("Out"), graph.DataOut("Entity", "EntityUid"), graph.DataOut("Component", "object"), graph.DataOut("Event", "object"));
+        var hitscan = graph.Node("Event.Hitscan", "Hitscan", EventProps("HitscanRaycastFiredEvent", "HitscanBasicRaycastComponent"),
+            graph.ExecOut("Out"), graph.DataOut("Entity", "EntityUid"), graph.DataOut("Component", "object"), graph.DataOut("Event", "object"));
         graph.Wire(melee, "Out", MeleeBody(graph, melee), "In");
         graph.Wire(projectile, "Out", ProjectileBody(graph, projectile), "In");
         graph.Wire(hitscan, "Out", HitscanBody(graph, hitscan), "In");
@@ -472,7 +511,7 @@ public sealed class GraphDefinedComponentTests
         var foundGate = Branch(graph, "ProjectileFound");
         var component = TryGet(graph, "ProjectileComponent");
         var call = CallReplace(graph, "ProjectileReplace", out var prototype, out var count);
-        graph.Wire(entry, "Event", weapon, "Target");
+        graph.Wire(entry, "Component", weapon, "Target");
         graph.Wire(entry, "Event", target, "Target");
         graph.Wire(weapon, "Value", has, "Value");
         graph.Wire(weapon, "Value", unwrap, "Value");
@@ -491,18 +530,31 @@ public sealed class GraphDefinedComponentTests
     {
         var data = Member(graph, "Data", "object");
         var gun = Member(graph, "Gun", "EntityUid");
-        var hit = Member(graph, "HitEntity", "EntityUid");
+        var hit = Member(graph, "HitEntity", "EntityUid?");
+        var has = graph.Node("Nullable.HasValue", "HitscanHas", null, graph.DataIn("Value", "EntityUid?"), graph.DataOut("HasValue", "bool"));
+        var unwrap = graph.Node("Nullable.GetValue", "HitscanUnwrap", null, graph.DataIn("Value", "EntityUid?"), graph.DataOut("ValueOut", "EntityUid"));
+        var hitGate = Branch(graph, "HitscanHit");
+        var foundGate = Branch(graph, "HitscanFound");
         var component = TryGet(graph, "HitscanComponent");
         var call = CallReplace(graph, "HitscanReplace", out var prototype, out var count);
         graph.Wire(entry, "Event", data, "Target");
         graph.Wire(data, "Value", gun, "Target");
         graph.Wire(data, "Value", hit, "Target");
+        graph.Wire(hit, "Value", has, "Value");
+        graph.Wire(hit, "Value", unwrap, "Value");
+        graph.Wire(has, "HasValue", hitGate, "Condition");
+        graph.Wire(hitGate, "True", foundGate, "In");
         graph.Wire(gun, "Value", component, "Entity");
+        graph.Wire(component, "Found", foundGate, "Condition");
+        graph.Wire(foundGate, "True", call, "In");
+        graph.Wire(unwrap, "ValueOut", call, "Target");
         graph.Wire(component, "Component", prototype, "Component");
         graph.Wire(component, "Component", count, "Component");
-        graph.Wire(hit, "Value", call, "Target");
-        return call;
+        return hitGate;
     }
+
+    private static Dictionary<string, string> EventProps(string eventType, string componentType) =>
+        new() { ["eventType"] = eventType, ["componentType"] = componentType };
 
     private static NodeDocument Member(BuiltGraph graph, string member, string type) =>
         graph.Node("Native.GetMember", member, new Dictionary<string, string> { ["Member"] = member },

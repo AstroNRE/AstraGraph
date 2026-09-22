@@ -35,7 +35,7 @@ public sealed class HitscanProbe
 public sealed class HitscanData
 {
     public EntityUid Gun { get; set; }
-    public EntityUid HitEntity { get; set; }
+    public EntityUid? HitEntity { get; set; }
 }
 
 public readonly struct EntityUid

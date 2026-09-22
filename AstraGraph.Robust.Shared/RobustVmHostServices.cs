@@ -24,6 +24,9 @@ public sealed class RobustVmHostServices : IVmHostServices
 
     public void UseCatalog(BindingCatalog catalog) => _catalog = catalog;
 
+    public void RegisterGraphFunction(string name, BytecodeProgram program, BytecodeFunction function) =>
+        _fallback.RegisterGraphFunction(name, program, function);
+
     public void UseSchemaComponents(ISchemaComponentSource source)
     {
         _schemas = source;

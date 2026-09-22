@@ -65,6 +65,19 @@ public sealed class AstraBootstrapService
 
         var discovered = _loader.DiscoverAll();
         var cache = new CompilationCache(_loader.Layout);
+        foreach (var graph in discovered)
+        {
+            if (graph.Document.Kind != GraphKind.Function)
+            {
+                continue;
+            }
+
+            if (ActivateGraph(graph, cache, author))
+            {
+                RegisterFunctions(graph.Document);
+            }
+        }
+
         var activated = 0;
         foreach (var graph in discovered)
         {
@@ -103,11 +116,42 @@ public sealed class AstraBootstrapService
                         _host.Vm.Execute(program, entryPoint, hostServices: _host.HostServices);
                     }
                 }));
+            RegisterFunctions(graph.Document);
             activated++;
             RunTrigger(graph.Document.Id, EntryPointTrigger.Startup);
         }
 
         return activated;
+    }
+
+    private void RegisterFunctions(GraphDocument document)
+    {
+        if (_host.GetProgram(document.Id) is not { } program)
+        {
+            return;
+        }
+
+        foreach (var node in document.Nodes)
+        {
+            if (!node.NodeType.StartsWith("Function.", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var entry = program.FindEntryPoint(node.Name);
+            if (entry == null)
+            {
+                continue;
+            }
+
+            var name = node.NodeType["Function.".Length..];
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                name = document.Name;
+            }
+
+            _host.HostServices.RegisterGraphFunction(name, program, entry);
+        }
     }
 
     private void RunTrigger(GraphId graphId, EntryPointTrigger trigger)

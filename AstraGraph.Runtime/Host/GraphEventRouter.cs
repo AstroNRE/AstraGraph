@@ -7,6 +7,7 @@ namespace AstraGraph.Runtime;
 
 public delegate void RefEventDispatcher<TEvent>(ref TEvent ev);
 public delegate void RefComponentEventDispatcher<TComp, TEvent>(object? uid, TComp? comp, ref TEvent ev);
+public delegate void DirectedEventHandler(object? uid, object? component, object? ev);
 
 /// <summary>
 /// Execution binding representing an active event subscription inside the router.
@@ -15,16 +16,19 @@ public sealed class EventSubscriptionBinding
 {
     public GraphEventSubscription Descriptor { get; }
     public Action<object?, object>? UntypedHandler { get; }
+    public DirectedEventHandler? DirectedHandler { get; }
     public object? RefHandler { get; }
 
     public EventSubscriptionBinding(
         GraphEventSubscription descriptor,
         Action<object?, object>? untypedHandler = null,
-        object? refHandler = null)
+        object? refHandler = null,
+        DirectedEventHandler? directedHandler = null)
     {
         Descriptor = descriptor ?? throw new ArgumentNullException(nameof(descriptor));
         UntypedHandler = untypedHandler;
         RefHandler = refHandler;
+        DirectedHandler = directedHandler;
     }
 }
 
@@ -79,6 +83,24 @@ public sealed class GraphEventRouter
             }
 
             list.Add(new EventSubscriptionBinding(descriptor, untypedHandler: handler));
+        }
+    }
+
+    public void SubscribeDirected(GraphEventSubscription descriptor, DirectedEventHandler handler)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        ArgumentNullException.ThrowIfNull(handler);
+
+        lock (_lock)
+        {
+            var key = (descriptor.ComponentType, descriptor.EventType);
+            if (!_subscriptions.TryGetValue(key, out var list))
+            {
+                list = [];
+                _subscriptions[key] = list;
+            }
+
+            list.Add(new EventSubscriptionBinding(descriptor, directedHandler: handler));
         }
     }
 
@@ -225,7 +247,11 @@ public sealed class GraphEventRouter
 
         foreach (var sub in matched)
         {
-            if (sub.RefHandler is RefComponentEventDispatcher<TComp, TEvent> compHandler)
+            if (sub.DirectedHandler != null)
+            {
+                sub.DirectedHandler(uid, comp, ev);
+            }
+            else if (sub.RefHandler is RefComponentEventDispatcher<TComp, TEvent> compHandler)
             {
                 compHandler(uid, comp, ref ev);
             }

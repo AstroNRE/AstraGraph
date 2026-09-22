@@ -32,6 +32,10 @@ public interface IVmHostServices
     void UseSchemaComponents(ISchemaComponentSource source)
     {
     }
+
+    void RegisterGraphFunction(string name, BytecodeProgram program, BytecodeFunction function)
+    {
+    }
 }
 
 /// <summary>

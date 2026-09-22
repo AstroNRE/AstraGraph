@@ -399,6 +399,12 @@ public sealed class HotReloadManager
     private void AttachSubscription(GraphEventSubscription subscription)
     {
         void Run(object? entity, object? ev) => ExecuteEntry(subscription, entity, ev);
+        if (subscription.ComponentType != null)
+        {
+            _host.EventRouter.SubscribeDirected(subscription, (uid, component, ev) => ExecuteEntry(subscription, uid, ev, component));
+            return;
+        }
+
         if (subscription.ByRef && subscription.ComponentType == null)
         {
             _host.EventRouter.SubscribeRefInvoke(subscription, ev => Run(null, ev));
@@ -408,7 +414,7 @@ public sealed class HotReloadManager
         _host.EventRouter.Subscribe(subscription, (entity, ev) => Run(entity, ev));
     }
 
-    private void ExecuteEntry(GraphEventSubscription subscription, object? entity, object? eventObject = null)
+    private void ExecuteEntry(GraphEventSubscription subscription, object? entity, object? eventObject = null, object? component = null)
     {
         if (!IsDispatchAllowed(subscription.GraphId))
         {
@@ -428,7 +434,7 @@ public sealed class HotReloadManager
             entityValue = AstraValue.Null;
         }
 
-        var context = new AstraEventInvocationContext(entityValue, entity, eventObject);
+        var context = new AstraEventInvocationContext(entityValue, component ?? entity, eventObject);
         _host.HostServices.PushEventContext(context);
         try
         {
