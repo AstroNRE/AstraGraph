@@ -12,7 +12,7 @@
   --xy-controls-button-color-hover-default: var(--text-primary);
   --xy-controls-button-border-color-default: var(--border-subtle);
   --xy-controls-box-shadow-default: none;
-  --xy-background-pattern-dots-color-default: var(--border-subtle);
+  --xy-background-pattern-dots-color-default: var(--grid);
   --xy-attribution-background-color-default: var(--surface-panel);
   --xy-edge-stroke-default: var(--text-muted);
   --xy-edge-stroke-selected-default: var(--accent);
@@ -27,6 +27,11 @@
 }
 
 .react-flow__controls-button {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
+}
+
+.react-flow__minimap {
+  width: 132px !important;
+  height: 88px !important;
 }

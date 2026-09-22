@@ -92,9 +92,9 @@ export function GraphCanvas(props: { document: GraphDocument; onChange: (next: G
       onNodeDragStop={(_, node) => commit(nodes.map((item) => item.id === node.id ? { ...item, position: node.position } : item), edges)}
       fitView
     >
-      <Background />
-      <Controls />
-      <MiniMap />
+      <Background gap={18} size={1} />
+      <Controls showInteractive={false} />
+      <MiniMap pannable zoomable style={{ width: 132, height: 88 }} />
     </ReactFlow>
   );
 }

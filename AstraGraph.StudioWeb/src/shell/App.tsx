@@ -45,6 +45,8 @@ export function App() {
   const [stack, setStack] = useState<UndoStack<GraphDocument>>({ past: [], present: createGraph("Untitled"), future: [] });
   const [selected, setSelected] = useState("");
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [dockOpen, setDockOpen] = useState(false);
   const graph = stack.present;
   const preview = mode === "preview";
 
@@ -155,6 +157,10 @@ export function App() {
     }
   }, []);
 
+  useEffect(() => {
+    if (problems.length > 0 || revisions.length > 0) setDockOpen(true);
+  }, [problems.length, revisions.length]);
+
   const publishAllowed = canPublish(bits, capabilities.publish) && !preview;
   const compileAllowed = canCompile(bits, capabilities.compile) && !preview;
   const rollbackAllowed = canRollback(bits) && !preview;
@@ -197,33 +203,41 @@ export function App() {
     setPaletteOpen(false);
   }
 
+  const statusLabel = preview ? "Preview" : status === "bridge" ? "Connected" : "Offline";
+
   return (
     <div className="shell">
       <header className="topbar">
-        <span className="brand">Astra Studio</span>
-        <span className="muted" id="target">{target}</span>
+        <div className="title">
+          <strong>{graph.name || "Untitled"}</strong>
+          <span className="muted" id="target">{target}</span>
+        </div>
         <span className="grow" />
         <button onClick={() => setStack((current) => undo(current))}>Undo</button>
         <button onClick={() => setStack((current) => redo(current))}>Redo</button>
         <button onClick={() => setPaletteOpen(true)}>Add node</button>
         <button disabled={!client} onClick={() => void save()}>Save</button>
         <button disabled={!compileAllowed} onClick={() => void compile()}>Compile</button>
-        <button disabled={!publishAllowed} onClick={() => void publish()}>Publish</button>
+        <button className="primary" disabled={!publishAllowed} onClick={() => void publish()}>Publish</button>
         <button disabled={!debugAllowed} onClick={() => void client?.debug.pause(graph.id)}>Debug</button>
-        <label className="muted">Theme
-          <select defaultValue={localStorage.getItem("astra-theme") ?? "dark"} onChange={(event) => {
-            window.document.documentElement.dataset.theme = event.target.value;
-            localStorage.setItem("astra-theme", event.target.value);
-          }}>
-            <option value="dark">Dark</option>
-            <option value="light">Light</option>
-            <option value="contrast">High Contrast</option>
-          </select>
-        </label>
+        <div className="menu">
+          <button aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>Theme</button>
+          {menuOpen ? (
+            <div className="menu-pop">
+              {(["dark", "light", "contrast"] as const).map((theme) => (
+                <button key={theme} onClick={() => {
+                  window.document.documentElement.dataset.theme = theme;
+                  localStorage.setItem("astra-theme", theme);
+                  setMenuOpen(false);
+                }}>{theme === "contrast" ? "High contrast" : theme[0].toUpperCase() + theme.slice(1)}</button>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </header>
       <div className="workspace">
         <aside className="panel">
-          <h2>Graphs</h2>
+          <div className="section-label">Graphs</div>
           <ul className="list">
             {graphs.map((item) => (
               <li key={item.id}>
@@ -234,8 +248,9 @@ export function App() {
               </li>
             ))}
           </ul>
+          {graphs.length === 0 ? <p className="muted">No graphs yet</p> : null}
           <button onClick={() => setStack({ past: [], present: createGraph("Untitled"), future: [] })}>New graph</button>
-          <h2>Bindings</h2>
+          <div className="section-label">Bindings</div>
           <BindingBrowser
             entries={catalog}
             status={catalogStatus}
@@ -244,11 +259,11 @@ export function App() {
           />
         </aside>
         <main className="canvas">
-          {preview ? <div className="banner"><strong>Preview Mode</strong><div>No authoring backend connected</div></div> : null}
+          {preview ? <div className="banner"><strong>Preview Mode</strong><span>No authoring backend connected</span></div> : null}
           <GraphCanvas document={graph} onChange={(next) => setStack((current) => edit(current, next))} />
         </main>
-        <aside className="panel right">
-          <h2>Inspector</h2>
+        <aside className="panel">
+          <div className="section-label">Inspector</div>
           <label className="field">Name
             <input value={graph.name} onChange={(event) => setStack((current) => edit(current, { ...current.present, name: event.target.value }))} />
           </label>
@@ -259,34 +274,42 @@ export function App() {
             </select>
           </label>
           <p className="muted">{graph.nodes.find((node) => node.id === selected)?.nodeType ?? "Select a node"}</p>
-          <h2>Variables</h2>
+          <div className="section-label">Variables</div>
           <VariableEditor
             variables={graph.variables}
             onChange={(variables) => setStack((current) => edit(current, { ...current.present, variables }))}
           />
         </aside>
       </div>
-      <div className="bottom">
-        <section>
-          <h2>Problems</h2>
-          <ul className="list">
-            {problems.map((problem, index) => <li key={`${problem.code}-${index}`} className={`problem ${problem.severity}`}>{problem.code}: {problem.message}</li>)}
-            {problems.length === 0 ? <li className="muted">No problems</li> : null}
-          </ul>
-        </section>
-        <section>
-          <h2>History</h2>
-          <p className="muted">Status {status}</p>
-          <ul className="list">
-            {revisions.map((revision) => (
-              <li key={revision}>
-                <span className="mono">{revision}</span>
-                <button disabled={!rollbackAllowed} onClick={() => void rollback(revision)}>Rollback</button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      </div>
+      <footer className="dock">
+        <button className="dock-bar" onClick={() => setDockOpen((open) => !open)}>
+          <span>Problems {problems.length}</span>
+          <span>History {revisions.length}</span>
+          <span className="grow" />
+          <span className="muted">{statusLabel}</span>
+        </button>
+        {dockOpen ? (
+          <div className="dock-body">
+            <section>
+              <ul className="list">
+                {problems.map((problem, index) => <li key={`${problem.code}-${index}`} className={`problem ${problem.severity}`}>{problem.code}: {problem.message}</li>)}
+                {problems.length === 0 ? <li className="muted">No problems</li> : null}
+              </ul>
+            </section>
+            <section>
+              <ul className="list">
+                {revisions.map((revision) => (
+                  <li key={revision}>
+                    <span className="mono">{revision}</span>
+                    <button disabled={!rollbackAllowed} onClick={() => void rollback(revision)}>Rollback</button>
+                  </li>
+                ))}
+                {revisions.length === 0 ? <li className="muted">No revisions</li> : null}
+              </ul>
+            </section>
+          </div>
+        ) : null}
+      </footer>
       {paletteOpen ? (
         <div className="palette" onClick={() => setPaletteOpen(false)}>
           <form onClick={(event) => event.stopPropagation()}>
