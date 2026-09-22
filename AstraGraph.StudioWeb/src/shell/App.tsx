@@ -19,11 +19,12 @@ import {
   setNodeProperty,
   undo,
   type GraphDocument,
+  type NodeDocument,
   type PinDocument,
   type UndoStack
 } from "../documents/graph";
 import { GraphCanvas } from "../graph/GraphCanvas";
-import { readCatalog, type CatalogEntry } from "../bindings/catalog";
+import { methodName, readCatalog, type CatalogEntry } from "../bindings/catalog";
 import { BindingBrowser } from "./BindingBrowser";
 import { VariableEditor } from "./VariableEditor";
 import { SchemaEditor, type SchemaDocument } from "./SchemaEditor";
@@ -110,6 +111,7 @@ export function App() {
   const [activity, setActivity] = useState<Activity>(() => readStored(localStorage.getItem("astra-activity"), activities, "explorer"));
   const [dockTab, setDockTab] = useState<DockTab>(() => readStored(localStorage.getItem("astra-dock"), dockTabs, "problems"));
   const [schemas, setSchemas] = useState<SchemaDocument[]>([]);
+  const [schemaNote, setSchemaNote] = useState("");
   const [auditEntries, setAuditEntries] = useState<{ action: string; author: string; message: string }[]>([]);
   const [locals, setLocals] = useState<{ name: string; value: string }[]>([]);
   const [watches, setWatches] = useState<{ name: string; expression: string; value: string }[]>([]);
@@ -668,21 +670,66 @@ export function App() {
 
   const selectedNode = graph.nodes.find((node) => node.id === selected);
 
-  async function insertBinding(entry: { bindingId?: string; signature: string; documentation: string }) {
-    if (!client || !entry.bindingId) {
-      insert(entry.signature, entry.documentation || entry.signature);
-      return;
-    }
-    const response = await client.bindings.materialize(entry.bindingId);
-    const shell = String(response.body.nodeJson ?? "");
-    const node = shell ? parseGraph(shell).nodes[0] : undefined;
-    if (Number(response.body.status) !== 0 || !node) {
-      setProblems([{ severity: "error", code: "BINDING", message: String(response.body.errorMessage ?? "Binding did not become a node") }]);
-      return;
-    }
+  function placeNode(node: NodeDocument) {
     setStack((current) => edit(current, insertNode(current.present, node)));
     setSelected(node.id);
+    setFocusToken((token) => token + 1);
     setPaletteOpen(false);
+  }
+
+  function nodeFromBinding(entry: CatalogEntry): NodeDocument {
+    const pins: PinDocument[] = [];
+    if (!entry.isPure) {
+      pins.push({ id: crypto.randomUUID(), name: "In", direction: "input", kind: "execution" });
+      pins.push({ id: crypto.randomUUID(), name: "Out", direction: "output", kind: "execution" });
+    }
+    for (const parameter of entry.parameters) {
+      pins.push({
+        id: crypto.randomUUID(),
+        name: parameter.name || "value",
+        direction: parameter.direction.toLowerCase() === "output" ? "output" : "input",
+        kind: "data",
+        dataType: parameter.typeName
+      });
+    }
+    if (entry.returnType && entry.returnType !== "void" && entry.returnType !== "System.Void") {
+      pins.push({ id: crypto.randomUUID(), name: "Result", direction: "output", kind: "data", dataType: entry.returnType });
+    }
+    return {
+      id: crypto.randomUUID(),
+      name: methodName(entry.signature),
+      nodeType: entry.signature,
+      properties: { bindingId: entry.bindingId, pure: entry.isPure ? "true" : "false", side: entry.side },
+      pins
+    };
+  }
+
+  function nodeFromSchema(schema: SchemaDocument): NodeDocument {
+    const fields = schema.kind === "Enum"
+      ? (schema.members ?? []).map((member) => ({ name: member, typeName: schema.name }))
+      : schema.fields.map((field) => ({ name: field.name, typeName: field.typeName }));
+    return {
+      id: crypto.randomUUID(),
+      name: schema.name,
+      nodeType: `Schema.${schema.kind ?? "Component"}`,
+      properties: { schemaId: schema.id, kind: schema.kind ?? "Component" },
+      pins: [
+        { id: crypto.randomUUID(), name: "In", direction: "input", kind: "execution" },
+        { id: crypto.randomUUID(), name: "Out", direction: "output", kind: "execution" },
+        ...fields.map((field) => ({ id: crypto.randomUUID(), name: field.name, direction: "output" as const, kind: "data" as const, dataType: field.typeName }))
+      ]
+    };
+  }
+
+  async function insertBinding(entry: CatalogEntry) {
+    let node = nodeFromBinding(entry);
+    if (client && entry.bindingId) {
+      const response = await client.bindings.materialize(entry.bindingId);
+      const shell = String(response.body.nodeJson ?? "");
+      const materialized = shell ? parseGraph(shell).nodes[0] : undefined;
+      if (Number(response.body.status) === 0 && materialized) node = materialized;
+    }
+    placeNode(node);
   }
 
   function insert(nodeType: string, name: string) {
@@ -816,17 +863,39 @@ export function App() {
     setUiDocuments(Array.isArray(listed.body.documents) ? listed.body.documents as UiDocumentModel[] : []);
   }
 
-  async function saveSchema(schema: SchemaDocument) {
+  async function loadSchemas() {
     if (!client) return;
-    const response = await client.schemas.save(schema);
-    const changes = Array.isArray(response.body.changes) ? response.body.changes as { kind: string; detail: string }[] : [];
-    setDiffLines(changes);
-    if (Number(response.body.status) !== 0) {
-      setProblems([{ severity: "error", code: "SCHEMA", message: String(response.body.errorMessage ?? "Schema was not saved") }]);
-      return;
-    }
     const listed = await client.schemas.list();
     setSchemas(Array.isArray(listed.body.schemas) ? listed.body.schemas as SchemaDocument[] : []);
+  }
+
+  async function saveSchema(schema: SchemaDocument) {
+    if (!client) {
+      setSchemaNote("Schema stays local until the session is connected.");
+      return;
+    }
+    try {
+      const response = await client.schemas.save(schema);
+      const changes = Array.isArray(response.body.changes) ? response.body.changes as { kind: string; detail: string }[] : [];
+      setDiffLines(changes);
+      if (Number(response.body.status) !== 0) {
+        const message = String(response.body.errorMessage ?? "Schema was not saved");
+        setSchemaNote(message);
+        setProblems([{ severity: "error", code: "SCHEMA", message }]);
+        setDockTab("problems");
+        setDockOpen(true);
+        return;
+      }
+      await loadSchemas();
+      placeNode(nodeFromSchema(schema));
+      setSchemaNote(`${schema.name} is on the canvas.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Schema was not saved";
+      setSchemaNote(message);
+      setProblems([{ severity: "error", code: "SCHEMA", message }]);
+      setDockTab("problems");
+      setDockOpen(true);
+    }
   }
 
   const statusLabel = preview ? "Preview" : status === "bridge" ? "Connected" : "Offline";
@@ -879,7 +948,7 @@ export function App() {
       <div className="workspace">
         <nav className="activity" aria-label="Activity">
           {activities.map((item) => (
-            <button key={item} className={item === activity ? "active" : ""} onClick={() => { setActivity(item); if (item === "audit") void loadAudit(); }}>{item}</button>
+            <button key={item} className={item === activity ? "active" : ""} onClick={() => { setActivity(item); if (item === "audit") void loadAudit(); if (item === "types") void loadSchemas(); }}>{item}</button>
           ))}
         </nav>
         <aside className="panel">
@@ -941,7 +1010,7 @@ export function App() {
               onInsert={(entry) => void insertBinding(entry)}
             />
           ) : null}
-          {activity === "types" ? <SchemaEditor schemas={schemas} onSave={(schema) => void saveSchema(schema)} /> : null}
+          {activity === "types" ? <SchemaEditor schemas={schemas} note={schemaNote} onSave={(schema) => void saveSchema(schema)} /> : null}
           {activity === "design" ? <UiDesigner documents={uiDocuments} layout={uiLayout} onSave={(document) => void saveUi(document)} onDiagnose={(document) => void diagnoseUi(document)} /> : null}
           {activity === "runtime" ? (
             <div>

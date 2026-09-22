@@ -139,7 +139,10 @@ export function parseGraph(json: string): GraphDocument {
     tags: raw.metadata?.tags?.join(", ") ?? raw.tags ?? "",
     version: raw.metadata?.version ?? raw.version ?? "1.0.0",
     attributes: { ...emptyAttributes(), ...stored, author: raw.metadata?.author ?? stored.author ?? "" },
-    nodes: raw.nodes ?? [],
+    nodes: (raw.nodes ?? []).map((node) => ({
+      ...node,
+      pins: (node.pins ?? []).map(normalizePin)
+    })),
     connections: raw.connections ?? [],
     variables: (raw.variables ?? []).map((variable) => ({
       id: variable.id,
@@ -174,6 +177,12 @@ export function createGraph(name: string): GraphDocument {
     variables: [],
     editorLayout: { nodePositions: {}, comments: [], viewportX: 0, viewportY: 0, zoom: 1 }
   };
+}
+
+export function normalizePin(pin: PinDocument): PinDocument {
+  const direction = String(pin.direction).toLowerCase() === "output" ? "output" : "input";
+  const kind = String(pin.kind).toLowerCase() === "data" ? "data" : "execution";
+  return { ...pin, direction, kind };
 }
 
 export function nextVariableName(variables: { name: string }[]): string {

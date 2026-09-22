@@ -23,12 +23,16 @@ const schemaKinds = ["Component", "Struct", "Enum", "Interface", "Contract"] as 
 
 export function SchemaEditor(props: {
   schemas: SchemaDocument[];
+  note?: string;
   onSave: (schema: SchemaDocument) => void;
 }) {
   const [draft, setDraft] = useState<SchemaDocument | null>(props.schemas[0] ?? null);
 
   useEffect(() => {
-    setDraft(props.schemas[0] ?? null);
+    setDraft((current) => {
+      if (current) return props.schemas.find((schema) => schema.id === current.id) ?? current;
+      return props.schemas[0] ?? null;
+    });
   }, [props.schemas]);
 
   if (!draft) {
@@ -101,7 +105,8 @@ export function SchemaEditor(props: {
           fields: [...draft.fields, { id: crypto.randomUUID(), name: "Field", typeName: "int32", persistent: true, replicated: false }]
         })}>Add field</button>
       )}
-      <button type="button" onClick={() => props.onSave({ ...draft, kind, isComponent: kind === "Component" })}>Save schema</button>
+      <button type="button" onClick={() => props.onSave({ ...draft, kind, isComponent: kind === "Component" })}>Save and place on canvas</button>
+      {props.note ? <p className="muted">{props.note}</p> : null}
     </div>
   );
 }

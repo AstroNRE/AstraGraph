@@ -22,6 +22,7 @@ export function BindingBrowser(props: {
   return (
     <div className="browser">
       <input value={query} placeholder="Search bindings" onChange={(event) => { setLocalQuery(event.target.value); props.onQuery?.(event.target.value); }} />
+      <p className="muted">Click a binding to put it on the canvas.</p>
       {props.status === "idle" ? <p className="muted">Bindings load after DevHost accepts the session.</p> : null}
       {props.status === "loading" ? <p className="muted">Loading bindings…</p> : null}
       {props.status === "error" ? <p className="problem error">{props.error}</p> : null}
