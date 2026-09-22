@@ -15,6 +15,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Checkout RobustToolbox
+        run: git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/space-wizards/RobustToolbox.git ../RobustToolbox
+
       - name: Setup .NET 9.0 SDK
         uses: actions/setup-dotnet@v4
         with:
@@ -29,10 +32,10 @@ jobs:
         run: dotnet restore AstraGraph.slnx
 
       - name: Build solution (Release)
-        run: dotnet build AstraGraph.slnx --configuration Release --no-restore
+        run: dotnet build AstraGraph.slnx --configuration Release -p:RobustToolsBuild=true --no-restore
 
       - name: Run tests (Release)
-        run: dotnet test AstraGraph.slnx --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test_results.trx"
+        run: dotnet test AstraGraph.slnx --configuration Release -p:RobustToolsBuild=true --no-build --verbosity normal --logger "trx;LogFileName=test_results.trx"
 
       - name: Upload Test Results
         if: always()

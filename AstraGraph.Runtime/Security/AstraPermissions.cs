@@ -82,3 +82,13 @@ public static class AstraAuthorizationService
         return AccessPolicy.IsAccessAllowed(graphSecurityProfile, user.Profile);
     }
 }
+
+/// <summary>
+/// Service provider interface resolving caller sessions (e.g. Robust ICommonSession) into authenticated AstraUsers.
+/// </summary>
+public interface IAstraPermissionProvider
+{
+    AstraUser? ResolveUser(object playerSession);
+    bool HasAccess(object playerSession);
+}
+

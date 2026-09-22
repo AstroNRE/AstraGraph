@@ -61,6 +61,28 @@ public sealed class AstraLocalBridge : IAsyncDisposable, IDisposable
             sessionHandler);
     }
 
+    /// <summary>
+    /// Creates a self-contained AstraLocalBridge with default security and nonce management.
+    /// </summary>
+    public static AstraLocalBridge CreateDefault(Func<WebSocketBridgeContext, CancellationToken, Task>? sessionHandler = null)
+    {
+        return new AstraLocalBridge(
+            new SessionNonceManager(),
+            new BridgeSecurityPolicy(),
+            EmbeddedWebAssetProvider.CreateWithDefaultStudio(),
+            sessionHandler ?? ((_, _) => Task.CompletedTask));
+    }
+
+    /// <summary>
+    /// Generates a launch URL and launches Astra Studio in the default system browser.
+    /// </summary>
+    public string LaunchStudioInBrowser(StudioLaunchContext? context = null)
+    {
+        var url = CreateLaunchUrl(context);
+        BrowserLauncher.OpenUrl(url);
+        return url;
+    }
+
     public async Task StartAsync(CancellationToken ct = default)
     {
         if (_server != null)

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks></TargetFrameworks>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RobustServerPath Condition="'$(RobustServerPath)' == '' and Exists('../../RobustToolbox/Robust.Server/Robust.Server.csproj')">../../RobustToolbox/Robust.Server/Robust.Server.csproj</RobustServerPath>
+    <RobustServerPath Condition="'$(RobustServerPath)' == '' and Exists('../../../RobustToolbox/Robust.Server/Robust.Server.csproj')">../../../RobustToolbox/Robust.Server/Robust.Server.csproj</RobustServerPath>
+    <RobustServerPath Condition="'$(RobustServerPath)' == '' and Exists('../../SS14_UA/RobustToolbox/Robust.Server/Robust.Server.csproj')">../../SS14_UA/RobustToolbox/Robust.Server/Robust.Server.csproj</RobustServerPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AstraGraph.Core\AstraGraph.Core.csproj" />
+    <ProjectReference Include="..\AstraGraph.Runtime\AstraGraph.Runtime.csproj" />
+    <ProjectReference Include="..\AstraGraph.Persistence\AstraGraph.Persistence.csproj" />
+    <ProjectReference Include="..\AstraGraph.HotReload\AstraGraph.HotReload.csproj" />
+    <ProjectReference Include="..\AstraGraph.Robust.Shared\AstraGraph.Robust.Shared.csproj" />
+    <ProjectReference Include="$(RobustServerPath)" Condition="'$(RobustServerPath)' != '' and Exists('$(RobustServerPath)')" />
+  </ItemGroup>
+</Project>

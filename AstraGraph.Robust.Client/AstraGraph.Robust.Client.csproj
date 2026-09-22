@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks></TargetFrameworks>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RobustClientPath Condition="'$(RobustClientPath)' == '' and Exists('../../RobustToolbox/Robust.Client/Robust.Client.csproj')">../../RobustToolbox/Robust.Client/Robust.Client.csproj</RobustClientPath>
+    <RobustClientPath Condition="'$(RobustClientPath)' == '' and Exists('../../../RobustToolbox/Robust.Client/Robust.Client.csproj')">../../../RobustToolbox/Robust.Client/Robust.Client.csproj</RobustClientPath>
+    <RobustClientPath Condition="'$(RobustClientPath)' == '' and Exists('../../SS14_UA/RobustToolbox/Robust.Client/Robust.Client.csproj')">../../SS14_UA/RobustToolbox/Robust.Client/Robust.Client.csproj</RobustClientPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AstraGraph.Core\AstraGraph.Core.csproj" />
+    <ProjectReference Include="..\AstraGraph.Runtime\AstraGraph.Runtime.csproj" />
+    <ProjectReference Include="..\AstraGraph.UI\AstraGraph.UI.csproj" />
+    <ProjectReference Include="..\AstraGraph.Editor.Bridge\AstraGraph.Editor.Bridge.csproj" />
+    <ProjectReference Include="..\AstraGraph.Robust.Shared\AstraGraph.Robust.Shared.csproj" />
+    <ProjectReference Include="$(RobustClientPath)" Condition="'$(RobustClientPath)' != '' and Exists('$(RobustClientPath)')" />
+  </ItemGroup>
+</Project>

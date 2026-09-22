@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks></TargetFrameworks>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RobustSharedPath Condition="'$(RobustSharedPath)' == '' and Exists('../../RobustToolbox/Robust.Shared/Robust.Shared.csproj')">../../RobustToolbox/Robust.Shared/Robust.Shared.csproj</RobustSharedPath>
+    <RobustSharedPath Condition="'$(RobustSharedPath)' == '' and Exists('../../../RobustToolbox/Robust.Shared/Robust.Shared.csproj')">../../../RobustToolbox/Robust.Shared/Robust.Shared.csproj</RobustSharedPath>
+    <RobustSharedPath Condition="'$(RobustSharedPath)' == '' and Exists('../../SS14_UA/RobustToolbox/Robust.Shared/Robust.Shared.csproj')">../../SS14_UA/RobustToolbox/Robust.Shared/Robust.Shared.csproj</RobustSharedPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AstraGraph.Core\AstraGraph.Core.csproj" />
+    <ProjectReference Include="..\AstraGraph.Binding\AstraGraph.Binding.csproj" />
+    <ProjectReference Include="..\AstraGraph.State\AstraGraph.State.csproj" />
+    <ProjectReference Include="..\AstraGraph.VM\AstraGraph.VM.csproj" />
+    <ProjectReference Include="..\AstraGraph.Runtime\AstraGraph.Runtime.csproj" />
+    <ProjectReference Include="$(RobustSharedPath)" Condition="'$(RobustSharedPath)' != '' and Exists('$(RobustSharedPath)')" />
+  </ItemGroup>
+</Project>

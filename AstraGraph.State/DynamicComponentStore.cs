@@ -142,6 +142,27 @@ public sealed class DynamicComponentStore
         }
     }
 
+    /// <summary>
+    /// Migrates all instances of a schema in-place according to an executable migration function.
+    /// </summary>
+    public void MigrateSchema(SchemaId schemaId, SchemaType targetSchema, Func<PackedFieldStorage, PackedFieldStorage> migrationFunc)
+    {
+        ArgumentNullException.ThrowIfNull(targetSchema);
+        ArgumentNullException.ThrowIfNull(migrationFunc);
+
+        lock (_lock)
+        {
+            if (_poolsBySchema.TryGetValue(schemaId, out var pool))
+            {
+                pool.Schema = targetSchema;
+                foreach (var (entityUid, oldStorage) in pool.Instances.ToArray())
+                {
+                    pool.Instances[entityUid] = migrationFunc(oldStorage);
+                }
+            }
+        }
+    }
+
     public void ClearAll()
     {
         lock (_lock)

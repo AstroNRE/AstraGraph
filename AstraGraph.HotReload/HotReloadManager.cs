@@ -23,7 +23,19 @@ public sealed class HotReloadManager
         _semanticAnalyzer = semanticAnalyzer ?? new SemanticAnalyzer();
     }
 
-    public PublishResult Publish(GraphDocument draft, string author = "System", string message = "")
+    private readonly ConcurrentDictionary<SchemaId, SchemaType> _activeSchemas = new();
+
+    public void RegisterActiveSchema(SchemaType schema)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+        _activeSchemas[schema.Id] = schema;
+    }
+
+    public PublishResult Publish(
+        GraphDocument draft,
+        string author = "System",
+        string message = "",
+        SchemaType? declaredSchema = null)
     {
         ArgumentNullException.ThrowIfNull(draft);
 
@@ -34,13 +46,25 @@ public sealed class HotReloadManager
             return new PublishResult(false, null, semanticResult.Diagnostics, "Semantic analysis failed with errors.");
         }
 
+        // 2. Schema Migration Planning
+        SchemaMigrationPlan? migrationPlan = null;
+        if (declaredSchema != null && _activeSchemas.TryGetValue(declaredSchema.Id, out var oldSchema))
+        {
+            migrationPlan = StateMigrationPlanner.CreatePlan(oldSchema, declaredSchema);
+            if (!migrationPlan.CanAutoMigrate)
+            {
+                semanticResult.Diagnostics.ReportError("MIG001", $"Schema '{declaredSchema.Name}' has incompatible field changes that cannot be auto-migrated.");
+                return new PublishResult(false, null, semanticResult.Diagnostics, "Incompatible schema changes require explicit migration.");
+            }
+        }
+
         BytecodeProgram newProgram;
         var newRevisionId = RevisionId.New();
         var semanticHash = AstraHash.ComputeSemanticHash(draft);
 
         try
         {
-            // 2. Compile to IR and Bytecode
+            // 3. Compile to IR and Bytecode
             var irProgram = AstToIrCompiler.Compile(semanticResult.Program);
             newProgram = IrToBytecodeCompiler.Compile(irProgram, newRevisionId, semanticHash);
         }
@@ -50,7 +74,7 @@ public sealed class HotReloadManager
             return new PublishResult(false, null, semanticResult.Diagnostics, ex.Message);
         }
 
-        // 3. Safe Tick Boundary: Freeze dispatch
+        // 4. Safe Tick Boundary: Freeze dispatch and execute migration & swap
         lock (_lock)
         {
             _frozenGraphs[draft.Id] = true;
@@ -64,7 +88,17 @@ public sealed class HotReloadManager
                     _lastKnownGood[draft.Id] = currentProgram;
                 }
 
-                // 4. Atomic Pointer Swap in Host
+                // 5. Execute state migration if schema evolved
+                if (declaredSchema != null)
+                {
+                    if (migrationPlan != null)
+                    {
+                        _host.Components.MigrateSchema(declaredSchema.Id, declaredSchema, migrationPlan.Execute);
+                    }
+                    _activeSchemas[declaredSchema.Id] = declaredSchema;
+                }
+
+                // 6. Atomic Pointer Swap in Host
                 _host.RegisterProgram(newProgram);
 
                 // Register event subscriptions
@@ -86,7 +120,7 @@ public sealed class HotReloadManager
                         });
                 }
 
-                // 5. Append to Revision History
+                // 7. Append to Revision History
                 var record = new RevisionRecord(
                     draft.Id,
                     newRevisionId,
@@ -102,7 +136,7 @@ public sealed class HotReloadManager
             }
             finally
             {
-                // 6. Unfreeze dispatch
+                // 8. Unfreeze dispatch
                 _frozenGraphs.TryRemove(draft.Id, out _);
             }
         }

@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
-    <NoWarn>$(NoWarn);CA1720;CA1711;CA1305</NoWarn>
+    <NoWarn>$(NoWarn);CA1720;CA1711;CA1305;CA1716;CA1310</NoWarn>
     <Deterministic>true</Deterministic>
     <Authors>Astro</Authors>
     <Company>AstraGraph</Company>
