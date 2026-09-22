@@ -18,4 +18,6 @@ dotnet build -p:RobustToolboxRoot=../RobustToolbox
 
 Код регистрации: `Shared/AstraContentRegistration.cs`, `Server/AstraServerRegistration.cs`, `Client/AstraClientRegistration.cs`.
 
+Пример графа: `Resources/AstraGraph/DollToMothroach.agraph`. Карта приёмки §25 и фаз 0–12: `ACCEPTANCE.md`.
+
 Приёмка publish, hot edit, rollback и restart покрыта `ProductionIntegrationTests.PlayableLifecycle_PublishEditRollbackAndRestart`.

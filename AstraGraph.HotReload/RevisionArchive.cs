@@ -22,6 +22,35 @@ public sealed class RevisionArchive
         _layout.EnsureDirectories();
     }
 
+    public GraphDocument? TryLoadPrevious(GraphId graphId)
+    {
+        var prefix = graphId.Value.ToString("N") + "-";
+        if (!Directory.Exists(_layout.HistoryDirectory))
+        {
+            return null;
+        }
+
+        var files = Directory.GetFiles(_layout.HistoryDirectory, prefix + "*.revision.json");
+        if (files.Length < 2)
+        {
+            return null;
+        }
+
+        var previous = files
+            .Select(path => (path, ReadTimestamp(path)))
+            .OrderByDescending(item => item.Item2)
+            .ThenByDescending(item => item.path, StringComparer.Ordinal)
+            .Skip(1)
+            .First().path;
+        var agraph = previous.Replace(".revision.json", ".agraph", StringComparison.Ordinal);
+        if (!File.Exists(agraph))
+        {
+            return null;
+        }
+
+        return GraphSerializer.Deserialize(File.ReadAllText(agraph));
+    }
+
     public void Save(GraphDocument document, RevisionRecord record, string bindingCatalogHash = "")
     {
         ArgumentNullException.ThrowIfNull(document);
@@ -59,6 +88,14 @@ public sealed class RevisionArchive
         AtomicFileStore.WriteAllTextAtomic(
             Path.Combine(_layout.HistoryDirectory, stem + ".revision.json"),
             metadata);
+    }
+
+    private static DateTime ReadTimestamp(string path)
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+        return document.RootElement.TryGetProperty("timestamp", out var stamp) && stamp.TryGetDateTime(out var value)
+            ? value
+            : File.GetLastWriteTimeUtc(path);
     }
 
     private static string SchemaHash(SchemaType? schema)

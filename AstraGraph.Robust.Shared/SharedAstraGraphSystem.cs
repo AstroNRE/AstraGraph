@@ -1,4 +1,6 @@
+using AstraGraph.Binding;
 using AstraGraph.Runtime;
+using AstraGraph.VM;
 using AstraGraph.Runtime.Network;
 using AstraGraph.State;
 using Robust.Shared.GameObjects;
@@ -34,6 +36,8 @@ public class SharedAstraGraphSystem : EntitySystem
     public IAstraNetworkTransport? SyncTransport { get; private set; }
     public RobustPredictionAdapter? Prediction { get; private set; }
 
+    public SharedActivationCoordinator? Activation { get; private set; }
+
     public override void Initialize()
     {
         base.Initialize();
@@ -46,7 +50,9 @@ public class SharedAstraGraphSystem : EntitySystem
             QueryEngine = new MixedQueryEngine(componentStore, _queryBridge);
         }
 
-        _host = new AstraGraphHost(components: componentStore);
+        IVmHostServices? services = _entMan != null ? new RobustVmHostServices(_entMan) : null;
+        _host = new AstraGraphHost(components: componentStore, hostServices: services);
+        Activation = new SharedActivationCoordinator(_host);
         _eventAdapter = new RobustEventBusSubscriptionAdapter(_host.EventRouter);
         if (_net != null)
         {
@@ -102,5 +108,20 @@ public class SharedAstraGraphSystem : EntitySystem
         var currentTick = _entMan != null ? (int)_entMan.CurrentTick.Value : 0;
 
         Host.Update(currentTimeSeconds, currentTick);
+        Activation?.Update(currentTick);
+    }
+
+    public void AttachGameplay(BindingCatalog catalog)
+    {
+        if (_entMan == null)
+        {
+            return;
+        }
+
+        GameplayBindings.Index(catalog, _entMan);
+        if (Host.HostServices is RobustVmHostServices services)
+        {
+            services.UseCatalog(catalog);
+        }
     }
 }

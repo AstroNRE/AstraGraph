@@ -6,6 +6,7 @@ using AstraGraph.Core;
 using AstraGraph.Core.Events;
 using AstraGraph.Runtime;
 using AstraGraph.Runtime.Integration;
+using AstraGraph.Runtime.Network;
 
 namespace AstraGraph.HotReload;
 
@@ -98,6 +99,14 @@ public sealed class HotReloadManager
         {
             // 3. Compile to IR and Bytecode
             var irProgram = AstToIrCompiler.Compile(semanticResult.Program);
+            if (draft.Side == GraphSide.SharedPredicted && !IsPredictionSafe(irProgram, semanticResult.Diagnostics))
+            {
+                var rejected = new PublishTransaction(draft.Id, draft, null!, RevisionId.Empty, null, string.Empty, author, message, declaredSchema, null);
+                rejected.Status = PublishTransactionStatus.Faulted;
+                rejected.Completion.SetResult(new PublishResult(false, null, semanticResult.Diagnostics, "Predicted graph calls a method that is not prediction-safe."));
+                return rejected;
+            }
+
             newProgram = IrToBytecodeCompiler.Compile(irProgram, newRevisionId, semanticHash);
         }
         catch (Exception ex)
@@ -308,11 +317,25 @@ public sealed class HotReloadManager
         }
     }
 
+    private bool IsPredictionSafe(IrProgram program, DiagnosticBag diagnostics)
+    {
+        var safe = _catalog == null
+            ? []
+            : _catalog.Search(string.Empty).Where(method => method.IsDeterministic).Select(method => method.Descriptor);
+        return new PredictionSafetyChecker(safe).Validate(program, diagnostics);
+    }
+
     /// <summary>
     /// Performs a full, multi-aspect rollback restoring previous Code, Schema, and Subscriptions.
     /// </summary>
     public PublishResult Rollback(GraphId graphId, RevisionId? targetRevisionId = null)
     {
+        var hasMemory = _history.TryGetValue(graphId, out var existing) && existing.Count > 0;
+        if (!hasMemory && targetRevisionId == null && _archive?.TryLoadPrevious(graphId) is { } previous)
+        {
+            return Publish(previous, "Rollback", "Restored from disk");
+        }
+
         lock (_lock)
         {
             if (!_history.TryGetValue(graphId, out var history) || history.Count == 0)

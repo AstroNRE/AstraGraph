@@ -87,6 +87,8 @@ public sealed class ServerAstraGraphSystem : SharedAstraGraphSystem
             _subscriptionsWired = true;
         }
 
+        AttachGameplay(_facade.Catalog);
+
         _authoringService ??= new AstraAuthoringService(
             _permissionProvider,
             _hotReloadManager,
