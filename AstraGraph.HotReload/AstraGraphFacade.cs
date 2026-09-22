@@ -1,6 +1,8 @@
 using AstraGraph.Binding;
 using AstraGraph.Core;
+using AstraGraph.Persistence;
 using AstraGraph.Persistence.Discovery;
+using AstraGraph.Persistence.State;
 using AstraGraph.Runtime;
 using AstraGraph.Runtime.Security;
 using AstraGraph.State;
@@ -21,6 +23,7 @@ public sealed class AstraGraphFacade :
     IAstraHotReload
 {
     private readonly BootstrapLoader? _bootstrap;
+    private readonly AstraBootstrapService? _pipeline;
     private bool _initialized;
 
     public AstraGraphFacade(
@@ -28,13 +31,34 @@ public sealed class AstraGraphFacade :
         HotReloadManager hotReload,
         BindingCatalog catalog,
         IAstraPermissionProvider permissions,
-        BootstrapLoader? bootstrap = null)
+        BootstrapLoader? bootstrap = null,
+        AstraBootstrapService? pipeline = null,
+        PersistentStateStore? persistentState = null)
     {
         Host = host ?? throw new ArgumentNullException(nameof(host));
         Reloader = hotReload ?? throw new ArgumentNullException(nameof(hotReload));
         Catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         Permissions = permissions ?? throw new ArgumentNullException(nameof(permissions));
         _bootstrap = bootstrap;
+        _pipeline = pipeline ?? (bootstrap == null ? null : new AstraBootstrapService(host, hotReload, bootstrap, persistentState));
+        PersistentState = persistentState;
+    }
+
+    public BootstrapLoader? Discovery => _bootstrap;
+    public PersistentStateStore? PersistentState { get; }
+
+    public static AstraGraphFacade ForServer(
+        AstraGraphHost host,
+        StorageLayout layout,
+        IAstraPermissionProvider permissions)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        layout.EnsureDirectories();
+        var hotReload = new HotReloadManager(host, archive: new RevisionArchive(layout));
+        var loader = new BootstrapLoader(layout);
+        var state = new PersistentStateStore(layout);
+        var pipeline = new AstraBootstrapService(host, hotReload, loader, state);
+        return new AstraGraphFacade(host, hotReload, new BindingCatalog(), permissions, loader, pipeline, state);
     }
 
     public AstraGraphHost Host { get; }
@@ -56,10 +80,11 @@ public sealed class AstraGraphFacade :
     DynamicComponentStore IAstraComponentStore.Components => Host.Components;
     public GraphEventRouter Router => Host.EventRouter;
 
+    public int LastActivatedCount { get; private set; }
+
     public void Initialize()
     {
-        _bootstrap?.RecoverOnStartup();
-        _bootstrap?.DiscoverAll();
+        LastActivatedCount = _pipeline?.Activate() ?? 0;
         _initialized = true;
     }
 

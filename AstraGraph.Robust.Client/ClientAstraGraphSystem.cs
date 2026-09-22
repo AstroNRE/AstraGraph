@@ -25,6 +25,7 @@ public sealed class ClientAstraGraphSystem : SharedAstraGraphSystem
     public AstraLocalBridge? LocalBridge => _localBridge;
     public AstraInGameLauncher? Launcher => _launcher;
     public AstraRuntimeStatusReporter? StatusReporter => _statusReporter;
+    public string? StudioUnavailableReason { get; private set; }
 
     public override void Initialize()
     {
@@ -52,6 +53,12 @@ public sealed class ClientAstraGraphSystem : SharedAstraGraphSystem
     /// </summary>
     public async Task<string> LaunchStudioAsync(IAuthoringMessageHandler? handler = null, StudioLaunchContext? context = null)
     {
+        if (handler == null && _localBridge == null)
+        {
+            StudioUnavailableReason = "Authoring session handler is required.";
+            throw new InvalidOperationException(StudioUnavailableReason);
+        }
+
         EnsureBridge(handler);
         if (!_localBridge!.IsRunning)
         {
@@ -63,12 +70,21 @@ public sealed class ClientAstraGraphSystem : SharedAstraGraphSystem
 
     public void EnsureBridge(IAuthoringMessageHandler? handler = null)
     {
-        if (_localBridge == null)
+        if (_localBridge != null)
         {
-            _localBridge = handler != null ? AstraLocalBridge.CreateWithHandler(handler) : AstraLocalBridge.CreateDefault();
-            _statusReporter = new AstraRuntimeStatusReporter(_localBridge);
-            _launcher = new AstraInGameLauncher(_localBridge, _statusReporter);
+            return;
         }
+
+        if (handler == null)
+        {
+            StudioUnavailableReason = "Authoring session handler is required.";
+            return;
+        }
+
+        StudioUnavailableReason = null;
+        _localBridge = AstraLocalBridge.CreateWithHandler(handler);
+        _statusReporter = new AstraRuntimeStatusReporter(_localBridge);
+        _launcher = new AstraInGameLauncher(_localBridge, _statusReporter);
     }
 
     public void OpenStudio()

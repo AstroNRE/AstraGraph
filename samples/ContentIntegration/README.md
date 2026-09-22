@@ -5,8 +5,8 @@
 В Content остаётся:
 
 1. Ссылки проектов: сервер на `AstraGraph.Robust.Server`, клиент на `AstraGraph.Robust.Client`, shared на `AstraGraph.Robust.Shared`.
-2. Регистрация трёх систем в IoC и создание `AstraGraphFacade` на старте раунда или в `Initialize`.
-3. Флаг `AdminFlags.AstraGraph` в сборке Content. Реализация `IAstraPermissionProvider` читает `IAdminManager` и не попадает в `AstraGraph.Core`.
+2. Регистрация трёх систем в IoC. Сервер собирает runtime одним вызовом `AstraGraphFacade.ForServer(host, layout, permissions)`.
+3. Флаг `AdminFlags.AstraGraph` в сборке Content. Production-права читает `RobustAdminPermissionProvider` через `IAstraAdminDirectory` (обёртка над `IAdminManager`). Отражения по сессии нет. `PolicyPermissionProvider` остаётся для тестов и standalone. Content Developer не получает `PublishServer`; его выдаёт ранг Publisher или явный grant. Deny перекрывает grant.
 4. Команда или пункт меню, который поднимает `AstraLocalBridge` с `DirectoryWebAssetProvider` на `AstraGraph.StudioWeb/wwwroot` и открывает браузер.
 5. Каталоги `Resources/AstraGraph` и `data/AstraGraph`.
 

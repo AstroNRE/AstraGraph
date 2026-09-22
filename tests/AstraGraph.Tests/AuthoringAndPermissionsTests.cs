@@ -19,13 +19,15 @@ namespace AstraGraph.Tests;
 [TestFixture]
 public sealed class AuthoringAndPermissionsTests
 {
-    private sealed class MockAdminSession
+    private sealed class MockAdminSession : IAstraAdminFacts
     {
         public Guid UserId { get; set; } = Guid.NewGuid();
         public string Name { get; set; } = "AdminUser";
         public uint AdminFlags { get; set; }
         public string? Rank { get; set; }
         public bool IsPlayerSandbox { get; set; }
+
+        string IAstraAdminFacts.UserId => UserId.ToString();
     }
 
 #if NET10_0_OR_GREATER
@@ -69,7 +71,7 @@ public sealed class AuthoringAndPermissionsTests
         Assert.That(provider.CanEnterAstra(devSession), Is.True);
         Assert.That(provider.HasPermission(devSession, AstraPermission.EditDrafts), Is.True);
         Assert.That(provider.HasPermission(devSession, AstraPermission.Compile), Is.True);
-        Assert.That(provider.HasPermission(devSession, AstraPermission.PublishServer), Is.True);
+        Assert.That(provider.HasPermission(devSession, AstraPermission.PublishServer), Is.False);
         Assert.That(provider.GetSecurityProfile(devSession), Is.EqualTo(Binding.SecurityProfile.Gameplay));
     }
 

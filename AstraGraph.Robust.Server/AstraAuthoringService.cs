@@ -19,6 +19,7 @@ public sealed class AstraAuthoringService : IAstraAuthoringService
     private readonly StorageLayout? _storageLayout;
     private readonly BootstrapLoader? _bootstrapLoader;
     private readonly AuthoringServerSession _serverSession;
+    private readonly GraphDebugger? _debugger;
     private readonly ConcurrentDictionary<string, (AstraUser User, DateTimeOffset ExpiresAtUtc)> _issuedTokens = new();
 
     public AuthoringServerSession Session => _serverSession;
@@ -38,6 +39,9 @@ public sealed class AstraAuthoringService : IAstraAuthoringService
         _hotReloadManager = hotReloadManager ?? throw new ArgumentNullException(nameof(hotReloadManager));
         _storageLayout = storageLayout;
         _bootstrapLoader = bootstrapLoader;
+
+        _debugger = debugger;
+        _permissionProvider.OnPermissionsChanged += RecomputeSession;
 
         _serverSession = new AuthoringServerSession(
             userAuthenticator: AuthenticateToken,
@@ -83,6 +87,44 @@ public sealed class AstraAuthoringService : IAstraAuthoringService
             _issuedTokens.TryRemove(token, out _);
         }
         return false;
+    }
+
+    /// <summary>
+    /// Recomputes an already connected authoring session after deadmin or a rank change.
+    /// </summary>
+    public void RecomputeSession(object session)
+    {
+        var userId = session is IAstraAdminFacts facts
+            ? facts.UserId
+            : session is global::Robust.Shared.Player.ICommonSession common ? common.UserId.ToString() : null;
+        if (userId == null)
+        {
+            return;
+        }
+
+        var user = _permissionProvider.ResolveUser(session);
+        foreach (var key in _issuedTokens.Keys.ToArray())
+        {
+            if (!_issuedTokens.TryGetValue(key, out var entry) || entry.User.Id != userId)
+            {
+                continue;
+            }
+
+            if (user == null)
+            {
+                _issuedTokens.TryRemove(key, out _);
+            }
+            else
+            {
+                _issuedTokens[key] = (user, entry.ExpiresAtUtc);
+            }
+        }
+
+        _serverSession.ReplaceUser(userId, user);
+        if (user == null || !AstraAuthorizationService.HasPermission(user, AstraPermission.Debug))
+        {
+            _debugger?.ClearBreakpoints();
+        }
     }
 
     public AstraUser? AuthenticateToken(string token)

@@ -70,6 +70,25 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         return new AuthHandshakeResponse(AuthoringStatusCode.Success, sessionId, user.Permissions);
     }
 
+    public void ReplaceUser(string userId, AstraUser? updated)
+    {
+        foreach (var pair in _sessions.ToArray())
+        {
+            if (pair.Value.User.Id != userId)
+            {
+                continue;
+            }
+
+            if (updated == null)
+            {
+                _sessions.TryRemove(pair.Key, out _);
+                continue;
+            }
+
+            _sessions[pair.Key] = pair.Value with { User = updated };
+        }
+    }
+
     public GraphListResponse HandleGraphList(GraphListRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);

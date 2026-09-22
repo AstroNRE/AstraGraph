@@ -1,4 +1,5 @@
 using AstraGraph.Core;
+using AstraGraph.Runtime.Integration;
 
 namespace AstraGraph.Runtime;
 
@@ -33,7 +34,7 @@ public sealed class FixedPhaseScheduleHook : IEngineScheduleHook
         if (before.Count > 0 || after.Count > 0)
         {
             ApproximateOrderNotes.Add(
-                $"{systemName} requested Before [{string.Join(", ", before)}] After [{string.Join(", ", after)}] and is running in the fixed Astra host phase.");
+                $"{systemName} requested Before [{string.Join(", ", before)}] After [{string.Join(", ", after)}]. {EngineCompatibilityManifest.NativeOrderingWarning}");
         }
 
         _updates.Add((systemName, update));

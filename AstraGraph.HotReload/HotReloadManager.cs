@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using AstraGraph.Core;
 using AstraGraph.Core.Events;
 using AstraGraph.Runtime;
+using AstraGraph.Runtime.Integration;
 
 namespace AstraGraph.HotReload;
 
@@ -19,13 +20,22 @@ public sealed class HotReloadManager
     private readonly ConcurrentDictionary<SchemaId, SchemaType> _activeSchemas = new();
     private readonly ConcurrentQueue<PublishTransaction> _pendingTransactions = new();
     private readonly Lock _lock = new();
+    private readonly RevisionArchive? _archive;
+    private readonly IEntryPointTypeResolver _typeResolver;
 
     public AstraGraphHost Host => _host;
+    public event Action<IReadOnlyList<GraphEventSubscription>>? SubscriptionsCommitted;
 
-    public HotReloadManager(AstraGraphHost host, SemanticAnalyzer? semanticAnalyzer = null)
+    public HotReloadManager(
+        AstraGraphHost host,
+        SemanticAnalyzer? semanticAnalyzer = null,
+        RevisionArchive? archive = null,
+        IEntryPointTypeResolver? typeResolver = null)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _semanticAnalyzer = semanticAnalyzer ?? new SemanticAnalyzer();
+        _archive = archive;
+        _typeResolver = typeResolver ?? ReflectionEntryPointTypeResolver.Instance;
     }
 
     public void RegisterActiveSchema(SchemaType schema)
@@ -92,6 +102,8 @@ public sealed class HotReloadManager
             txFailed.Completion.SetResult(new PublishResult(false, null, semanticResult.Diagnostics, ex.Message));
             return txFailed;
         }
+
+        subscriptions ??= CompileSubscriptions(draft);
 
         var currentProgram = _host.GetProgram(draft.Id);
         var parentRev = currentProgram?.Revision;
@@ -228,9 +240,24 @@ public sealed class HotReloadManager
 
                     var historyList = _history.GetOrAdd(tx.GraphId, _ => []);
                     historyList.Add(record);
+                    if (tx.Subscriptions.Count > 0)
+                    {
+                        SubscriptionsCommitted?.Invoke(tx.Subscriptions);
+                    }
+
+                    _archive?.Save(tx.Draft, record);
 
                     tx.Status = PublishTransactionStatus.Committed;
-                    tx.Completion.TrySetResult(new PublishResult(true, tx.NewRevisionId, new DiagnosticBag()));
+                    var diagnostics = new DiagnosticBag();
+                    foreach (var node in tx.Draft.Nodes)
+                    {
+                        if (node.Properties.ContainsKey("nativeBefore") || node.Properties.ContainsKey("nativeAfter"))
+                        {
+                            diagnostics.ReportWarning("AG-ORDER", EngineCompatibilityManifest.NativeOrderingWarning);
+                        }
+                    }
+
+                    tx.Completion.TrySetResult(new PublishResult(true, tx.NewRevisionId, diagnostics));
                 }
                 catch (Exception ex)
                 {
@@ -354,6 +381,44 @@ public sealed class HotReloadManager
                 _frozenGraphs.TryRemove(graphId, out _);
             }
         }
+    }
+
+    private List<GraphEventSubscription> CompileSubscriptions(GraphDocument draft)
+    {
+        var list = new List<GraphEventSubscription>();
+        foreach (var node in draft.Nodes)
+        {
+            if (!node.NodeType.StartsWith("Event.", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (!node.Properties.TryGetValue("eventType", out var eventTypeName))
+            {
+                continue;
+            }
+
+            var eventType = _typeResolver.Resolve(eventTypeName);
+            if (eventType == null)
+            {
+                continue;
+            }
+
+            Type? componentType = null;
+            if (node.Properties.TryGetValue("componentType", out var componentTypeName))
+            {
+                componentType = _typeResolver.Resolve(componentTypeName);
+            }
+
+            list.Add(new GraphEventSubscription(
+                draft.Id,
+                node.Name,
+                componentType,
+                eventType,
+                componentType == null ? AstraEventSource.Broadcast : AstraEventSource.DirectedComponent));
+        }
+
+        return list;
     }
 
     public bool IsDispatchAllowed(GraphId graphId) => !_frozenGraphs.ContainsKey(graphId);

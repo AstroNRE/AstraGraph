@@ -164,6 +164,20 @@ public sealed class RobustIntegrationTests
         Assert.That(ev.Handled, Is.True);
     }
 
-    private sealed record MockAdminSession(string UserId, uint AdminFlags, string? Rank);
+    private sealed class MockAdminSession : IAstraAdminFacts
+    {
+        public MockAdminSession(string userId, uint adminFlags, string? rank)
+        {
+            UserId = userId;
+            AdminFlags = adminFlags;
+            Rank = rank;
+        }
+
+        public string UserId { get; }
+        public string Name => UserId;
+        public uint AdminFlags { get; }
+        public string? Rank { get; }
+        public bool IsPlayerSandbox => false;
+    }
 #endif
 }

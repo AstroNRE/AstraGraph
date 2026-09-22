@@ -15,12 +15,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Checkout RobustToolbox (Pinned to night-city commit)
+      - name: Checkout RobustToolbox (commit from Compatibility.json)
         run: |
+          ROBUST_COMMIT=$(python3 -c 'import json; print(json.load(open("Compatibility.json"))["testedRobustCommit"])')
           git init ../RobustToolbox
           cd ../RobustToolbox
           git remote add origin https://github.com/space-wizards/RobustToolbox.git
-          git fetch --depth 1 origin 81e82b01d6cc5957015a8c9f3baf5e573b0a5217
+          git fetch --depth 1 origin "$ROBUST_COMMIT"
           git checkout FETCH_HEAD
           git submodule update --init --recursive --depth 1
           cd ../AstraGraph

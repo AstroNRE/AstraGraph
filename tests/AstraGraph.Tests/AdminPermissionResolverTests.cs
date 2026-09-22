@@ -58,11 +58,23 @@ public sealed class AdminPermissionResolverTests
         var user = result.User!;
         Assert.That(AstraAuthorizationService.CanEditDraft(user), Is.True);
         Assert.That(AstraAuthorizationService.CanCompile(user), Is.True);
-        Assert.That(AstraAuthorizationService.CanPublish(user, GraphSide.Server, SecurityProfile.Gameplay), Is.True);
+        Assert.That(AstraAuthorizationService.CanPublish(user, GraphSide.Server, SecurityProfile.Gameplay), Is.False);
         Assert.That(user.Profile, Is.EqualTo(SecurityProfile.Gameplay));
 
         // Content Dev should NOT be able to publish Engine profile graphs
         Assert.That(AstraAuthorizationService.CanPublish(user, GraphSide.Server, SecurityProfile.Engine), Is.False);
+    }
+
+    [Test]
+    public void Publisher_GetsPublish_ContentDeveloperDoesNot()
+    {
+        var publisher = _resolver.ResolveSession(
+            "user-pub",
+            "Eve",
+            SS14AdminFlagsConstants.AdminFlagAstraGraph,
+            adminRank: "Publisher");
+
+        Assert.That(AstraAuthorizationService.CanPublish(publisher.User!, GraphSide.Server, SecurityProfile.Gameplay), Is.True);
     }
 
     [Test]

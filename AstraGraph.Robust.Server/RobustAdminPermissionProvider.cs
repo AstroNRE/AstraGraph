@@ -9,18 +9,30 @@ namespace AstraGraph.Robust.Server;
 /// Connects AstraGraph's RBAC security model to RobustToolbox's session management
 /// and SS14's AdminFlags.AstraGraph (1u << 24) gate.
 /// </summary>
+/// <summary>
+/// Content-side lookup over IAdminManager. AstraGraph does not reference Content admin types.
+/// </summary>
+public interface IAstraAdminDirectory
+{
+    bool TryGetAdmin(string userId, out uint adminFlags, out string? rank, out bool isSandbox);
+}
+
 public sealed class RobustAdminPermissionProvider : IAstraPermissionProvider
 {
     private readonly AstraAdminPermissionResolver _resolver;
+    private readonly IAstraAdminDirectory? _directory;
     private readonly ConcurrentDictionary<string, AstraUser> _sessionCache = new();
     private readonly ConcurrentDictionary<string, (AstraPermission Permissions, SecurityProfile Profile)> _userOverrides = new();
     private readonly ConcurrentDictionary<string, AstraPermission> _userDenies = new();
 
     public event Action<object>? OnPermissionsChanged;
 
-    public RobustAdminPermissionProvider(uint requiredAdminFlag = SS14AdminFlagsConstants.AdminFlagAstraGraph)
+    public RobustAdminPermissionProvider(
+        uint requiredAdminFlag = SS14AdminFlagsConstants.AdminFlagAstraGraph,
+        IAstraAdminDirectory? directory = null)
     {
         _resolver = new AstraAdminPermissionResolver(requiredAdminFlag);
+        _directory = directory;
     }
 
     public bool CanEnterAstra(object session)
@@ -120,60 +132,48 @@ public sealed class RobustAdminPermissionProvider : IAstraPermissionProvider
 
     private static string GetSessionIdentifier(object session)
     {
+        if (session is IAstraAdminFacts facts)
+        {
+            return facts.UserId;
+        }
+
         if (session is ICommonSession commonSession)
         {
             return commonSession.UserId.ToString();
         }
 
-        var prop = session.GetType().GetProperty("UserId") ?? session.GetType().GetProperty("Name");
-        return prop?.GetValue(session)?.ToString() ?? session.ToString() ?? "unknown";
+        return "unknown";
     }
 
     private static string GetSessionName(object session)
     {
+        if (session is IAstraAdminFacts facts)
+        {
+            return facts.Name;
+        }
+
         if (session is ICommonSession commonSession)
         {
             return commonSession.Name;
         }
 
-        var prop = session.GetType().GetProperty("Name");
-        return prop?.GetValue(session)?.ToString() ?? GetSessionIdentifier(session);
+        return GetSessionIdentifier(session);
     }
 
-    private static (uint Flags, string? Rank, bool IsSandbox) ExtractAdminMetadata(object session)
+    private (uint Flags, string? Rank, bool IsSandbox) ExtractAdminMetadata(object session)
     {
-        uint flags = 0;
-        string? rank = null;
-        var isSandbox = false;
-
-        var type = session.GetType();
-
-        // Check for AdminData or AdminFlags property
-        var adminDataProp = type.GetProperty("AdminData");
-        var targetObj = adminDataProp?.GetValue(session) ?? session;
-        var targetType = targetObj.GetType();
-
-        var flagsProp = targetType.GetProperty("AdminFlags") ?? targetType.GetProperty("Flags");
-        if (flagsProp != null)
+        if (session is IAstraAdminFacts facts)
         {
-            var rawFlags = flagsProp.GetValue(targetObj);
-            if (rawFlags is uint u) flags = u;
-            else if (rawFlags is int i) flags = (uint)i;
-            else if (rawFlags is Enum e) flags = Convert.ToUInt32(e);
+            return (facts.AdminFlags, facts.Rank, facts.IsPlayerSandbox);
         }
 
-        var titleProp = targetType.GetProperty("Title") ?? targetType.GetProperty("Rank");
-        if (titleProp != null)
+        if (session is ICommonSession commonSession
+            && _directory != null
+            && _directory.TryGetAdmin(commonSession.UserId.ToString(), out var flags, out var rank, out var sandbox))
         {
-            rank = titleProp.GetValue(targetObj)?.ToString();
+            return (flags, rank, sandbox);
         }
 
-        var sandboxProp = targetType.GetProperty("IsPlayerSandbox") ?? targetType.GetProperty("Sandbox");
-        if (sandboxProp != null && sandboxProp.GetValue(targetObj) is bool b)
-        {
-            isSandbox = b;
-        }
-
-        return (flags, rank, isSandbox);
+        return (0, null, false);
     }
 }

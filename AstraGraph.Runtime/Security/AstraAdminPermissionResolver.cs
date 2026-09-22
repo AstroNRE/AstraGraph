@@ -23,6 +23,18 @@ public sealed class AstraAccessResolutionResult
 /// Resolves SS14 admin sessions and player identities into effective fine-grained AstraGraph permissions.
 /// Enforces separation between full engine developers, content developers, and player sandboxes.
 /// </summary>
+/// <summary>
+/// Typed admin facts. Content fills this from IAdminManager. AstraGraph does not reflect over session objects.
+/// </summary>
+public interface IAstraAdminFacts
+{
+    string UserId { get; }
+    string Name { get; }
+    uint AdminFlags { get; }
+    string? Rank { get; }
+    bool IsPlayerSandbox { get; }
+}
+
 public sealed class AstraAdminPermissionResolver
 {
     private readonly uint _requiredAdminFlag;
@@ -91,13 +103,32 @@ public sealed class AstraAdminPermissionResolver
             };
         }
 
-        // Standard Content Developer
-        var devPermissions = AstraPermission.ViewGraphs |
+        if (rankLower.Contains("publisher"))
+        {
+            var publisher = new AstraUser(
+                Id: userId,
+                Name: userName,
+                Permissions: AstraPermission.ViewGraphs |
                              AstraPermission.EditDrafts |
                              AstraPermission.Compile |
                              AstraPermission.PublishServer |
                              AstraPermission.PublishShared |
                              AstraPermission.Rollback |
+                             AstraPermission.Debug |
+                             AstraPermission.InspectState,
+                Profile: SecurityProfile.Gameplay);
+
+            return new AstraAccessResolutionResult
+            {
+                IsAllowed = true,
+                User = publisher
+            };
+        }
+
+        // Content Developer edits and compiles. Publishing is a separate grant.
+        var devPermissions = AstraPermission.ViewGraphs |
+                             AstraPermission.EditDrafts |
+                             AstraPermission.Compile |
                              AstraPermission.Debug |
                              AstraPermission.InspectState;
 

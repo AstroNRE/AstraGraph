@@ -6,6 +6,7 @@ using AstraGraph.Persistence.State;
 using AstraGraph.Robust.Shared;
 using AstraGraph.Runtime;
 using AstraGraph.Runtime.Debugging;
+using AstraGraph.Runtime.Integration;
 using AstraGraph.Runtime.Profiling;
 using Robust.Shared.IoC;
 
@@ -18,13 +19,16 @@ namespace AstraGraph.Robust.Server;
 public sealed class ServerAstraGraphSystem : SharedAstraGraphSystem
 {
     private StorageLayout _storageLayout = default!;
+    private AstraGraphFacade _facade = default!;
     private HotReloadManager _hotReloadManager = default!;
     private RobustAdminPermissionProvider _permissionProvider = default!;
     private PersistentStateStore _persistentStateStore = default!;
     private BootstrapLoader _bootstrapLoader = default!;
     private AstraAuthoringService _authoringService = default!;
+    private bool _subscriptionsWired;
 
     public StorageLayout StorageLayout => _storageLayout;
+    public AstraGraphFacade Facade => _facade;
     public HotReloadManager HotReloadManager => _hotReloadManager;
     public RobustAdminPermissionProvider PermissionProvider => _permissionProvider;
     public PersistentStateStore PersistentStateStore => _persistentStateStore;
@@ -72,10 +76,17 @@ public sealed class ServerAstraGraphSystem : SharedAstraGraphSystem
 
         _storageLayout.EnsureDirectories();
 
-        _hotReloadManager ??= new HotReloadManager(Host);
         _permissionProvider ??= new RobustAdminPermissionProvider();
-        _persistentStateStore ??= new PersistentStateStore(_storageLayout);
-        _bootstrapLoader ??= new BootstrapLoader(_storageLayout);
+        _facade ??= AstraGraphFacade.ForServer(Host, _storageLayout, _permissionProvider);
+        _hotReloadManager ??= _facade.Reloader;
+        _persistentStateStore ??= _facade.PersistentState ?? new PersistentStateStore(_storageLayout);
+        _bootstrapLoader ??= _facade.Discovery ?? new BootstrapLoader(_storageLayout);
+        if (!_subscriptionsWired && EventAdapter != null)
+        {
+            _hotReloadManager.SubscriptionsCommitted += OnSubscriptionsCommitted;
+            _subscriptionsWired = true;
+        }
+
         _authoringService ??= new AstraAuthoringService(
             _permissionProvider,
             _hotReloadManager,
@@ -94,56 +105,42 @@ public sealed class ServerAstraGraphSystem : SharedAstraGraphSystem
     public void ExecuteBootstrap()
     {
         EnsureInitialized();
+        EnsureEngineCompatible();
+        _facade.Initialize();
+    }
 
-        // Step 1: Purge abandoned crash/journal temporary files
-        _bootstrapLoader.RecoverOnStartup();
-
-        // Step 2: Restore persistent variables into Host.State
-        try
+    private void OnSubscriptionsCommitted(IReadOnlyList<AstraGraph.Core.Events.GraphEventSubscription> subscriptions)
+    {
+        if (EventAdapter == null)
         {
-            _persistentStateStore.RestoreState("default", Host.State);
-        }
-        catch (Exception ex)
-        {
-            Log.Warning($"Could not restore persistent state snapshot: {ex.Message}");
+            return;
         }
 
-        // Step 3: Discover all graphs with tier precedence (Override > Live > Project)
-        var discoveredGraphs = _bootstrapLoader.DiscoverAll();
-
-        // Step 4: Publish / Activate discovered graphs
-        foreach (var discovered in discoveredGraphs)
+        foreach (var subscription in subscriptions)
         {
-            try
-            {
-                var doc = discovered.Document;
-                if (doc.Kind == GraphKind.System)
-                {
-                    _hotReloadManager.Publish(doc, author: "Bootstrap", message: "Server startup bootstrap");
+            EventAdapter.RegisterSubscription(this, subscription);
+        }
+    }
 
-                    // Register in GraphScheduler if not already scheduled
-                    Host.Scheduler.RegisterSystem(new SystemRegistration(
-                        doc.Id,
-                        doc.Name,
-                        Before: [],
-                        After: [],
-                        Priority: 0,
-                        UpdateCallback: (time, tick) =>
-                        {
-                            if (Host.GetProgram(doc.Id) is { } program)
-                            {
-                                foreach (var ep in program.EntryPoints)
-                                {
-                                    Host.Vm.Execute(program, ep, hostServices: null);
-                                }
-                            }
-                        }));
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Error bootstrapping graph '{discovered.RelativePath}': {ex.Message}");
-            }
+    private static void EnsureEngineCompatible()
+    {
+        var manifestPath = EngineCompatibilityService.FindManifest();
+        if (manifestPath == null)
+        {
+            throw new EngineCompatibilityException("Compatibility.json was not found. AstraGraph will not start against an unknown engine.");
+        }
+
+        var compatibility = EngineCompatibilityService.Load(manifestPath);
+        var robustDir = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(manifestPath)!, "..", "RobustToolbox"));
+        var checkedOut = EngineCompatibilityService.ReadCheckedOutCommit(robustDir);
+        compatibility.EnsureCompatible(new EngineCompatibilityReport(
+            checkedOut ?? compatibility.Manifest.TestedRobustCommit,
+            compatibility.Manifest.EngineApiVersion,
+            ["type-event-subscribe"]));
+
+        if (compatibility.Manifest.DynamicNativeSystemOrdering)
+        {
+            throw new EngineCompatibilityException(EngineCompatibilityManifest.NativeOrderingWarning);
         }
     }
 

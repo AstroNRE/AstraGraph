@@ -34,9 +34,22 @@ public sealed class RevisionArchive
             backupDirectory: null);
 
         var note = $"{record.RevisionId}|{record.ParentRevisionId}|{record.Author}|{record.Message}";
+        var stem = $"{document.Id.Value:N}-{record.RevisionId.Value:N}";
         AtomicFileStore.WriteAllTextAtomic(
-            Path.Combine(_layout.HistoryDirectory, $"{document.Id.Value:N}-{record.RevisionId.Value:N}.txt"),
+            Path.Combine(_layout.HistoryDirectory, stem + ".txt"),
             note);
+        var metadata = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            graphId = document.Id.ToString(),
+            revisionId = record.RevisionId.ToString(),
+            parentRevisionId = record.ParentRevisionId?.ToString(),
+            author = record.Author,
+            message = record.Message,
+            semanticHash = record.SemanticHash
+        });
+        AtomicFileStore.WriteAllTextAtomic(
+            Path.Combine(_layout.HistoryDirectory, stem + ".revision.json"),
+            metadata);
     }
 
     private static string Sanitize(string name)

@@ -2,10 +2,7 @@
 
 Независимый сабмодуль визуального gameplay-языка для RobustToolbox / Space Station 14. Исходник механики — файл `.agraph`. Исполнение идёт через Astra IR, портативную VM и серверный JIT. Состояние отделено от кода, поэтому публикация на границе тика не стирает мир.
 
-Зафиксированная база записана в `Compatibility.json`:
-
-- Space Station 14 `811531c3c533cb644351d237a467648cb9613813`
-- RobustToolbox `fee0dd647ebe95ad62d8945440450fb6cd4749a7`
+Supported engine commit and profile are defined only in `Compatibility.json`.
 
 ## Сборка этого репозитория
 
@@ -13,7 +10,7 @@
 dotnet test AstraGraph.slnx
 ```
 
-Ядро собирается под `net9.0` и `net10.0`. Проекты `AstraGraph.Robust.*` подключают RobustToolbox, если checkout лежит рядом с репозиторием (`../RobustToolbox`) или задан `RobustToolboxRoot`. CI клонирует движок на `81e82b01d6cc5957015a8c9f3baf5e573b0a5217`.
+Ядро собирается под `net9.0` и `net10.0`. Проекты `AstraGraph.Robust.*` подключают RobustToolbox, если checkout лежит рядом с репозиторием (`../RobustToolbox`) или задан `RobustToolboxRoot`. CI клонирует движок на `testedRobustCommit` из `Compatibility.json`.
 
 ## Подключение к форку SS14
 

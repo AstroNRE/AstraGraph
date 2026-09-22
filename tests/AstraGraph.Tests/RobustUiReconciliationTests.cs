@@ -1,5 +1,6 @@
 using AstraGraph.Core;
 using AstraGraph.Editor.InGame;
+using AstraGraph.Editor.Protocol;
 using AstraGraph.UI.Compiler;
 using AstraGraph.UI.Model;
 using AstraGraph.UI.Runtime;
@@ -180,7 +181,7 @@ public sealed class RobustUiReconciliationTests
     public async Task ClientAstraGraphSystem_Launcher_BuildsDeepLinkUrlsCorrectly()
     {
         var clientSystem = new ClientAstraGraphSystem();
-        clientSystem.EnsureBridge();
+        clientSystem.EnsureBridge(new PingPongHandler());
 
         var launcher = clientSystem.Launcher;
         Assert.That(launcher, Is.Not.Null);

@@ -68,21 +68,26 @@ public sealed class RobustEventBusSubscriptionAdapter
     {
         ArgumentNullException.ThrowIfNull(system);
 
-        var method = typeof(EntitySystem).GetMethod(
-            "SubscribeLocalEvent",
-            BindingFlags.Instance | BindingFlags.NonPublic,
-            [typeof(EntityEventRefHandler<TEvent>), typeof(Type[]), typeof(Type[])]);
+        var method = typeof(EntitySystem).GetMethods(BindingFlags.Instance | BindingFlags.NonPublic)
+            .FirstOrDefault(candidate =>
+                candidate.Name == "SubscribeLocalEvent" &&
+                candidate.IsGenericMethodDefinition &&
+                candidate.GetGenericArguments().Length == 1 &&
+                candidate.GetParameters().Length == 3 &&
+                candidate.GetParameters()[0].ParameterType.Name.StartsWith("EntityEventRefHandler", StringComparison.Ordinal));
 
-        if (method != null)
+        if (method == null)
         {
-            EntityEventRefHandler<TEvent> handler = (ref TEvent args) =>
-            {
-                customRefHandler?.Invoke(ref args);
-                _router.DispatchRefEvent(ref args);
-            };
-
-            method.Invoke(system, [handler, null, null]);
+            throw new InvalidOperationException("EntitySystem.SubscribeLocalEvent ref handler was not found.");
         }
+
+        EntityEventRefHandler<TEvent> handler = (ref TEvent args) =>
+        {
+            customRefHandler?.Invoke(ref args);
+            _router.DispatchRefEvent(ref args);
+        };
+
+        method.MakeGenericMethod(typeof(TEvent)).Invoke(system, [handler, null, null]);
     }
 
     /// <summary>

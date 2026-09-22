@@ -9,9 +9,9 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
-    <PackageReference Include="NUnit" Version="4.3.2" />
+    <PackageReference Include="NUnit" Version="4.4.0" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
-    <PackageReference Include="NUnit.Analyzers" Version="4.6.0">
+    <PackageReference Include="NUnit.Analyzers" Version="4.11.2">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
@@ -38,6 +38,7 @@
     <ProjectReference Include="..\..\AstraGraph.Robust.Shared\AstraGraph.Robust.Shared.csproj" />
     <ProjectReference Include="..\..\AstraGraph.Robust.Server\AstraGraph.Robust.Server.csproj" />
     <ProjectReference Include="..\..\AstraGraph.Robust.Client\AstraGraph.Robust.Client.csproj" />
+    <ProjectReference Include="$(RobustToolboxRoot)\Robust.Server.Testing\Robust.Server.Testing.csproj" Condition="'$(RobustToolboxRoot)' != ''" />
   </ItemGroup>
 
 </Project>

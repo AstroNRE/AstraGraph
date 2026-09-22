@@ -4,6 +4,7 @@ using AstraGraph.Editor.Bridge;
 using AstraGraph.HotReload;
 using AstraGraph.Persistence;
 using AstraGraph.Runtime;
+using AstraGraph.Runtime.Integration;
 using AstraGraph.Runtime.Security;
 using AstraGraph.VM;
 using NUnit.Framework;
@@ -66,15 +67,13 @@ public sealed class ReleaseReadinessTests
     {
         var root = Path.Combine(Path.GetTempPath(), "astra-archive-" + Guid.NewGuid().ToString("N"));
         var layout = new StorageLayout(Path.Combine(root, "project"), Path.Combine(root, "data"));
-        var archive = new RevisionArchive(layout);
         var host = new AstraGraphHost();
-        var manager = new HotReloadManager(host);
+        var manager = new HotReloadManager(host, archive: new RevisionArchive(layout));
         var doc = EntryDocument(GraphId.New(), "DollToMothroach");
 
         Assert.That(manager.Publish(doc, author: "dev", message: "live").Success, Is.True);
-        var program = host.GetProgram(doc.Id)!;
-        archive.Save(doc, new RevisionRecord(doc.Id, program.Revision, null, program.SemanticHash, "dev", DateTimeOffset.UtcNow, "live", program));
         Assert.That(File.Exists(layout.GetLivePath("DollToMothroach.agraph")), Is.True);
+        Assert.That(Directory.GetFiles(layout.HistoryDirectory, "*.revision.json"), Has.Length.EqualTo(1));
     }
 
     [Test]
@@ -108,6 +107,7 @@ public sealed class ReleaseReadinessTests
         hook.Run(0.1, 3);
         Assert.That(ran, Is.True);
         Assert.That(hook.ApproximateOrderNotes, Has.Count.EqualTo(1));
+        Assert.That(hook.ApproximateOrderNotes[0], Does.Contain("DynamicNativeSystemOrdering is false"));
     }
 
     [Test]
@@ -132,6 +132,9 @@ public sealed class ReleaseReadinessTests
         var html = System.Text.Encoding.UTF8.GetString(index.Content);
         Assert.That(html, Does.Contain("canvas"));
         Assert.That(html, Does.Contain("Publish"));
+        var script = File.ReadAllText(Path.Combine(root, "studio.js"));
+        Assert.That(script, Does.Contain("draft.publish.request"));
+        Assert.That(script, Does.Not.Contain("fetch(\"/api/status\")"));
         Assert.That(provider.TryGetAsset("/../Compatibility.json"), Is.Null);
     }
 
