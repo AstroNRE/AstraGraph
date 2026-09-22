@@ -4,6 +4,9 @@ test("create, compile, publish, and roll back a graph", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Publish" })).toBeVisible();
   await expect(page.getByRole("status")).toContainText("Connected");
+  await page.getByRole("button", { name: "bindings" }).click();
+  await expect(page.getByText(/Loading bindings|Bindings load after/)).toHaveCount(0, { timeout: 60_000 });
+  await page.getByRole("button", { name: "explorer" }).click();
   await page.getByRole("button", { name: "New graph" }).click();
   await page.locator(".dialog").getByLabel("Name").fill("Door flow");
   await page.getByRole("button", { name: "Create" }).click();

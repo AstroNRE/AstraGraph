@@ -29,3 +29,5 @@ plan/
 
 ## Frontend dependencies. The built Studio in AstraGraph.StudioWeb/dist stays in source control.
 **/node_modules/
+
+AstraGraph.StudioWeb/AstraGraphDev/

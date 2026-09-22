@@ -574,13 +574,22 @@ export function App() {
       return;
     }
     setCreateOpen(false);
-    const response = await client.graphs.create(createName || "New graph", createKind, createSide);
+    let response;
+    try {
+      response = await client.graphs.create(createName || "New graph", createKind, createSide);
+    } catch (error) {
+      setProblems([{ severity: "error", code: "CREATE", message: error instanceof Error ? error.message : "Graph was not created" }]);
+      return;
+    }
     if (Number(response.body.status) !== 0) {
       setProblems([{ severity: "error", code: "CREATE", message: String(response.body.errorMessage ?? "Graph was not created") }]);
       return;
     }
     const created = response.body.graph as GraphSummary | undefined;
-    if (!created?.id) return;
+    if (!created?.id) {
+      setProblems([{ severity: "error", code: "CREATE", message: "Graph was not created" }]);
+      return;
+    }
     setGraphs((current) => [...current.filter((item) => item.id !== created.id), created]);
     setBaseRevision(String(created.activeRevision || emptyRevision));
     const source = String(response.body.sourceJson ?? "");

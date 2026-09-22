@@ -1,4 +1,3 @@
-using System.Text.Json.Serialization;
 using AstraGraph.Core;
 using AstraGraph.Runtime.Security;
 
@@ -193,7 +192,6 @@ public sealed class GraphCreateRequestMsg : AuthoringMessage
     public override string Kind => "graph.create.request";
     public string SessionId { get; init; } = string.Empty;
     public string Name { get; init; } = string.Empty;
-    [JsonPropertyName("kind")]
     public GraphKind DocumentKind { get; init; } = GraphKind.System;
     public GraphSide Side { get; init; } = GraphSide.Server;
 }

@@ -46,7 +46,7 @@ export class AuthoringClient {
     list: () => this.roundtrip("graph.list.request", {}, "graph.list.response"),
     fetch: (graphId: string) => this.roundtrip("graph.fetch.request", { graphId }, "graph.fetch.response"),
     create: (name: string, kind = "System", side = "Server") =>
-      this.roundtrip("graph.create.request", { name, kind, side }, "graph.create.response"),
+      this.roundtrip("graph.create.request", { name, documentKind: kind, side }, "graph.create.response"),
     rename: (graphId: string, name: string) =>
       this.roundtrip("graph.rename.request", { graphId, name }, "graph.rename.response"),
     delete: (graphId: string) => this.roundtrip("graph.delete.request", { graphId }, "graph.delete.response"),

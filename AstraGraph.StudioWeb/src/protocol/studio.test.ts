@@ -11,6 +11,9 @@ describe("protocol frame", () => {
     const message = unframe(bytes);
     expect(message?.kind).toBe("draft.publish.request");
     expect(message?.body.graphId).toBe("abc");
+    const created = unframe(frame("graph.create.request", { name: "Door", documentKind: "System", side: "Server" }));
+    expect(created?.body.documentKind).toBe("System");
+    expect(created?.kind).toBe("graph.create.request");
     expect(String(message?.body.kind)).not.toContain("fetch(\"/api/status\")");
   });
 });
