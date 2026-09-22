@@ -14,7 +14,7 @@ namespace AstraGraph.Robust.Shared;
 /// Native RobustToolbox EntitySystem acting as the shared host for AstraGraph visual gameplay systems.
 /// Hooks simulation ticks, frame updates, ECS queries, and entity lifecycle cleanup into the Astra runtime.
 /// </summary>
-public class SharedAstraGraphSystem : EntitySystem
+public abstract class SharedAstraGraphSystem : EntitySystem
 {
     [Dependency] private readonly IEntityManager _entMan = default!;
     [Dependency] private readonly IGameTiming _gameTiming = default!;
