@@ -17,7 +17,7 @@ public sealed record BridgeStatusInfo(
 /// The top-level Astra Local Bridge that ties together the loopback HTTP server,
 /// nonce management, security policy, web asset serving and WebSocket session handling.
 /// </summary>
-public sealed class AstraLocalBridge : IAsyncDisposable
+public sealed class AstraLocalBridge : IAsyncDisposable, IDisposable
 {
     private readonly SessionNonceManager _nonceManager;
     private readonly BridgeSecurityPolicy _security;
@@ -44,6 +44,21 @@ public sealed class AstraLocalBridge : IAsyncDisposable
         _security = security;
         _assetProvider = assetProvider;
         _sessionHandler = sessionHandler;
+    }
+
+    /// <summary>
+    /// Creates an AstraLocalBridge with the default embedded Astra Studio Web assets.
+    /// </summary>
+    public static AstraLocalBridge CreateDefault(
+        SessionNonceManager nonceManager,
+        BridgeSecurityPolicy security,
+        Func<WebSocketBridgeContext, CancellationToken, Task> sessionHandler)
+    {
+        return new AstraLocalBridge(
+            nonceManager,
+            security,
+            EmbeddedWebAssetProvider.CreateWithDefaultStudio(),
+            sessionHandler);
     }
 
     public async Task StartAsync(CancellationToken ct = default)
@@ -166,6 +181,11 @@ public sealed class AstraLocalBridge : IAsyncDisposable
     {
         if (_server != null)
             await _server.DisposeAsync();
+    }
+
+    public void Dispose()
+    {
+        DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
 }
 

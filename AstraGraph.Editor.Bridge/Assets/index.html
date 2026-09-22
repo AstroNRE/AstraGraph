@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Astra Studio Web</title>
+    <link rel="stylesheet" href="/css/studio.css">
+</head>
+<body class="theme-dark">
+    <div id="studio-app">
+        <!-- Top Toolbar -->
+        <header id="toolbar" class="panel">
+            <div class="toolbar-brand">
+                <span class="brand-icon">🌌</span>
+                <span class="brand-name">Astra Studio</span>
+                <span id="connection-status" class="badge status-disconnected">Offline</span>
+            </div>
+            <div class="toolbar-divider"></div>
+            <div class="toolbar-graph-info">
+                <span id="current-graph-name" class="graph-title">No Graph Loaded</span>
+                <span id="current-graph-side" class="badge badge-side">Server</span>
+                <span id="current-revision" class="badge badge-rev">Rev: draft</span>
+            </div>
+            <div class="toolbar-actions">
+                <button id="btn-save-draft" class="btn btn-secondary" title="Save Draft (Ctrl+S)">💾 Save Draft</button>
+                <button id="btn-compile" class="btn btn-secondary" title="Compile Graph (Ctrl+B)">⚡ Compile</button>
+                <button id="btn-publish" class="btn btn-primary" title="Publish Revision (Ctrl+Shift+P)">🚀 Publish</button>
+                <button id="btn-rollback" class="btn btn-secondary" title="Rollback to Previous Revision">⏪ Rollback</button>
+                <div class="toolbar-divider"></div>
+                <button id="btn-debug-step" class="btn btn-icon" title="Step Over (F10)" disabled>⏭️</button>
+                <button id="btn-debug-continue" class="btn btn-icon" title="Continue (F5)" disabled>▶️</button>
+                <button id="btn-profiler-toggle" class="btn btn-icon" title="Toggle Profiler Heatmap">🔥</button>
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <div id="workspace">
+            <!-- Left Sidebar -->
+            <aside id="left-sidebar" class="sidebar panel">
+                <div class="tabs-header">
+                    <button class="tab-btn active" data-tab="tab-palette">Nodes</button>
+                    <button class="tab-btn" data-tab="tab-symbols">Variables</button>
+                </div>
+                <div id="tab-palette" class="tab-content active">
+                    <div class="search-box">
+                        <input type="text" id="palette-search-input" placeholder="Search nodes (Space / Drag)...">
+                    </div>
+                    <div id="palette-categories" class="tree-view"></div>
+                </div>
+                <div id="tab-symbols" class="tab-content">
+                    <div class="variables-header">
+                        <span>Graph Variables</span>
+                        <button id="btn-add-variable" class="btn btn-xs">+ Add</button>
+                    </div>
+                    <div id="variables-list" class="tree-view"></div>
+                </div>
+            </aside>
+
+            <!-- Center Canvas -->
+            <main id="canvas-container">
+                <svg id="canvas-wires" class="wires-layer"></svg>
+                <div id="canvas-nodes" class="nodes-layer"></div>
+                <div id="canvas-overlay" class="overlay-layer"></div>
+                <!-- Mini map -->
+                <div id="minimap" class="minimap"></div>
+            </main>
+
+            <!-- Right Sidebar -->
+            <aside id="right-sidebar" class="sidebar panel">
+                <div class="tabs-header">
+                    <button class="tab-btn active" data-tab="tab-inspector">Inspector</button>
+                    <button class="tab-btn" data-tab="tab-history">History</button>
+                </div>
+                <div id="tab-inspector" class="tab-content active">
+                    <div id="inspector-content">
+                        <div class="placeholder-text">Select a node or pin to view properties</div>
+                    </div>
+                </div>
+                <div id="tab-history" class="tab-content">
+                    <div id="history-revisions-list" class="revisions-list"></div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- Bottom Panel -->
+        <footer id="bottom-panel" class="panel collapsed">
+            <div class="bottom-panel-header">
+                <div class="tabs-header">
+                    <button class="tab-btn active" data-tab="tab-problems">Problems <span id="problems-count" class="badge">0</span></button>
+                    <button class="tab-btn" data-tab="tab-debugger">Debugger</button>
+                    <button class="tab-btn" data-tab="tab-profiler">Profiler</button>
+                </div>
+                <button id="btn-toggle-bottom-panel" class="btn btn-icon" title="Toggle Bottom Panel">▲</button>
+            </div>
+            <div class="bottom-panel-content">
+                <div id="tab-problems" class="tab-content active">
+                    <div id="problems-list" class="problems-table"></div>
+                </div>
+                <div id="tab-debugger" class="tab-content">
+                    <div class="debugger-grid">
+                        <div class="debug-pane">
+                            <h4>Call Stack</h4>
+                            <div id="debug-callstack"></div>
+                        </div>
+                        <div class="debug-pane">
+                            <h4>Variables / Watch</h4>
+                            <div id="debug-watch"></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="tab-profiler" class="tab-content">
+                    <div class="profiler-stats-header">
+                        <span id="profiler-summary">Invocations: 0 | P95: 0.00ms | Alloc: 0 KB</span>
+                    </div>
+                    <div id="profiler-nodes-list" class="profiler-table"></div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/js/transport.js"></script>
+    <script src="/js/wire-renderer.js"></script>
+    <script src="/js/canvas.js"></script>
+    <script src="/js/palette.js"></script>
+    <script src="/js/inspector.js"></script>
+    <script src="/js/problems.js"></script>
+    <script src="/js/debugger.js"></script>
+    <script src="/js/profiler.js"></script>
+    <script src="/js/toolbar.js"></script>
+    <script src="/js/studio.js"></script>
+</body>
+</html>

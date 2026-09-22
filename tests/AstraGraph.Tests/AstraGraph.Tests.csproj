@@ -31,6 +31,7 @@
     <ProjectReference Include="..\..\AstraGraph.Editor.UI\AstraGraph.Editor.UI.csproj" />
     <ProjectReference Include="..\..\AstraGraph.Editor.Bridge\AstraGraph.Editor.Bridge.csproj" />
     <ProjectReference Include="..\..\AstraGraph.Editor.InGame\AstraGraph.Editor.InGame.csproj" />
+    <ProjectReference Include="..\..\AstraGraph.UI\AstraGraph.UI.csproj" />
   </ItemGroup>
 
 </Project>

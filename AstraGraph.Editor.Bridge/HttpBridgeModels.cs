@@ -117,4 +117,6 @@ public sealed class WebSocketBridgeContext
     public required HttpBridgeRequest HandshakeRequest { get; init; }
     public required IPEndPoint RemoteEndPoint { get; init; }
     public NonceInfo? RedeemedNonce { get; set; }
+    public string? Nonce => RedeemedNonce?.Nonce ?? HandshakeRequest.QueryParameters["nonce"];
+    public string? SessionId => HandshakeRequest.QueryParameters["session"];
 }

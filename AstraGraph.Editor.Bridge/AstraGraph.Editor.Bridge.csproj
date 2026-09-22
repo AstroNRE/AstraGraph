@@ -9,4 +9,8 @@
     <ProjectReference Include="..\AstraGraph.Editor.Protocol\AstraGraph.Editor.Protocol.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\**\*" />
+  </ItemGroup>
+
 </Project>
