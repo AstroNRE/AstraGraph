@@ -65,23 +65,30 @@ public sealed class NativeMethodDescriptor
 public sealed class NativePropertyDescriptor
 {
     public string Name { get; }
-    public PropertyInfo Property { get; }
+    public string DeclaringTypeName { get; init; } = string.Empty;
+    public PropertyInfo? Property { get; }
     public AstraType Type { get; }
+    public bool CanRead { get; init; }
+    public bool CanWrite { get; init; }
+    public bool IsField { get; init; }
+    public GraphSide Side { get; init; } = GraphSide.Shared;
     public Func<AstraValue, AstraValue>? Getter { get; }
     public Action<AstraValue, AstraValue>? Setter { get; }
 
     public NativePropertyDescriptor(
-        string Name,
-        PropertyInfo Property,
-        AstraType Type,
-        Func<AstraValue, AstraValue>? Getter = null,
-        Action<AstraValue, AstraValue>? Setter = null)
+        string name,
+        PropertyInfo? property,
+        AstraType type,
+        Func<AstraValue, AstraValue>? getter = null,
+        Action<AstraValue, AstraValue>? setter = null)
     {
-        this.Name = Name;
-        this.Property = Property;
-        this.Type = Type;
-        this.Getter = Getter;
-        this.Setter = Setter;
+        Name = name;
+        Property = property;
+        Type = type;
+        Getter = getter;
+        Setter = setter;
+        CanRead = getter != null;
+        CanWrite = setter != null;
     }
 }
 

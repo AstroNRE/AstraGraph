@@ -78,6 +78,7 @@ public sealed class IrFunction
     public List<IrBasicBlock> Blocks { get; } = [];
     public IrBasicBlock EntryBlock { get; }
     public int RegisterCount { get; set; }
+    public EntryPointTrigger Trigger { get; set; } = EntryPointTrigger.Update;
 
     public IrFunction(string name, IReadOnlyList<IrVariable> parameters, AstraType returnType, IrBasicBlock entryBlock)
     {

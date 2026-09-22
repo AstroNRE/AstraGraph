@@ -75,6 +75,11 @@ public sealed class TypeRegistry
         registry.RegisterAlias("Robust.Shared.Map.EntityCoordinates", GeometryType.EntityCoordinates);
         registry.RegisterAlias("Robust.Shared.Map.MapCoordinates", GeometryType.MapCoordinates);
 
+        registry.RegisterType(ProtoIdType.EntProtoId);
+        registry.RegisterType(ProtoIdType.ProtoId);
+        registry.RegisterAlias("EntProtoId<EntityPrototype>", ProtoIdType.EntProtoId);
+        registry.RegisterAlias("ProtoId<EntityPrototype>", ProtoIdType.ProtoId);
+
         return registry;
     }
 

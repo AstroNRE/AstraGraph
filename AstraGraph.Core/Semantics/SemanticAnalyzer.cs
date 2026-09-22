@@ -57,6 +57,25 @@ public sealed class SemanticAnalyzer
             variableMap[v.Name] = decl;
         }
 
+        foreach (var schemaDocument in document.Schemas)
+        {
+            if (string.IsNullOrWhiteSpace(schemaDocument.Name))
+            {
+                diagnostics.ReportError(DiagnosticCodes.UnknownSchema, "Component schema is missing a name.");
+                continue;
+            }
+
+            foreach (var field in schemaDocument.Fields)
+            {
+                if (!_typeRegistry.TryGetType(field.TypeName, out _))
+                {
+                    diagnostics.ReportError(DiagnosticCodes.UnknownType, $"Schema '{schemaDocument.Name}' field '{field.Name}' has unknown type '{field.TypeName}'.");
+                }
+            }
+
+            _typeRegistry.RegisterSchema(SchemaDocuments.ToSchema(schemaDocument, _typeRegistry));
+        }
+
         // 3. Validate connections
         var incomingConnections = new Dictionary<PinId, List<ConnectionDocument>>();
         var outgoingConnections = new Dictionary<PinId, List<ConnectionDocument>>();
@@ -186,7 +205,7 @@ public sealed class SemanticAnalyzer
         {
             var bodyStatements = LowerExecutionBlock(entryNode, expressionContext, outgoingConnections, pinMap);
             var entryName = entryNode.Properties.GetValueOrDefault("EventName", entryNode.Name);
-            entryPoints.Add(new AstEntryPointStatement(entryName, [], new AstBlock(bodyStatements), entryNode.Id));
+            entryPoints.Add(new AstEntryPointStatement(entryName, [], new AstBlock(bodyStatements), entryNode.Id, TriggerFor(entryNode)));
         }
 
         var program = new AstProgram(
@@ -208,7 +227,7 @@ public sealed class SemanticAnalyzer
         Dictionary<PinId, (NodeDocument Node, PinDocument Pin)> pinMap)
     {
         var statements = new List<AstStatement>();
-        var currentNode = startNode;
+        NodeDocument? currentNode = startNode;
         var visited = new HashSet<NodeId>();
 
         while (currentNode != null && visited.Add(currentNode.Id))
@@ -245,6 +264,45 @@ public sealed class SemanticAnalyzer
                 break; // branch terminates linear flow of current block
             }
 
+            if (IsFor(currentNode.NodeType))
+            {
+                var startPin = currentNode.FindPin("Start", PinDirection.Input);
+                var endPin = currentNode.FindPin("Count", PinDirection.Input) ?? currentNode.FindPin("End", PinDirection.Input);
+                var startExpr = startPin != null
+                    ? exprLowerer.LowerPinExpression(startPin)
+                    : new AstLiteralExpression(0, PrimitiveType.Int32, currentNode.Id);
+                var endExpr = endPin != null
+                    ? exprLowerer.LowerPinExpression(endPin)
+                    : new AstLiteralExpression(0, PrimitiveType.Int32, currentNode.Id);
+                var bodyPin = currentNode.FindPin("Body", PinDirection.Output);
+                var body = new AstBlock(LowerBranchPath(bodyPin, exprLowerer, outgoing, pinMap));
+                statements.Add(new AstForStatement(LoopName(currentNode, "Index"), startExpr, endExpr, body, currentNode.Id));
+                currentNode = NextNode(currentNode, "Out", outgoing, pinMap);
+                continue;
+            }
+
+            if (IsForEach(currentNode.NodeType))
+            {
+                var collectionPin = currentNode.FindPin("Collection", PinDirection.Input);
+                var collectionExpr = collectionPin != null
+                    ? exprLowerer.LowerPinExpression(collectionPin)
+                    : new AstLiteralExpression(null, PrimitiveType.Void, currentNode.Id);
+                var collectionType = collectionPin?.DataType ?? string.Empty;
+                if (!string.IsNullOrEmpty(collectionType) &&
+                    collectionType.IndexOf("List", StringComparison.OrdinalIgnoreCase) < 0 &&
+                    collectionType.IndexOf("IEnumerable", StringComparison.OrdinalIgnoreCase) < 0 &&
+                    collectionType.IndexOf("IReadOnlyList", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    exprLowerer.Report(DiagnosticCodes.InvalidCollection, $"Cannot iterate '{collectionType}'.", currentNode.Id, collectionPin?.Id);
+                }
+
+                var bodyPin = currentNode.FindPin("Body", PinDirection.Output);
+                var body = new AstBlock(LowerBranchPath(bodyPin, exprLowerer, outgoing, pinMap));
+                statements.Add(new AstForEachStatement(LoopName(currentNode, "Item"), collectionExpr, body, currentNode.Id));
+                currentNode = NextNode(currentNode, "Out", outgoing, pinMap);
+                continue;
+            }
+
             if (currentNode.NodeType.Equals("Core.Return", StringComparison.OrdinalIgnoreCase) ||
                 currentNode.NodeType.Equals("Return", StringComparison.OrdinalIgnoreCase))
             {
@@ -270,6 +328,67 @@ public sealed class SemanticAnalyzer
         }
 
         return statements;
+    }
+
+    private static EntryPointTrigger TriggerFor(NodeDocument node)
+    {
+        var type = node.NodeType;
+        if (type.Equals("Event.Start", StringComparison.OrdinalIgnoreCase) ||
+            type.Equals("System.Initialize", StringComparison.OrdinalIgnoreCase) ||
+            type.Equals("Startup", StringComparison.OrdinalIgnoreCase))
+        {
+            return EntryPointTrigger.Startup;
+        }
+
+        if (type.StartsWith("Event.", StringComparison.OrdinalIgnoreCase))
+        {
+            return EntryPointTrigger.NativeEvent;
+        }
+
+        if (type.StartsWith("AstraEvent.", StringComparison.OrdinalIgnoreCase))
+        {
+            return EntryPointTrigger.AstraEvent;
+        }
+
+        if (type.StartsWith("Function.", StringComparison.OrdinalIgnoreCase) ||
+            type.Equals("Function", StringComparison.OrdinalIgnoreCase))
+        {
+            return EntryPointTrigger.Function;
+        }
+
+        if (type.StartsWith("UI.", StringComparison.OrdinalIgnoreCase))
+        {
+            return EntryPointTrigger.UIAction;
+        }
+
+        return EntryPointTrigger.Update;
+    }
+
+    private static bool IsFor(string nodeType) =>
+        nodeType.Equals("Flow.For", StringComparison.OrdinalIgnoreCase) ||
+        nodeType.Equals("For", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsForEach(string nodeType) =>
+        nodeType.Equals("Flow.ForEach", StringComparison.OrdinalIgnoreCase) ||
+        nodeType.Equals("ForEach", StringComparison.OrdinalIgnoreCase);
+
+    private static string LoopName(NodeDocument node, string pinName) =>
+        node.Properties.GetValueOrDefault("IndexName", "$" + pinName + ":" + node.Id.Value.ToString("N"));
+
+    private static NodeDocument? NextNode(
+        NodeDocument node,
+        string pinName,
+        Dictionary<PinId, List<ConnectionDocument>> outgoing,
+        Dictionary<PinId, (NodeDocument Node, PinDocument Pin)> pinMap)
+    {
+        var pin = node.FindPin(pinName, PinDirection.Output);
+        if (pin != null && outgoing.TryGetValue(pin.Id, out var connections) && connections.Count > 0 &&
+            pinMap.TryGetValue(connections[0].ToPin, out var target))
+        {
+            return target.Node;
+        }
+
+        return null;
     }
 
     private static List<AstStatement> LowerBranchPath(
@@ -375,6 +494,9 @@ public sealed class SemanticAnalyzer
             _diagnostics = diagnostics;
         }
 
+        public void Report(string code, string message, NodeId nodeId, PinId? pinId = null) =>
+            _diagnostics.ReportError(code, message, nodeId, pinId);
+
         public AstStatement? LowerStatement(NodeDocument node)
         {
             var nodeType = node.NodeType;
@@ -414,17 +536,10 @@ public sealed class SemanticAnalyzer
                 return new AstYieldContinuationStatement(ContinuationKind.DoAfter, [delayExpr], node.Id.Value, node.Id);
             }
 
-            if (nodeType.Equals("Native.Call", StringComparison.OrdinalIgnoreCase))
+            if (nodeType.Equals("Native.Call", StringComparison.OrdinalIgnoreCase) ||
+                nodeType.Equals("Graph.Call", StringComparison.OrdinalIgnoreCase))
             {
-                var descriptor = node.Properties.GetValueOrDefault("Method", string.Empty);
-                var args = new List<AstExpression>();
-
-                foreach (var pin in node.Pins.Where(p => p.Kind == PinKind.Data && p.Direction == PinDirection.Input))
-                {
-                    args.Add(LowerPinExpression(pin));
-                }
-
-                return new AstExpressionStatement(new AstNativeCallExpression(descriptor, args, PrimitiveType.Void, node.Id), node.Id);
+                return new AstExpressionStatement(LowerCall(node), node.Id);
             }
 
             return null;
@@ -457,6 +572,12 @@ public sealed class SemanticAnalyzer
             {
                 var nodeType = node.NodeType;
 
+                if (nodeType.Equals("Native.Call", StringComparison.OrdinalIgnoreCase) ||
+                    nodeType.Equals("Graph.Call", StringComparison.OrdinalIgnoreCase))
+                {
+                    return LowerCall(node, pin);
+                }
+
                 // Variable Read
                 if (nodeType.Equals("Core.VariableRead", StringComparison.OrdinalIgnoreCase))
                 {
@@ -484,23 +605,101 @@ public sealed class SemanticAnalyzer
                 }
 
                 // Entity GetComponent
-                if (nodeType.Equals("Entity.GetComponent", StringComparison.OrdinalIgnoreCase))
+                if (nodeType.Equals("Entity.GetComponent", StringComparison.OrdinalIgnoreCase) ||
+                    nodeType.Equals("Entity.TryGetComponent", StringComparison.OrdinalIgnoreCase))
                 {
                     var entityPin = node.FindPin("Entity", PinDirection.Input);
                     var entityExpr = entityPin != null ? LowerPinExpression(entityPin) : new AstLiteralExpression(null, EntityType.EntityUid, node.Id);
                     var compTypeName = node.Properties.GetValueOrDefault("ComponentType", "Component");
-                    _typeRegistry.TryGetType(compTypeName, out var compType);
-                    return new AstGetComponentExpression(entityExpr, compType ?? PrimitiveType.Void, node.Id);
+                    var compType = ResolveComponent(node, compTypeName);
+                    if (pin.Name.Equals("Found", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return new AstHasComponentExpression(entityExpr, compType, node.Id);
+                    }
+
+                    return new AstGetComponentExpression(entityExpr, compType, node.Id);
                 }
 
-                // Entity HasComponent
                 if (nodeType.Equals("Entity.HasComponent", StringComparison.OrdinalIgnoreCase))
                 {
                     var entityPin = node.FindPin("Entity", PinDirection.Input);
                     var entityExpr = entityPin != null ? LowerPinExpression(entityPin) : new AstLiteralExpression(null, EntityType.EntityUid, node.Id);
                     var compTypeName = node.Properties.GetValueOrDefault("ComponentType", "Component");
-                    _typeRegistry.TryGetType(compTypeName, out var compType);
-                    return new AstHasComponentExpression(entityExpr, compType ?? PrimitiveType.Void, node.Id);
+                    return new AstHasComponentExpression(entityExpr, ResolveComponent(node, compTypeName), node.Id);
+                }
+
+                if (nodeType.StartsWith("Event.", StringComparison.OrdinalIgnoreCase))
+                {
+                    var slot = pin.Name.ToLowerInvariant() switch
+                    {
+                        "entity" => 0,
+                        "component" => 1,
+                        _ => 2
+                    };
+                    var type = slot == 0 ? (AstraType)EntityType.EntityUid : PrimitiveType.String;
+                    if (slot != 0)
+                    {
+                        _typeRegistry.TryGetType(pin.DataType, out var pinType);
+                        type = pinType ?? PrimitiveType.String;
+                    }
+
+                    return new AstEventContextExpression(slot, type, node.Id);
+                }
+
+                if (nodeType.Equals("Native.GetMember", StringComparison.OrdinalIgnoreCase))
+                {
+                    var targetPin = node.FindPin("Target", PinDirection.Input);
+                    var target = targetPin != null ? LowerPinExpression(targetPin) : new AstLiteralExpression(null, PrimitiveType.Void, node.Id);
+                    var member = node.Properties.GetValueOrDefault("Member", pin.Name);
+                    if (string.IsNullOrEmpty(member))
+                    {
+                        _diagnostics.ReportError(DiagnosticCodes.InvalidMember, $"Node '{node.Name}' does not name a member.", node.Id, pin.Id);
+                    }
+
+                    _typeRegistry.TryGetType(pin.DataType, out var memberType);
+                    return new AstMemberReadExpression(target, member, memberType ?? PrimitiveType.String, node.Id);
+                }
+
+                if (nodeType.Equals("Schema.GetField", StringComparison.OrdinalIgnoreCase))
+                {
+                    var componentPin = node.FindPin("Component", PinDirection.Input);
+                    var component = componentPin != null ? LowerPinExpression(componentPin) : new AstLiteralExpression(null, PrimitiveType.Void, node.Id);
+                    var fieldName = node.Properties.GetValueOrDefault("Field", pin.Name);
+                    var schemaName = node.Properties.GetValueOrDefault("Schema", string.Empty);
+                    if (_typeRegistry.TryGetType(schemaName, out var schemaType) && schemaType is SchemaType schema && schema.FindField(fieldName) == null)
+                    {
+                        _diagnostics.ReportError(DiagnosticCodes.UnknownField, $"Schema '{schemaName}' has no field '{fieldName}'.", node.Id, pin.Id);
+                    }
+
+                    _typeRegistry.TryGetType(pin.DataType, out var fieldType);
+                    return new AstFieldReadExpression(component, fieldName, fieldType ?? PrimitiveType.Int32, node.Id);
+                }
+
+                if (nodeType.Equals("Nullable.HasValue", StringComparison.OrdinalIgnoreCase))
+                {
+                    var valuePin = node.FindPin("Value", PinDirection.Input);
+                    var value = valuePin != null ? LowerPinExpression(valuePin) : new AstLiteralExpression(null, PrimitiveType.Void, node.Id);
+                    return new AstHasValueExpression(value, node.Id);
+                }
+
+                if (nodeType.Equals("Nullable.GetValue", StringComparison.OrdinalIgnoreCase))
+                {
+                    var valuePin = node.FindPin("Value", PinDirection.Input);
+                    var value = valuePin != null ? LowerPinExpression(valuePin) : new AstLiteralExpression(null, PrimitiveType.Void, node.Id);
+                    if (valuePin != null && !string.IsNullOrEmpty(valuePin.DataType) && !valuePin.DataType.EndsWith('?'))
+                    {
+                        _diagnostics.ReportError(DiagnosticCodes.UnsafeNullableDereference, $"Get Value on non-nullable '{valuePin.DataType}'.", node.Id, pin.Id);
+                    }
+
+                    return value;
+                }
+
+                if ((IsForNode(nodeType) && pin.Name.Equals("Index", StringComparison.OrdinalIgnoreCase)) ||
+                    (IsForEachNode(nodeType) && (pin.Name.Equals("Item", StringComparison.OrdinalIgnoreCase) || pin.Name.Equals("Current", StringComparison.OrdinalIgnoreCase))))
+                {
+                    var prefix = IsForNode(nodeType) ? "Index" : "Item";
+                    var name = "$" + prefix + ":" + node.Id.Value.ToString("N");
+                    return new AstVariableReadExpression(SymbolId.Empty, name, pin.Name.Equals("Index", StringComparison.OrdinalIgnoreCase) ? PrimitiveType.Int32 : EntityType.EntityUid, node.Id);
                 }
 
                 // Literal node
@@ -569,6 +768,55 @@ public sealed class SemanticAnalyzer
 
             return new AstLiteralExpression(text, type);
         }
+
+        private AstNativeCallExpression LowerCall(NodeDocument node, PinDocument? resultPin = null)
+        {
+            var nodeType = node.NodeType;
+            var descriptor = nodeType.Equals("Graph.Call", StringComparison.OrdinalIgnoreCase)
+                ? "Graph.Call"
+                : node.Properties.GetValueOrDefault("Method", string.Empty);
+            var args = new List<AstExpression>();
+            if (descriptor == "Graph.Call")
+            {
+                args.Add(new AstLiteralExpression(node.Properties.GetValueOrDefault("Function", string.Empty), PrimitiveType.String, node.Id));
+            }
+
+            foreach (var pin in node.Pins.Where(p => p.Kind == PinKind.Data && p.Direction == PinDirection.Input))
+            {
+                args.Add(LowerPinExpression(pin));
+            }
+
+            if (string.IsNullOrEmpty(descriptor))
+            {
+                _diagnostics.ReportError(DiagnosticCodes.UnavailableBinding, $"Node '{node.Name}' does not name a binding.", node.Id);
+            }
+
+            _typeRegistry.TryGetType(resultPin?.DataType ?? string.Empty, out var returnType);
+            return new AstNativeCallExpression(descriptor, args, returnType ?? PrimitiveType.Void, node.Id);
+        }
+
+        private AstraType ResolveComponent(NodeDocument node, string compTypeName)
+        {
+            if (_typeRegistry.TryGetType(compTypeName, out var compType) && compType is not null)
+            {
+                return compType;
+            }
+
+            if (!compTypeName.Equals("Component", StringComparison.Ordinal))
+            {
+                _diagnostics.ReportError(DiagnosticCodes.UnknownSchema, $"Unknown schema or component '{compTypeName}'.", node.Id);
+            }
+
+            return PrimitiveType.Void;
+        }
+
+        private static bool IsForNode(string nodeType) =>
+            nodeType.Equals("Flow.For", StringComparison.OrdinalIgnoreCase) ||
+            nodeType.Equals("For", StringComparison.OrdinalIgnoreCase);
+
+        private static bool IsForEachNode(string nodeType) =>
+            nodeType.Equals("Flow.ForEach", StringComparison.OrdinalIgnoreCase) ||
+            nodeType.Equals("ForEach", StringComparison.OrdinalIgnoreCase);
 
         private static bool TryGetBinaryOperator(string nodeType, out AstBinaryOperator op)
         {

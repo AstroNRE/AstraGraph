@@ -41,7 +41,10 @@ public static class AstToIrCompiler
     private static IrFunction CompileEntryPoint(AstEntryPointStatement entryPoint)
     {
         var entryBlock = new IrBasicBlock(0, "entry");
-        var irFunc = new IrFunction(entryPoint.Name, [], PrimitiveType.Void, entryBlock);
+        var irFunc = new IrFunction(entryPoint.Name, [], PrimitiveType.Void, entryBlock)
+        {
+            Trigger = entryPoint.Trigger
+        };
         var emitter = new FunctionEmitter(irFunc);
 
         emitter.EmitBlock(entryPoint.Body, entryBlock);
@@ -82,7 +85,7 @@ public static class AstToIrCompiler
             return _function.CreateBlock($"{prefix}_{++_blockCounter}");
         }
 
-        public void EmitBlock(AstBlock block, IrBasicBlock currentBlock)
+        public IrBasicBlock EmitBlock(AstBlock block, IrBasicBlock currentBlock, bool implicitReturn = true)
         {
             var activeBlock = currentBlock;
 
@@ -90,19 +93,18 @@ public static class AstToIrCompiler
             {
                 if (activeBlock.Terminator != null)
                 {
-                    // Block was terminated (e.g. by a return or jump), create an unreachable block for remaining
                     activeBlock = CreateBlock("unreachable");
                 }
 
                 activeBlock = EmitStatement(stmt, activeBlock);
             }
 
-            // Ensure last block has a terminator
-            if (activeBlock.Terminator is null)
+            if (implicitReturn && activeBlock.Terminator is null)
             {
-                var ret = new IrInstruction(IrOpCode.Return);
-                activeBlock.SetTerminator(ret);
+                activeBlock.SetTerminator(new IrInstruction(IrOpCode.Return));
             }
+
+            return activeBlock;
         }
 
         private IrBasicBlock EmitStatement(AstStatement stmt, IrBasicBlock currentBlock)
@@ -129,25 +131,28 @@ public static class AstToIrCompiler
                     var branchTerminator = new IrInstruction(IrOpCode.BranchIf, null, [condReg], SourceNodeId: branch.SourceNodeId);
                     currentBlock.SetTerminator(branchTerminator, thenBlock, elseBlock);
 
-                    // Emit Then block
-                    EmitBlock(branch.TrueBlock, thenBlock);
-                    if (thenBlock.Terminator is null)
+                    var thenEnd = EmitBlock(branch.TrueBlock, thenBlock, implicitReturn: false);
+                    if (thenEnd.Terminator is null)
                     {
-                        thenBlock.SetTerminator(new IrInstruction(IrOpCode.Jump), mergeBlock);
+                        thenEnd.SetTerminator(new IrInstruction(IrOpCode.Jump), mergeBlock);
                     }
 
-                    // Emit Else block
-                    if (branch.FalseBlock != null)
+                    var elseEnd = branch.FalseBlock != null
+                        ? EmitBlock(branch.FalseBlock, elseBlock, implicitReturn: false)
+                        : elseBlock;
+                    if (elseEnd.Terminator is null)
                     {
-                        EmitBlock(branch.FalseBlock, elseBlock);
-                    }
-                    if (elseBlock.Terminator is null)
-                    {
-                        elseBlock.SetTerminator(new IrInstruction(IrOpCode.Jump), mergeBlock);
+                        elseEnd.SetTerminator(new IrInstruction(IrOpCode.Jump), mergeBlock);
                     }
 
                     return mergeBlock;
                 }
+
+                case AstForStatement loop:
+                    return EmitCountedLoop(loop.IndexName, loop.Start, loop.End, loop.Body, currentBlock, loop.SourceNodeId);
+
+                case AstForEachStatement each:
+                    return EmitForEach(each, currentBlock);
 
                 case AstYieldContinuationStatement yieldStmt:
                 {
@@ -210,10 +215,7 @@ public static class AstToIrCompiler
                 }
 
                 case AstBlock nestedBlock:
-                {
-                    EmitBlock(nestedBlock, currentBlock);
-                    return currentBlock;
-                }
+                    return EmitBlock(nestedBlock, currentBlock, implicitReturn: false);
 
                 default:
                     return currentBlock;
@@ -286,17 +288,25 @@ public static class AstToIrCompiler
 
                 case AstNativeCallExpression nativeCall:
                 {
-                    var argRegs = new List<IrOperand>();
+                    var sources = new List<IrRegister>();
                     foreach (var arg in nativeCall.Arguments)
                     {
-                        argRegs.Add(EmitExpression(arg, currentBlock));
+                        sources.Add(EmitExpression(arg, currentBlock));
+                    }
+
+                    var packed = new List<IrOperand>(sources.Count);
+                    foreach (var source in sources)
+                    {
+                        var slot = AllocateRegister(source.Type);
+                        currentBlock.AddInstruction(new IrInstruction(IrOpCode.Move, slot, [source], SourceNodeId: nativeCall.SourceNodeId));
+                        packed.Add(slot);
                     }
 
                     var reg = AllocateRegister(nativeCall.ReturnType);
                     currentBlock.AddInstruction(new IrInstruction(
                         IrOpCode.CallNative,
                         reg,
-                        argRegs,
+                        packed,
                         StringPayload: nativeCall.MethodDescriptor,
                         SourceNodeId: nativeCall.SourceNodeId));
                     return reg;
@@ -328,9 +338,182 @@ public static class AstToIrCompiler
                     return reg;
                 }
 
+                case AstEventContextExpression context:
+                {
+                    var reg = AllocateRegister(context.Type);
+                    currentBlock.AddInstruction(new IrInstruction(
+                        IrOpCode.LoadEvent,
+                        reg,
+                        Metadata: context.Slot,
+                        SourceNodeId: context.SourceNodeId));
+                    return reg;
+                }
+
+                case AstMemberReadExpression member:
+                {
+                    var target = EmitExpression(member.Target, currentBlock);
+                    var reg = AllocateRegister(member.Type);
+                    currentBlock.AddInstruction(new IrInstruction(
+                        IrOpCode.GetMember,
+                        reg,
+                        [target],
+                        StringPayload: member.MemberName,
+                        SourceNodeId: member.SourceNodeId));
+                    return reg;
+                }
+
+                case AstFieldReadExpression field:
+                {
+                    var component = EmitExpression(field.Component, currentBlock);
+                    var reg = AllocateRegister(field.Type);
+                    currentBlock.AddInstruction(new IrInstruction(
+                        IrOpCode.GetField,
+                        reg,
+                        [component],
+                        StringPayload: field.FieldName,
+                        SourceNodeId: field.SourceNodeId));
+                    return reg;
+                }
+
+                case AstCollectionLengthExpression length:
+                {
+                    var collection = EmitExpression(length.Collection, currentBlock);
+                    var reg = AllocateRegister(PrimitiveType.Int32);
+                    currentBlock.AddInstruction(new IrInstruction(
+                        IrOpCode.CollectionLength,
+                        reg,
+                        [collection],
+                        SourceNodeId: length.SourceNodeId));
+                    return reg;
+                }
+
+                case AstCollectionGetExpression element:
+                {
+                    var collection = EmitExpression(element.Collection, currentBlock);
+                    var index = EmitExpression(element.Index, currentBlock);
+                    var reg = AllocateRegister(element.Type);
+                    currentBlock.AddInstruction(new IrInstruction(
+                        IrOpCode.CollectionGet,
+                        reg,
+                        [collection, index],
+                        SourceNodeId: element.SourceNodeId));
+                    return reg;
+                }
+
+                case AstHasValueExpression hasValue:
+                {
+                    var operand = EmitExpression(hasValue.Value, currentBlock);
+                    var reg = AllocateRegister(PrimitiveType.Bool);
+                    currentBlock.AddInstruction(new IrInstruction(
+                        IrOpCode.HasValue,
+                        reg,
+                        [operand],
+                        SourceNodeId: hasValue.SourceNodeId));
+                    return reg;
+                }
+
                 default:
                     return AllocateRegister(expr.Type);
             }
+        }
+
+        private IrBasicBlock EmitCountedLoop(
+            string indexName,
+            AstExpression start,
+            AstExpression end,
+            AstBlock body,
+            IrBasicBlock currentBlock,
+            NodeId? source)
+        {
+            var startReg = EmitExpression(start, currentBlock);
+            StoreNamed(indexName, startReg, PrimitiveType.Int32, currentBlock, source);
+
+            var header = CreateBlock("for_header");
+            var loopBody = CreateBlock("for_body");
+            var step = CreateBlock("for_step");
+            var exit = CreateBlock("for_exit");
+            currentBlock.SetTerminator(new IrInstruction(IrOpCode.Jump, SourceNodeId: source), header);
+
+            var indexReg = LoadNamed(indexName, PrimitiveType.Int32, header, source);
+            var endReg = EmitExpression(end, header);
+            var cond = AllocateRegister(PrimitiveType.Bool);
+            header.AddInstruction(new IrInstruction(IrOpCode.CmpLt, cond, [indexReg, endReg], SourceNodeId: source));
+            header.SetTerminator(new IrInstruction(IrOpCode.BranchIf, null, [cond], SourceNodeId: source), loopBody, exit);
+
+            var bodyEnd = EmitBlock(body, loopBody, implicitReturn: false);
+            if (bodyEnd.Terminator is null)
+            {
+                bodyEnd.SetTerminator(new IrInstruction(IrOpCode.Jump), step);
+            }
+
+            var currentIndex = LoadNamed(indexName, PrimitiveType.Int32, step, source);
+            var one = AllocateRegister(PrimitiveType.Int32);
+            step.AddInstruction(new IrInstruction(IrOpCode.LoadConst, one, [new IrConstant(1, PrimitiveType.Int32)], SourceNodeId: source));
+            var next = AllocateRegister(PrimitiveType.Int32);
+            step.AddInstruction(new IrInstruction(IrOpCode.Add, next, [currentIndex, one], SourceNodeId: source));
+            StoreNamed(indexName, next, PrimitiveType.Int32, step, source);
+            step.SetTerminator(new IrInstruction(IrOpCode.Jump), header);
+            return exit;
+        }
+
+        private IrBasicBlock EmitForEach(AstForEachStatement each, IrBasicBlock currentBlock)
+        {
+            var collection = EmitExpression(each.Collection, currentBlock);
+            var indexName = each.ItemName + ".index";
+            var zero = AllocateRegister(PrimitiveType.Int32);
+            currentBlock.AddInstruction(new IrInstruction(IrOpCode.LoadConst, zero, [new IrConstant(0, PrimitiveType.Int32)], SourceNodeId: each.SourceNodeId));
+            StoreNamed(indexName, zero, PrimitiveType.Int32, currentBlock, each.SourceNodeId);
+
+            var header = CreateBlock("foreach_header");
+            var loopBody = CreateBlock("foreach_body");
+            var step = CreateBlock("foreach_step");
+            var exit = CreateBlock("foreach_exit");
+            currentBlock.SetTerminator(new IrInstruction(IrOpCode.Jump, SourceNodeId: each.SourceNodeId), header);
+
+            var indexReg = LoadNamed(indexName, PrimitiveType.Int32, header, each.SourceNodeId);
+            var length = AllocateRegister(PrimitiveType.Int32);
+            header.AddInstruction(new IrInstruction(IrOpCode.CollectionLength, length, [collection], SourceNodeId: each.SourceNodeId));
+            var cond = AllocateRegister(PrimitiveType.Bool);
+            header.AddInstruction(new IrInstruction(IrOpCode.CmpLt, cond, [indexReg, length], SourceNodeId: each.SourceNodeId));
+            header.SetTerminator(new IrInstruction(IrOpCode.BranchIf, null, [cond], SourceNodeId: each.SourceNodeId), loopBody, exit);
+
+            var item = AllocateRegister(EntityType.EntityUid);
+            loopBody.AddInstruction(new IrInstruction(IrOpCode.CollectionGet, item, [collection, indexReg], SourceNodeId: each.SourceNodeId));
+            StoreNamed(each.ItemName, item, EntityType.EntityUid, loopBody, each.SourceNodeId);
+            var bodyEnd = EmitBlock(each.Body, loopBody, implicitReturn: false);
+            if (bodyEnd.Terminator is null)
+            {
+                bodyEnd.SetTerminator(new IrInstruction(IrOpCode.Jump), step);
+            }
+
+            var currentIndex = LoadNamed(indexName, PrimitiveType.Int32, step, each.SourceNodeId);
+            var one = AllocateRegister(PrimitiveType.Int32);
+            step.AddInstruction(new IrInstruction(IrOpCode.LoadConst, one, [new IrConstant(1, PrimitiveType.Int32)], SourceNodeId: each.SourceNodeId));
+            var next = AllocateRegister(PrimitiveType.Int32);
+            step.AddInstruction(new IrInstruction(IrOpCode.Add, next, [currentIndex, one], SourceNodeId: each.SourceNodeId));
+            StoreNamed(indexName, next, PrimitiveType.Int32, step, each.SourceNodeId);
+            step.SetTerminator(new IrInstruction(IrOpCode.Jump), header);
+            return exit;
+        }
+
+        private static void StoreNamed(string name, IrRegister value, AstraType type, IrBasicBlock block, NodeId? source)
+        {
+            block.AddInstruction(new IrInstruction(
+                IrOpCode.StoreVariable,
+                null,
+                [new IrVariable(SymbolId.Empty, type, name), value],
+                SourceNodeId: source));
+        }
+
+        private IrRegister LoadNamed(string name, AstraType type, IrBasicBlock block, NodeId? source)
+        {
+            var reg = AllocateRegister(type);
+            block.AddInstruction(new IrInstruction(
+                IrOpCode.LoadVariable,
+                reg,
+                [new IrVariable(SymbolId.Empty, type, name)],
+                SourceNodeId: source));
+            return reg;
         }
     }
 }

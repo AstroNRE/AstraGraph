@@ -1,5 +1,6 @@
 using AstraGraph.Binding;
 using AstraGraph.Core;
+using AstraGraph.State;
 using AstraGraph.VM;
 using Robust.Shared.GameObjects;
 
@@ -14,6 +15,7 @@ public sealed class RobustVmHostServices : IVmHostServices
     private readonly IEntityManager _entities;
     private readonly DefaultVmHostServices _fallback = new();
     private BindingCatalog? _catalog;
+    private ISchemaComponentSource? _schemas;
 
     public RobustVmHostServices(IEntityManager entities)
     {
@@ -21,6 +23,18 @@ public sealed class RobustVmHostServices : IVmHostServices
     }
 
     public void UseCatalog(BindingCatalog catalog) => _catalog = catalog;
+
+    public void UseSchemaComponents(ISchemaComponentSource source)
+    {
+        _schemas = source;
+        _fallback.UseSchemaComponents(source);
+    }
+
+    public void PushEventContext(AstraEventInvocationContext context) => _fallback.PushEventContext(context);
+
+    public void PopEventContext() => _fallback.PopEventContext();
+
+    public AstraEventInvocationContext? PeekEventContext() => _fallback.PeekEventContext();
 
     public AstraValue GetVariable(SymbolId variableId, string name) => _fallback.GetVariable(variableId, name);
 
@@ -40,6 +54,11 @@ public sealed class RobustVmHostServices : IVmHostServices
 
     public bool HasComponent(AstraEntityId entityUid, string componentTypeName)
     {
+        if (_schemas != null && _schemas.Has(entityUid, componentTypeName))
+        {
+            return true;
+        }
+
         var type = Type.GetType(componentTypeName);
         if (type != null && _entities.HasComponent(RobustEntityMap.ToUid(entityUid), type))
         {
@@ -51,6 +70,11 @@ public sealed class RobustVmHostServices : IVmHostServices
 
     public AstraValue GetComponent(AstraEntityId entityUid, string componentTypeName)
     {
+        if (_schemas != null && _schemas.Has(entityUid, componentTypeName))
+        {
+            return AstraValue.FromObject(_schemas.TryGet(entityUid, componentTypeName));
+        }
+
         var type = Type.GetType(componentTypeName);
         if (type != null && _entities.TryGetComponent(RobustEntityMap.ToUid(entityUid), type, out var component) && component != null)
         {

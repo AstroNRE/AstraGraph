@@ -76,3 +76,34 @@ public sealed record AstHasComponentExpression(
     AstExpression Entity,
     AstraType ComponentType,
     NodeId? SourceNodeId = null) : AstExpression(PrimitiveType.Bool, SourceNodeId);
+
+public sealed record AstEventContextExpression(
+    int Slot,
+    AstraType Type,
+    NodeId? SourceNodeId = null) : AstExpression(Type, SourceNodeId);
+
+public sealed record AstMemberReadExpression(
+    AstExpression Target,
+    string MemberName,
+    AstraType Type,
+    NodeId? SourceNodeId = null) : AstExpression(Type, SourceNodeId);
+
+public sealed record AstFieldReadExpression(
+    AstExpression Component,
+    string FieldName,
+    AstraType Type,
+    NodeId? SourceNodeId = null) : AstExpression(Type, SourceNodeId);
+
+public sealed record AstCollectionLengthExpression(
+    AstExpression Collection,
+    NodeId? SourceNodeId = null) : AstExpression(PrimitiveType.Int32, SourceNodeId);
+
+public sealed record AstCollectionGetExpression(
+    AstExpression Collection,
+    AstExpression Index,
+    AstraType Type,
+    NodeId? SourceNodeId = null) : AstExpression(Type, SourceNodeId);
+
+public sealed record AstHasValueExpression(
+    AstExpression Value,
+    NodeId? SourceNodeId = null) : AstExpression(PrimitiveType.Bool, SourceNodeId);

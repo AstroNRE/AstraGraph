@@ -95,13 +95,37 @@ public sealed class AstraBootstrapService
 
                     foreach (var entryPoint in program.EntryPoints)
                     {
+                        if (entryPoint.Trigger != EntryPointTrigger.Update)
+                        {
+                            continue;
+                        }
+
                         _host.Vm.Execute(program, entryPoint, hostServices: _host.HostServices);
                     }
                 }));
             activated++;
+            RunTrigger(graph.Document.Id, EntryPointTrigger.Startup);
         }
 
         return activated;
+    }
+
+    private void RunTrigger(GraphId graphId, EntryPointTrigger trigger)
+    {
+        if (_host.GetProgram(graphId) is not { } program)
+        {
+            return;
+        }
+
+        foreach (var entryPoint in program.EntryPoints)
+        {
+            if (entryPoint.Trigger != trigger)
+            {
+                continue;
+            }
+
+            _host.Vm.Execute(program, entryPoint, hostServices: _host.HostServices);
+        }
     }
 
     private bool ActivateGraph(DiscoveredGraph graph, CompilationCache cache, string author)

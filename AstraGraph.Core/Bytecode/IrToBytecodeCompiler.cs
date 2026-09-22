@@ -18,6 +18,7 @@ public static class IrToBytecodeCompiler
         foreach (var entry in irProgram.EntryPoints)
         {
             var compiledFunc = CompileFunction(entry, pool);
+            compiledFunc.Trigger = entry.Trigger;
             bytecodeProg.EntryPoints.Add(compiledFunc);
         }
 
@@ -170,6 +171,12 @@ public static class IrToBytecodeCompiler
                 return new BytecodeInstruction(opCode, destReg, methodIdx, argCount, firstArgReg);
             }
 
+            case IrOpCode.Move:
+            {
+                var source = (instr.Operands != null && instr.Operands.Count > 0 && instr.Operands[0] is IrRegister register) ? register.Index : 0;
+                return new BytecodeInstruction(opCode, destReg, source, 0, 0);
+            }
+
             case IrOpCode.YieldContinuation:
             {
                 var kind = (int)(instr.Metadata is ContinuationKind k ? k : ContinuationKind.Delay);
@@ -204,6 +211,34 @@ public static class IrToBytecodeCompiler
                 var entityReg = (instr.Operands != null && instr.Operands.Count > 0 && instr.Operands[0] is IrRegister r) ? r.Index : 0;
                 var compIdx = pool.GetOrAddString(instr.StringPayload ?? string.Empty);
                 return new BytecodeInstruction(opCode, destReg, entityReg, compIdx, 0);
+            }
+
+            case IrOpCode.LoadEvent:
+            {
+                var slot = instr.Metadata is int value ? value : 0;
+                return new BytecodeInstruction(opCode, destReg, slot, 0, 0);
+            }
+
+            case IrOpCode.GetMember:
+            case IrOpCode.GetField:
+            {
+                var target = (instr.Operands != null && instr.Operands.Count > 0 && instr.Operands[0] is IrRegister r) ? r.Index : 0;
+                var name = pool.GetOrAddString(instr.StringPayload ?? string.Empty);
+                return new BytecodeInstruction(opCode, destReg, target, name, 0);
+            }
+
+            case IrOpCode.CollectionLength:
+            case IrOpCode.HasValue:
+            {
+                var source = (instr.Operands != null && instr.Operands.Count > 0 && instr.Operands[0] is IrRegister r) ? r.Index : 0;
+                return new BytecodeInstruction(opCode, destReg, source, 0, 0);
+            }
+
+            case IrOpCode.CollectionGet:
+            {
+                var collection = (instr.Operands != null && instr.Operands.Count > 0 && instr.Operands[0] is IrRegister left) ? left.Index : 0;
+                var index = (instr.Operands != null && instr.Operands.Count > 1 && instr.Operands[1] is IrRegister right) ? right.Index : 0;
+                return new BytecodeInstruction(opCode, destReg, collection, index, 0);
             }
 
             default:

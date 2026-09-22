@@ -46,7 +46,16 @@ public enum IrOpCode
     Jump,
     BranchIf,
     Return,
-    YieldContinuation
+    YieldContinuation,
+
+    // Appended so existing bytecode opcode numbers stay stable.
+    LoadEvent,
+    GetMember,
+    GetField,
+    CollectionLength,
+    CollectionGet,
+    HasValue,
+    Move
 }
 
 /// <summary>

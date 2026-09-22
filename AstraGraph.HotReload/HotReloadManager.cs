@@ -64,9 +64,7 @@ public sealed class HotReloadManager
         SchemaType? declaredSchema = null,
         IReadOnlyList<GraphEventSubscription>? subscriptions = null)
     {
-        ArgumentNullException.ThrowIfNull(draft);
-
-        // 1. Semantic Analysis & Type Checking
+        declaredSchema ??= SchemaDocuments.FirstComponent(draft, TypeRegistry.Default);
         var semanticResult = _semanticAnalyzer.Analyze(draft);
         if (!semanticResult.Success || semanticResult.Program is null)
         {
@@ -205,38 +203,10 @@ public sealed class HotReloadManager
                     // 2. Atomic Program Pointer Swap in Host
                     _host.RegisterProgram(tx.PreparedProgram);
 
-                    // 3. Swap Event Subscriptions in Router
                     _host.EventRouter.UnsubscribeGraph(tx.GraphId);
-                    if (tx.Subscriptions.Count > 0)
+                    foreach (var sub in tx.Subscriptions)
                     {
-                        foreach (var sub in tx.Subscriptions)
-                        {
-                            AttachSubscription(sub);
-                        }
-                    }
-                    else
-                    {
-                        foreach (var ep in tx.PreparedProgram.EntryPoints)
-                        {
-                            var entry = ep;
-                            var epName = tx.PreparedProgram.Constants[entry.NameConstantIndex].Value?.ToString() ?? "unnamed";
-                            _host.EventRouter.Subscribe(
-                                componentType: null,
-                                eventType: typeof(object),
-                                graphId: tx.GraphId,
-                                entryPointName: epName,
-                                handler: (_, _) =>
-                                {
-                                    if (!IsDispatchAllowed(tx.GraphId))
-                                    {
-                                        return;
-                                    }
-
-                                    var program = _host.GetProgram(tx.GraphId) ?? tx.PreparedProgram;
-                                    _host.Vm.Execute(program, entry, hostServices: _host.HostServices, debugHook: _host.Debugger);
-                                    _host.NoteEntryExecuted();
-                                });
-                        }
+                        AttachSubscription(sub);
                     }
 
                     // 4. Create Revision Record
@@ -428,17 +398,17 @@ public sealed class HotReloadManager
 
     private void AttachSubscription(GraphEventSubscription subscription)
     {
-        void Run(object ev) => ExecuteEntry(subscription, ev);
+        void Run(object? entity, object? ev) => ExecuteEntry(subscription, entity, ev);
         if (subscription.ByRef && subscription.ComponentType == null)
         {
-            _host.EventRouter.SubscribeRefInvoke(subscription, Run);
+            _host.EventRouter.SubscribeRefInvoke(subscription, ev => Run(null, ev));
             return;
         }
 
-        _host.EventRouter.Subscribe(subscription, (_, ev) => Run(ev));
+        _host.EventRouter.Subscribe(subscription, (entity, ev) => Run(entity, ev));
     }
 
-    private void ExecuteEntry(GraphEventSubscription subscription, object? eventObject = null)
+    private void ExecuteEntry(GraphEventSubscription subscription, object? entity, object? eventObject = null)
     {
         if (!IsDispatchAllowed(subscription.GraphId))
         {
@@ -452,26 +422,29 @@ public sealed class HotReloadManager
             return;
         }
 
-        if (eventObject != null)
+        var entityValue = AstraValueBox.Box(entity);
+        if (entityValue.Type != AstraValueType.EntityUid)
         {
-            CopyEventToVariables(eventObject);
+            entityValue = AstraValue.Null;
         }
 
-        _host.Vm.Execute(program, entry, hostServices: _host.HostServices, debugHook: _host.Debugger);
+        var context = new AstraEventInvocationContext(entityValue, entity, eventObject);
+        _host.HostServices.PushEventContext(context);
+        try
+        {
+            _host.Vm.Execute(program, entry, hostServices: _host.HostServices, debugHook: _host.Debugger);
+        }
+        finally
+        {
+            _host.HostServices.PopEventContext();
+        }
+
         if (eventObject != null)
         {
             CopyVariablesToEvent(eventObject);
         }
 
         _host.NoteEntryExecuted();
-    }
-
-    private void CopyEventToVariables(object eventObject)
-    {
-        foreach (var property in WritableProperties(eventObject))
-        {
-            _host.HostServices.SetVariable(SymbolId.Empty, property.Name, AstraValue.FromObject(property.GetValue(eventObject)));
-        }
     }
 
     private void CopyVariablesToEvent(object eventObject)

@@ -31,7 +31,43 @@ public static class GameplayBindings
         Bind(entities);
         Register(catalog, nameof(Spawn), "Entity.Spawn");
         Register(catalog, nameof(Delete), "Entity.Delete");
+        Register(catalog, nameof(EntityExists), "Entity.Exists");
+        Register(catalog, nameof(EntityTerminating), "Entity.Terminating");
+        Register(catalog, nameof(GetCoordinates), "Entity.GetCoordinates");
+        Register(catalog, nameof(SpawnEntity), "Entity.SpawnAt");
+        Register(catalog, nameof(QueueDeleteEntity), "Entity.QueueDelete");
     }
+
+    public static bool EntityExists(int entity) =>
+        Entities.EntityExists(new EntityUid(entity));
+
+    public static bool EntityTerminating(int entity)
+    {
+        var uid = new EntityUid(entity);
+        return !Entities.TryGetComponent(uid, out MetaDataComponent? metadata) ||
+               metadata == null ||
+               metadata.EntityLifeStage >= EntityLifeStage.Terminating;
+    }
+
+    public static object? GetCoordinates(int entity)
+    {
+        var uid = new EntityUid(entity);
+        return Entities.TryGetComponent(uid, out TransformComponent? transform) ? transform?.Coordinates : null;
+    }
+
+    public static int SpawnEntity(string prototype, object? coordinates)
+    {
+        var uid = coordinates switch
+        {
+            EntityCoordinates entityCoordinates => Entities.SpawnEntity(prototype, entityCoordinates),
+            MapCoordinates mapCoordinates => Entities.SpawnEntity(prototype, mapCoordinates),
+            _ => Entities.SpawnEntity(prototype, MapCoordinates.Nullspace)
+        };
+        return (int)uid;
+    }
+
+    public static void QueueDeleteEntity(int entity) =>
+        Entities.QueueDeleteEntity(new EntityUid(entity));
 
     private static IEntityManager Entities =>
         _entities ?? throw new InvalidOperationException("Gameplay bindings are not attached to an entity manager.");

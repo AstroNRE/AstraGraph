@@ -4,6 +4,7 @@ export interface PinDocument {
   direction: "input" | "output";
   kind: "execution" | "data";
   dataType?: string;
+  defaultValue?: string;
 }
 
 export interface NodeDocument {
@@ -46,6 +47,14 @@ export interface GraphAttributes {
   bookmarks: string;
 }
 
+export interface GraphSchemaDocument {
+  id: string;
+  name: string;
+  kind?: string;
+  isComponent?: boolean;
+  fields: { id: string; name: string; typeName: string; defaultValue?: string }[];
+}
+
 export interface GraphDocument {
   formatVersion: string;
   id: string;
@@ -59,6 +68,7 @@ export interface GraphDocument {
   version: string;
   attributes: GraphAttributes;
   variables: { id: string; name: string; typeName: string; defaultValue?: string; persistent?: boolean; replicated?: boolean; parameter?: boolean }[];
+  schemas?: GraphSchemaDocument[];
   editorLayout: {
     nodePositions: Record<string, { x: number; y: number }>;
     comments: CommentBox[];
@@ -111,6 +121,7 @@ export function serializeGraph(document: GraphDocument): string {
       isReplicated: variable.replicated === true,
       isParameter: variable.parameter === true
     })),
+    schemas: document.schemas ?? [],
     nodes: document.nodes.map((node) => ({
       id: node.id,
       name: node.name,
@@ -121,7 +132,8 @@ export function serializeGraph(document: GraphDocument): string {
         name: pin.name,
         direction: pin.direction,
         kind: pin.kind,
-        dataType: pin.dataType ?? ""
+        dataType: pin.dataType ?? "",
+        defaultValue: pin.defaultValue ?? ""
       }))
     })),
     connections: document.connections,
@@ -144,6 +156,7 @@ export function parseGraph(json: string): GraphDocument {
       pins: (node.pins ?? []).map(normalizePin)
     })),
     connections: raw.connections ?? [],
+    schemas: raw.schemas ?? [],
     variables: (raw.variables ?? []).map((variable) => ({
       id: variable.id,
       name: variable.name,
@@ -175,6 +188,7 @@ export function createGraph(name: string): GraphDocument {
     nodes: [],
     connections: [],
     variables: [],
+    schemas: [],
     editorLayout: { nodePositions: {}, comments: [], viewportX: 0, viewportY: 0, zoom: 1 }
   };
 }
@@ -210,22 +224,113 @@ export function insertNode(document: GraphDocument, node: NodeDocument): GraphDo
   };
 }
 
+export function upsertSchema(document: GraphDocument, schema: GraphSchemaDocument): GraphDocument {
+  const schemas = document.schemas ?? [];
+  return { ...document, schemas: [...schemas.filter((item) => item.id !== schema.id), schema] };
+}
+
+const gameplayPins: Record<string, { properties?: Record<string, string>; pins: { name: string; direction: "input" | "output"; kind: "execution" | "data"; dataType?: string; defaultValue?: string }[] }> = {
+  "Event.Native": {
+    properties: { eventType: "" },
+    pins: [
+      { name: "Out", direction: "output", kind: "execution" },
+      { name: "Entity", direction: "output", kind: "data", dataType: "EntityUid" },
+      { name: "Component", direction: "output", kind: "data", dataType: "object" },
+      { name: "Event", direction: "output", kind: "data", dataType: "object" }
+    ]
+  },
+  "Entity.TryGetComponent": {
+    properties: { ComponentType: "" },
+    pins: [
+      { name: "In", direction: "input", kind: "execution" },
+      { name: "Out", direction: "output", kind: "execution" },
+      { name: "Entity", direction: "input", kind: "data", dataType: "EntityUid" },
+      { name: "Found", direction: "output", kind: "data", dataType: "bool" },
+      { name: "Component", direction: "output", kind: "data", dataType: "component" }
+    ]
+  },
+  "Schema.GetField": {
+    properties: { Schema: "", Field: "" },
+    pins: [
+      { name: "Component", direction: "input", kind: "data", dataType: "component" },
+      { name: "Value", direction: "output", kind: "data", dataType: "int32" }
+    ]
+  },
+  "Native.GetMember": {
+    properties: { Member: "" },
+    pins: [
+      { name: "Target", direction: "input", kind: "data", dataType: "object" },
+      { name: "Value", direction: "output", kind: "data", dataType: "object" }
+    ]
+  },
+  "Flow.For": {
+    pins: [
+      { name: "In", direction: "input", kind: "execution" },
+      { name: "Out", direction: "output", kind: "execution" },
+      { name: "Body", direction: "output", kind: "execution" },
+      { name: "Start", direction: "input", kind: "data", dataType: "int32", defaultValue: "0" },
+      { name: "Count", direction: "input", kind: "data", dataType: "int32" },
+      { name: "Index", direction: "output", kind: "data", dataType: "int32" }
+    ]
+  },
+  "Flow.ForEach": {
+    pins: [
+      { name: "In", direction: "input", kind: "execution" },
+      { name: "Out", direction: "output", kind: "execution" },
+      { name: "Body", direction: "output", kind: "execution" },
+      { name: "Collection", direction: "input", kind: "data", dataType: "List<EntityUid>" },
+      { name: "Current", direction: "output", kind: "data", dataType: "EntityUid" }
+    ]
+  },
+  "Nullable.HasValue": {
+    pins: [
+      { name: "Value", direction: "input", kind: "data", dataType: "EntityUid?" },
+      { name: "HasValue", direction: "output", kind: "data", dataType: "bool" }
+    ]
+  },
+  "Nullable.GetValue": {
+    pins: [
+      { name: "Value", direction: "input", kind: "data", dataType: "EntityUid?" },
+      { name: "ValueOut", direction: "output", kind: "data", dataType: "EntityUid" }
+    ]
+  },
+  "Graph.Call": {
+    properties: { Function: "ReplaceEntity" },
+    pins: [
+      { name: "In", direction: "input", kind: "execution" },
+      { name: "Out", direction: "output", kind: "execution" },
+      { name: "Target", direction: "input", kind: "data", dataType: "EntityUid" },
+      { name: "Prototype", direction: "input", kind: "data", dataType: "EntProtoId" },
+      { name: "Count", direction: "input", kind: "data", dataType: "int32" }
+    ]
+  },
+  "Native.Call": {
+    properties: { Method: "" },
+    pins: [
+      { name: "In", direction: "input", kind: "execution" },
+      { name: "Out", direction: "output", kind: "execution" }
+    ]
+  }
+};
+
 export function addNode(document: GraphDocument, nodeType: string, name: string): GraphDocument {
+  const spec = gameplayPins[nodeType];
   const id = crypto.randomUUID();
-  const input = crypto.randomUUID();
-  const output = crypto.randomUUID();
   const count = document.nodes.length;
+  const pins = spec
+    ? spec.pins.map((pin) => ({ id: crypto.randomUUID(), ...pin }))
+    : [
+        { id: crypto.randomUUID(), name: "In", direction: "input" as const, kind: "execution" as const },
+        { id: crypto.randomUUID(), name: "Out", direction: "output" as const, kind: "execution" as const }
+      ];
   return {
     ...document,
     nodes: [...document.nodes, {
       id,
       name,
       nodeType,
-      properties: {},
-      pins: [
-        { id: input, name: "In", direction: "input", kind: "execution" },
-        { id: output, name: "Out", direction: "output", kind: "execution" }
-      ]
+      properties: spec?.properties ? { ...spec.properties } : {},
+      pins
     }],
     editorLayout: {
       ...document.editorLayout,

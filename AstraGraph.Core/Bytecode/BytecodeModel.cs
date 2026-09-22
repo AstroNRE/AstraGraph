@@ -33,6 +33,7 @@ public sealed class BytecodeFunction
     public int ParameterCount { get; }
     public IReadOnlyList<BytecodeInstruction> Instructions { get; }
     public IReadOnlyList<NodeId?>? SourceMap { get; }
+    public EntryPointTrigger Trigger { get; set; } = EntryPointTrigger.Update;
 
     public BytecodeFunction(
         int nameConstantIndex,

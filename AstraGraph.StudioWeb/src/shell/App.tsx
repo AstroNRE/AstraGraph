@@ -18,6 +18,7 @@ import {
   serializeGraph,
   setNodeProperty,
   undo,
+  upsertSchema,
   type GraphDocument,
   type NodeDocument,
   type PinDocument,
@@ -34,8 +35,16 @@ import { UiDesigner, type UiDocumentModel } from "./UiDesigner";
 import { chooseRecovery, recallDraft, rememberDraft } from "../documents/recovery";
 
 const palette = [
-  ["Event.Tick", "On Tick"],
-  ["Event.Start", "On Start"],
+  ["Event.Native", "On event"],
+  ["Entity.TryGetComponent", "Try Get Component"],
+  ["Schema.GetField", "Get field"],
+  ["Native.GetMember", "Get member"],
+  ["Native.Call", "Call"],
+  ["Graph.Call", "Call function"],
+  ["Flow.For", "For"],
+  ["Flow.ForEach", "For each"],
+  ["Nullable.HasValue", "Has value"],
+  ["Nullable.GetValue", "Get value"],
   ["Flow.Branch", "Branch"],
   ["Core.VariableAssign", "Assign"]
 ] as const;
@@ -870,8 +879,25 @@ export function App() {
   }
 
   async function saveSchema(schema: SchemaDocument) {
+    const stored = {
+      id: schema.id,
+      name: schema.name,
+      kind: schema.kind ?? (schema.isComponent ? "Component" : "Struct"),
+      isComponent: schema.kind ? schema.kind === "Component" : schema.isComponent,
+      fields: schema.fields.map((field) => ({
+        id: field.id,
+        name: field.name,
+        typeName: field.typeName,
+        defaultValue: field.defaultValue ?? ""
+      }))
+    };
+    setSchemas((current) => current.some((item) => item.id === schema.id)
+      ? current.map((item) => item.id === schema.id ? schema : item)
+      : [...current, schema]);
+    setStack((current) => edit(current, upsertSchema(current.present, stored)));
+    placeNode(nodeFromSchema(schema));
     if (!client) {
-      setSchemaNote("Schema stays local until the session is connected.");
+      setSchemaNote(`${schema.name} is in this graph. Connect a session to publish it.`);
       return;
     }
     try {
@@ -887,7 +913,6 @@ export function App() {
         return;
       }
       await loadSchemas();
-      placeNode(nodeFromSchema(schema));
       setSchemaNote(`${schema.name} is on the canvas.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Schema was not saved";

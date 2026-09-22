@@ -11,6 +11,7 @@ public sealed class BindingCatalog
 {
     private readonly ConcurrentDictionary<string, NativeMethodDescriptor> _methodsByDescriptor = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<Type, NativeTypeDescriptor> _types = new();
+    private readonly ConcurrentDictionary<string, Type> _events = new(StringComparer.Ordinal);
     private readonly TypeRegistry _typeRegistry;
 
     public BindingCatalog(TypeRegistry? typeRegistry = null)
@@ -39,7 +40,6 @@ public sealed class BindingCatalog
 
         var typeDesc = _types.GetOrAdd(type, t => new NativeTypeDescriptor(t, t.Name));
 
-        // Index Methods
         var methods = type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly);
         foreach (var method in methods)
         {
@@ -56,7 +56,106 @@ public sealed class BindingCatalog
             {
             }
         }
+
+        IndexMembers(type, typeDesc);
     }
+
+    public void IndexEventType(Type eventType)
+    {
+        ArgumentNullException.ThrowIfNull(eventType);
+        var typeDesc = _types.GetOrAdd(eventType, t => new NativeTypeDescriptor(t, t.Name));
+        IndexMembers(eventType, typeDesc);
+        _events[eventType.FullName ?? eventType.Name] = eventType;
+    }
+
+    public IEnumerable<Type> Events => _events.Values;
+
+    public bool TryGetEvent(string name, out Type? eventType)
+    {
+        if (_events.TryGetValue(name, out eventType))
+        {
+            return true;
+        }
+
+        eventType = _events.Values.FirstOrDefault(type => type.Name.Equals(name, StringComparison.Ordinal));
+        return eventType != null;
+    }
+
+    public IEnumerable<NativePropertyDescriptor> SearchMembers(string query)
+    {
+        var members = _types.Values.SelectMany(type => type.Properties);
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return members;
+        }
+
+        return members.Where(member =>
+            member.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+            member.DeclaringTypeName.Contains(query, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void IndexMembers(Type type, NativeTypeDescriptor typeDesc)
+    {
+        const BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+        foreach (var property in type.GetProperties(flags))
+        {
+            if (property.GetIndexParameters().Length != 0 || property.GetCustomAttribute<AstraHiddenAttribute>() != null)
+            {
+                continue;
+            }
+
+            try
+            {
+                var astraType = _typeRegistry.GetOrCreateNativeType(property.PropertyType);
+                typeDesc.Properties.Add(new NativePropertyDescriptor(
+                    property.Name,
+                    property,
+                    astraType,
+                    property.CanRead ? target => ReadMember(target, property) : null,
+                    property.CanWrite ? (target, value) => property.SetValue(target.AsObject(), value.AsObject()) : null)
+                {
+                    DeclaringTypeName = type.Name,
+                    CanRead = property.CanRead,
+                    CanWrite = property.CanWrite,
+                    Side = GraphSide.Shared
+                });
+            }
+            catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException or ArgumentException)
+            {
+            }
+        }
+
+        foreach (var field in type.GetFields(flags))
+        {
+            if (field.IsSpecialName || field.GetCustomAttribute<AstraHiddenAttribute>() != null)
+            {
+                continue;
+            }
+
+            try
+            {
+                var astraType = _typeRegistry.GetOrCreateNativeType(field.FieldType);
+                typeDesc.Properties.Add(new NativePropertyDescriptor(
+                    field.Name,
+                    null,
+                    astraType,
+                    target => AstraValueBox.Box(field.GetValue(target.AsObject())))
+                {
+                    DeclaringTypeName = type.Name,
+                    CanRead = true,
+                    CanWrite = !field.IsInitOnly,
+                    Side = GraphSide.Shared,
+                    IsField = true
+                });
+            }
+            catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException or ArgumentException)
+            {
+            }
+        }
+    }
+
+    private static AstraValue ReadMember(AstraValue target, PropertyInfo property) =>
+        AstraValueBox.Box(property.GetValue(target.AsObject()));
 
     public NativeMethodDescriptor RegisterMethod(
         MethodInfo method,

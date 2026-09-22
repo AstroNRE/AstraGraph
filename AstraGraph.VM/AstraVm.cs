@@ -321,6 +321,41 @@ public sealed class AstraVm
                         registers[dest] = AstraValue.FromBool(services.HasComponent(entityId, compName));
                         break;
                     }
+
+                    case IrOpCode.LoadEvent:
+                        registers[dest] = services.PeekEventContext()?.Read(instr.Op1) ?? AstraValue.Null;
+                        break;
+
+                    case IrOpCode.GetMember:
+                    {
+                        var name = program.Constants[instr.Op2].Value?.ToString() ?? string.Empty;
+                        registers[dest] = AstraValueBox.ReadMember(registers[instr.Op1].AsObject(), name);
+                        break;
+                    }
+
+                    case IrOpCode.GetField:
+                    {
+                        var name = program.Constants[instr.Op2].Value?.ToString() ?? string.Empty;
+                        var component = registers[instr.Op1].AsObject() as SchemaComponentValue;
+                        registers[dest] = component?.Read(name) ?? AstraValue.Null;
+                        break;
+                    }
+
+                    case IrOpCode.CollectionLength:
+                        registers[dest] = AstraValue.FromInt64(CollectionLength(registers[instr.Op1]));
+                        break;
+
+                    case IrOpCode.CollectionGet:
+                        registers[dest] = CollectionGet(registers[instr.Op1], (int)registers[instr.Op2].AsInt64());
+                        break;
+
+                    case IrOpCode.HasValue:
+                        registers[dest] = AstraValue.FromBool(registers[instr.Op1].Type != AstraValueType.Null);
+                        break;
+
+                    case IrOpCode.Move:
+                        registers[dest] = registers[instr.Op1];
+                        break;
                 }
 
                 if (onNodeElapsed != null && timedNode.HasValue)
@@ -352,4 +387,34 @@ public sealed class AstraVm
         ConstantKind.Guid => AstraValue.FromObject(entry.Value),
         _ => AstraValue.Null
     };
+
+    private static int CollectionLength(AstraValue value)
+    {
+        if (value.AsObject() is AstraList list)
+        {
+            return list.Count;
+        }
+
+        if (value.AsObject() is System.Collections.IList items)
+        {
+            return items.Count;
+        }
+
+        return 0;
+    }
+
+    private static AstraValue CollectionGet(AstraValue value, int index)
+    {
+        if (value.AsObject() is AstraList list)
+        {
+            return list.Get(index);
+        }
+
+        if (value.AsObject() is System.Collections.IList items && (uint)index < (uint)items.Count)
+        {
+            return AstraValueBox.Box(items[index]);
+        }
+
+        return AstraValue.Null;
+    }
 }

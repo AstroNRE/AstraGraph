@@ -41,6 +41,17 @@ public static class DiagnosticCodes
     public const string DeadCode = "FLO002";
     public const string InfinitePureDataLoop = "FLO003";
     public const string UnreachableResumePoint = "FLO004";
+    public const string InvalidCollection = "FLO005";
+
+    // Schema and prototype YAML (SCHxxx)
+    public const string UnknownSchema = "SCH001";
+    public const string UnknownField = "SCH002";
+    public const string InvalidYamlField = "SCH003";
+
+    // Events and bindings (EVTxxx / BNDxxx)
+    public const string UnknownEvent = "EVT001";
+    public const string UnavailableBinding = "BND001";
+    public const string InvalidMember = "BND002";
 }
 
 /// <summary>

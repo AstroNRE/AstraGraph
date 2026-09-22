@@ -1,8 +1,8 @@
 using AstraGraph.Binding;
 using AstraGraph.Runtime;
-using AstraGraph.VM;
 using AstraGraph.Runtime.Network;
 using AstraGraph.State;
+using AstraGraph.VM;
 using Robust.Shared.GameObjects;
 using Robust.Shared.IoC;
 using Robust.Shared.Network;
@@ -79,6 +79,7 @@ public class SharedAstraGraphSystem : EntitySystem
         if (_entMan != null)
         {
             _entMan.EntityDeleted += OnEntityDeleted;
+            _entMan.EntityInitialized += OnEntityInitialized;
         }
 
         Log.Info("SharedAstraGraphSystem initialized successfully.");
@@ -89,8 +90,26 @@ public class SharedAstraGraphSystem : EntitySystem
         if (_entMan != null)
         {
             _entMan.EntityDeleted -= OnEntityDeleted;
+            _entMan.EntityInitialized -= OnEntityInitialized;
         }
         base.Shutdown();
+    }
+
+    private void OnEntityInitialized(Entity<MetaDataComponent> entity)
+    {
+        if (AstraSchemaRuntime.Registry == null)
+        {
+            return;
+        }
+
+        var source = new SchemaComponentSource(Host.Components, AstraSchemaRuntime.Registry);
+        foreach (var component in _entMan.GetComponents(entity.Owner))
+        {
+            if (component is AstraSchemaComponentProxy proxy)
+            {
+                AstraSchemaComponentBridge.ApplyProxy(source, (int)entity.Owner.Id, proxy);
+            }
+        }
     }
 
     private void OnEntityDeleted(Entity<MetaDataComponent> entity)

@@ -16,6 +16,20 @@ public sealed record AstEntryPointStatement(
     string Name,
     IReadOnlyList<AstVariableDeclaration> Parameters,
     AstBlock Body,
+    NodeId? SourceNodeId = null,
+    EntryPointTrigger Trigger = EntryPointTrigger.Update) : AstStatement(SourceNodeId);
+
+public sealed record AstForStatement(
+    string IndexName,
+    AstExpression Start,
+    AstExpression End,
+    AstBlock Body,
+    NodeId? SourceNodeId = null) : AstStatement(SourceNodeId);
+
+public sealed record AstForEachStatement(
+    string ItemName,
+    AstExpression Collection,
+    AstBlock Body,
     NodeId? SourceNodeId = null) : AstStatement(SourceNodeId);
 
 public sealed record AstVariableDeclaration(

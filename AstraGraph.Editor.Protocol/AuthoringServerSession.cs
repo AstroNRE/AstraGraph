@@ -634,6 +634,26 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
 
                 list.Add(ToCatalogEntry(desc));
             }
+
+            foreach (var member in _bindingCatalog.SearchMembers(request.SearchFilter ?? string.Empty))
+            {
+                var signature = $"{member.DeclaringTypeName}.{member.Name}";
+                list.Add(new CatalogEntryDto(
+                    Signature: signature,
+                    Category: member.DeclaringTypeName,
+                    IsPure: true,
+                    IsPredictionSafe: true,
+                    Side: member.Side,
+                    Documentation: member.IsField ? "field" : "property",
+                    BindingId: "member:" + signature,
+                    DeclaringType: member.DeclaringTypeName,
+                    MethodName: member.Name,
+                    Parameters: [new CatalogParameterDto("Target", member.DeclaringTypeName, "Input"), new CatalogParameterDto("Value", member.Type.TypeName, "Output")],
+                    ReturnType: member.Type.TypeName,
+                    SecurityProfile: "Gameplay",
+                    Cost: 0,
+                    IsObsolete: false));
+            }
         }
 
         return new CatalogQueryResponse(AuthoringStatusCode.Success, list);
@@ -667,6 +687,35 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         var method = _bindingCatalog?.FindMethod(bindingId);
         if (method == null)
         {
+            if (bindingId.StartsWith("member:", StringComparison.Ordinal) && _bindingCatalog != null)
+            {
+                var signature = bindingId["member:".Length..];
+                var member = _bindingCatalog.SearchMembers(signature).FirstOrDefault(item =>
+                    $"{item.DeclaringTypeName}.{item.Name}".Equals(signature, StringComparison.Ordinal));
+                if (member == null)
+                {
+                    return null;
+                }
+
+                var getter = new NodeDocument
+                {
+                    Id = NodeId.New(),
+                    Name = member.Name,
+                    NodeType = "Native.GetMember",
+                    Properties = new Dictionary<string, string>
+                    {
+                        ["Member"] = member.Name,
+                        ["DeclaringType"] = member.DeclaringTypeName
+                    },
+                    Pins =
+                    [
+                        new PinDocument { Id = PinId.New(), Name = "Target", Direction = PinDirection.Input, Kind = PinKind.Data, DataType = member.DeclaringTypeName },
+                        new PinDocument { Id = PinId.New(), Name = "Value", Direction = PinDirection.Output, Kind = PinKind.Data, DataType = member.Type.TypeName }
+                    ]
+                };
+                return GraphSerializer.Serialize(new GraphDocument { Name = member.Name, Nodes = [getter] }, writeIndented: false);
+            }
+
             return null;
         }
 

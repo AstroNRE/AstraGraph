@@ -18,7 +18,7 @@ export interface SchemaDocument {
   members?: string[];
 }
 
-const fieldTypes = ["int32", "int64", "float32", "float64", "bool", "string", "int32?", "string?", "List<int32>", "Set<string>", "Dictionary<string, int32>"];
+const fieldTypes = ["int32", "int64", "float32", "float64", "bool", "string", "EntProtoId", "EntityUid", "int32?", "string?", "List<int32>", "Set<string>", "Dictionary<string, int32>"];
 const schemaKinds = ["Component", "Struct", "Enum", "Interface", "Contract"] as const;
 
 export function SchemaEditor(props: {
@@ -92,6 +92,10 @@ export function SchemaEditor(props: {
             })}>
               {fieldTypes.map((typeName) => <option key={typeName} value={typeName}>{typeName}</option>)}
             </select>
+            <input aria-label="Default value" placeholder="Default" value={field.defaultValue ?? ""} onChange={(event) => setDraft({
+              ...draft,
+              fields: draft.fields.map((item) => item.id === field.id ? { ...item, defaultValue: event.target.value } : item)
+            })} />
             <span className="muted">{field.id.slice(0, 8)}</span>
           </li>
         ))}

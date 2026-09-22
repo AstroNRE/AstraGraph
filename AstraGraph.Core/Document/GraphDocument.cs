@@ -28,6 +28,11 @@ public sealed class GraphDocument : IEquatable<GraphDocument>
 
     public EditorLayoutDocument EditorLayout { get; init; } = new();
 
+    /// <summary>
+    /// Component and struct schemas declared by this graph. The component name is the SS14 YAML type.
+    /// </summary>
+    public List<ComponentSchemaDocument> Schemas { get; init; } = [];
+
     public NodeDocument? FindNode(NodeId nodeId) => Nodes.FirstOrDefault(n => n.Id == nodeId);
 
     public GraphVariableDocument? FindVariable(SymbolId symbolId) =>
@@ -55,7 +60,8 @@ public sealed class GraphDocument : IEquatable<GraphDocument>
                Variables.SequenceEqual(other.Variables) &&
                Nodes.SequenceEqual(other.Nodes) &&
                Connections.SequenceEqual(other.Connections) &&
-               EditorLayout.Equals(other.EditorLayout);
+               EditorLayout.Equals(other.EditorLayout) &&
+               Schemas.SequenceEqual(other.Schemas);
     }
 
     public override bool Equals(object? obj) => Equals(obj as GraphDocument);
