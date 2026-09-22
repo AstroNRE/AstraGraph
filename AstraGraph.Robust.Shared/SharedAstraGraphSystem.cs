@@ -1,7 +1,9 @@
 using AstraGraph.Runtime;
+using AstraGraph.Runtime.Network;
 using AstraGraph.State;
 using Robust.Shared.GameObjects;
 using Robust.Shared.IoC;
+using Robust.Shared.Network;
 using Robust.Shared.Timing;
 
 namespace AstraGraph.Robust.Shared;
@@ -14,6 +16,7 @@ public class SharedAstraGraphSystem : EntitySystem
 {
     [Dependency] private readonly IEntityManager _entMan = default!;
     [Dependency] private readonly IGameTiming _gameTiming = default!;
+    [Dependency] private readonly INetManager _net = default!;
 
     private AstraGraphHost? _host;
     private RobustEcsQueryBridge? _queryBridge;
@@ -28,6 +31,8 @@ public class SharedAstraGraphSystem : EntitySystem
     public RobustEcsQueryBridge? QueryBridge => _queryBridge;
     public RobustEventBusSubscriptionAdapter? EventAdapter => _eventAdapter;
     public MixedQueryEngine? QueryEngine { get; private set; }
+    public IAstraNetworkTransport? SyncTransport { get; private set; }
+    public RobustPredictionAdapter? Prediction { get; private set; }
 
     public override void Initialize()
     {
@@ -43,6 +48,15 @@ public class SharedAstraGraphSystem : EntitySystem
 
         _host = new AstraGraphHost(components: componentStore);
         _eventAdapter = new RobustEventBusSubscriptionAdapter(_host.EventRouter);
+        if (_net != null)
+        {
+            SyncTransport = new RobustNetManagerTransport(_net);
+        }
+
+        if (_gameTiming != null)
+        {
+            Prediction = new RobustPredictionAdapter(_gameTiming, new PredictionReconciler(componentStore));
+        }
 
         // 2. Register Host in IoC for access across the engine
         try

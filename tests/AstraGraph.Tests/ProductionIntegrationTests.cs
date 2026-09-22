@@ -10,8 +10,11 @@ using AstraGraph.VM;
 using NUnit.Framework;
 
 #if NET10_0_OR_GREATER
+using AstraGraph.Robust.Client;
 using AstraGraph.Robust.Shared;
 using Robust.Shared.GameObjects;
+using Robust.Shared.Network;
+using Robust.Shared.Timing;
 using Robust.UnitTesting.Server;
 #endif
 
@@ -155,6 +158,63 @@ public sealed class ProductionIntegrationTests
         Assert.That(edited.PublishedRevisionId, Is.Not.EqualTo(restored!.Revision));
         Assert.That(restarted.HotReloadManager.Rollback(graphId).Success, Is.True);
         Assert.That(restarted.Host.GetProgram(graphId)!.Revision, Is.EqualTo(restored.Revision));
+    }
+
+    [Test]
+    public void RobustNetManager_CarriesAstraSyncFrames()
+    {
+        var simulation = RobustServerSimulation.NewSimulation().InitializeInstance();
+        var transport = new RobustNetManagerTransport(simulation.Resolve<INetManager>());
+        var handshake = AstraSyncFrames.Handshake(new AstraNetworkSyncService(new AstraGraphHost()).BuildHandshakeMessage(1));
+        Assert.DoesNotThrow(() => transport.Send(handshake));
+        Assert.That(simulation.Resolve<INetManager>().IsServer, Is.True);
+    }
+
+    [Test]
+    public void RobustPrediction_UsesEngineTick_ThenRollsBackAndReplays()
+    {
+        var simulation = RobustServerSimulation.NewSimulation().InitializeInstance();
+        var timing = simulation.Resolve<IGameTiming>();
+        var schema = new SchemaType(SchemaId.New(), "Hp", true, [new SchemaField(FieldId.New(), "Value", PrimitiveType.Int32)]);
+        var store = new DynamicComponentStore();
+        store.AddComponent(8, schema, [AstraValue.FromInt64(0)]);
+        var adapter = new RobustPredictionAdapter(timing, new PredictionReconciler(store));
+        var tick = Math.Max(adapter.CurrentTick, 1);
+
+        adapter.PredictAt(tick, 8, schema.Id, [AstraValue.FromInt64(5)]);
+        adapter.PredictAt(tick + 1, 8, schema.Id, [AstraValue.FromInt64(6)]);
+        var result = adapter.ApplyAuthoritative(tick, 8, schema.Id, [AstraValue.FromInt64(9)]);
+
+        Assert.That(result.Mispredicted, Is.True);
+        Assert.That(store.GetComponent(8, schema.Id).GetField(0).AsInt64(), Is.EqualTo(9));
+        adapter.Replay(8, schema.Id, _ => [AstraValue.FromInt64(10)]);
+        Assert.That(store.GetComponent(8, schema.Id).GetField(0).AsInt64(), Is.EqualTo(10));
+        Assert.That(adapter.CurrentTick, Is.EqualTo((int)timing.CurTick.Value));
+    }
+
+    [Test]
+    public void RobustBui_AppliesAuthoritativeStateAndClientMessage()
+    {
+        var state = new UiStateManager();
+        var bridge = new AstraBuiBridge(state, _ => { });
+        var engineState = new AstraBuiState
+        {
+            Revision = 2,
+            ContractHash = "hash",
+            Values = new Dictionary<string, string> { ["hp"] = "30" },
+            ClientActions = ["Fire"],
+            ServerNotifications = ["HpChanged"]
+        };
+
+        Assert.That(engineState, Is.InstanceOf<BoundUserInterfaceState>());
+        Assert.That(AstraBuiRobustAdapter.Apply(bridge, engineState), Is.True);
+        Assert.That(state.GetVariable("hp"), Is.EqualTo("30"));
+        engineState.Revision = 1;
+        Assert.That(AstraBuiRobustAdapter.Apply(bridge, engineState), Is.False);
+
+        var message = new AstraBuiUiMessage { Action = "Fire", Payload = "1" };
+        Assert.That(message, Is.InstanceOf<BoundUserInterfaceMessage>());
+        Assert.That(AstraBuiRobustAdapter.ToBuiMessage(message).Action, Is.EqualTo("Fire"));
     }
 
     [Test]
