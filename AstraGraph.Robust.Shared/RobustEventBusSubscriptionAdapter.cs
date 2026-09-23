@@ -24,6 +24,7 @@ public delegate void RefComponentEventHandler<TComp, TEvent>(EntityUid uid, TCom
 public sealed class RobustEventBusSubscriptionAdapter
 {
     private readonly GraphEventRouter _router;
+    private readonly HashSet<(Type? Component, Type Event)> _busKeys = [];
 
     public RobustEventBusSubscriptionAdapter(GraphEventRouter router)
     {
@@ -32,28 +33,60 @@ public sealed class RobustEventBusSubscriptionAdapter
 
     /// <summary>
     /// Registers a subscription dynamically based on a GraphEventSubscription descriptor.
+    /// Robust freezes the event bus after startup, so a later publish only updates the router.
     /// </summary>
     public void RegisterSubscription(EntitySystem system, GraphEventSubscription subscription)
     {
         ArgumentNullException.ThrowIfNull(system);
         ArgumentNullException.ThrowIfNull(subscription);
 
-        if (subscription.ComponentType != null)
+        if (!_busKeys.Add((subscription.ComponentType, subscription.EventType)))
         {
-            var registerMethod = typeof(RobustEventBusSubscriptionAdapter)
-                .GetMethod(nameof(RegisterComponentSubscription), BindingFlags.Instance | BindingFlags.Public)
-                ?.MakeGenericMethod(subscription.ComponentType, subscription.EventType);
-
-            registerMethod?.Invoke(this, [system, subscription.GraphId, subscription.EntryPointId, null]);
+            return;
         }
-        else
+
+        try
         {
-            var registerMethod = typeof(RobustEventBusSubscriptionAdapter)
-                .GetMethod(nameof(RegisterBroadcastSubscription), BindingFlags.Instance | BindingFlags.Public)
-                ?.MakeGenericMethod(subscription.EventType);
+            if (subscription.ComponentType != null)
+            {
+                var registerMethod = typeof(RobustEventBusSubscriptionAdapter)
+                    .GetMethod(nameof(RegisterComponentSubscription), BindingFlags.Instance | BindingFlags.Public)
+                    ?.MakeGenericMethod(subscription.ComponentType, subscription.EventType);
 
-            registerMethod?.Invoke(this, [system, subscription.GraphId, subscription.EntryPointId, null]);
+                registerMethod?.Invoke(this, [system, subscription.GraphId, subscription.EntryPointId, null]);
+            }
+            else
+            {
+                var registerMethod = typeof(RobustEventBusSubscriptionAdapter)
+                    .GetMethod(nameof(RegisterBroadcastSubscription), BindingFlags.Instance | BindingFlags.Public)
+                    ?.MakeGenericMethod(subscription.EventType);
+
+                registerMethod?.Invoke(this, [system, subscription.GraphId, subscription.EntryPointId, null]);
+            }
         }
+        catch (Exception ex) when (BusAlreadyHasSubscription(ex))
+        {
+        }
+        catch
+        {
+            _busKeys.Remove((subscription.ComponentType, subscription.EventType));
+            throw;
+        }
+    }
+
+    private static bool BusAlreadyHasSubscription(Exception exception)
+    {
+        for (var cursor = exception; cursor != null; cursor = cursor.InnerException)
+        {
+            if (cursor is InvalidOperationException &&
+                (cursor.Message.Contains("Subscription locked", StringComparison.Ordinal) ||
+                 cursor.Message.Contains("Duplicate Subscriptions", StringComparison.Ordinal)))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
