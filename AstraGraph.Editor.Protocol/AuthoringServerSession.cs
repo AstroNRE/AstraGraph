@@ -635,24 +635,34 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
                 list.Add(ToCatalogEntry(desc));
             }
 
-            foreach (var member in _bindingCatalog.SearchMembers(request.SearchFilter ?? string.Empty))
+            // An empty query is the studio's initial load. Component and event surfaces
+            // are indexed for the VM, and shipping every field exceeds the game bridge.
+            if (!string.IsNullOrEmpty(request.SearchFilter))
             {
-                var signature = $"{member.DeclaringTypeName}.{member.Name}";
-                list.Add(new CatalogEntryDto(
-                    Signature: signature,
-                    Category: member.DeclaringTypeName,
-                    IsPure: true,
-                    IsPredictionSafe: true,
-                    Side: member.Side,
-                    Documentation: member.IsField ? "field" : "property",
-                    BindingId: "member:" + signature,
-                    DeclaringType: member.DeclaringTypeName,
-                    MethodName: member.Name,
-                    Parameters: [new CatalogParameterDto("Target", member.DeclaringTypeName, "Input"), new CatalogParameterDto("Value", member.Type.TypeName, "Output")],
-                    ReturnType: member.Type.TypeName,
-                    SecurityProfile: "Gameplay",
-                    Cost: 0,
-                    IsObsolete: false));
+                var members = 0;
+                foreach (var member in _bindingCatalog.SearchMembers(request.SearchFilter))
+                {
+                    if (members >= 64)
+                        break;
+
+                    var signature = $"{member.DeclaringTypeName}.{member.Name}";
+                    list.Add(new CatalogEntryDto(
+                        Signature: signature,
+                        Category: member.DeclaringTypeName,
+                        IsPure: true,
+                        IsPredictionSafe: true,
+                        Side: member.Side,
+                        Documentation: member.IsField ? "field" : "property",
+                        BindingId: "member:" + signature,
+                        DeclaringType: member.DeclaringTypeName,
+                        MethodName: member.Name,
+                        Parameters: [new CatalogParameterDto("Target", member.DeclaringTypeName, "Input"), new CatalogParameterDto("Value", member.Type.TypeName, "Output")],
+                        ReturnType: member.Type.TypeName,
+                        SecurityProfile: "Gameplay",
+                        Cost: 0,
+                        IsObsolete: false));
+                    members++;
+                }
             }
         }
 
