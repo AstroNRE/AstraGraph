@@ -38,6 +38,8 @@ public abstract class SharedAstraGraphSystem : EntitySystem
 
     public SharedActivationCoordinator? Activation { get; private set; }
 
+    private bool _schemasWired;
+
     public override void Initialize()
     {
         base.Initialize();
@@ -52,6 +54,7 @@ public abstract class SharedAstraGraphSystem : EntitySystem
 
         IVmHostServices? services = _entMan != null ? new RobustVmHostServices(_entMan) : null;
         _host = new AstraGraphHost(components: componentStore, hostServices: services);
+        EnsureSchemaSource();
         Activation = new SharedActivationCoordinator(_host);
         _eventAdapter = new RobustEventBusSubscriptionAdapter(_host.EventRouter);
         if (_net != null)
@@ -102,6 +105,7 @@ public abstract class SharedAstraGraphSystem : EntitySystem
             return;
         }
 
+        EnsureSchemaSource();
         var source = new SchemaComponentSource(Host.Components, AstraSchemaRuntime.Registry);
         foreach (var component in _entMan.GetComponents(entity.Owner))
         {
@@ -130,6 +134,17 @@ public abstract class SharedAstraGraphSystem : EntitySystem
 
         Host.Update(currentTimeSeconds, currentTick);
         Activation?.Update(currentTick);
+    }
+
+    private void EnsureSchemaSource()
+    {
+        if (_schemasWired || Host.HostServices is not RobustVmHostServices services || AstraSchemaRuntime.Registry == null)
+        {
+            return;
+        }
+
+        services.UseSchemaComponents(new SchemaComponentSource(Host.Components, AstraSchemaRuntime.Registry));
+        _schemasWired = true;
     }
 
     public void AttachGameplay(BindingCatalog catalog)
