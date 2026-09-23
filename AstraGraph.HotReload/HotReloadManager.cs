@@ -31,6 +31,8 @@ public sealed class HotReloadManager
     public AstraGraphHost Host => _host;
     public event Action<IReadOnlyList<GraphEventSubscription>>? SubscriptionsCommitted;
 
+    public event Action<SchemaType>? SchemaCommitted;
+
     public HotReloadManager(
         AstraGraphHost host,
         SemanticAnalyzer? semanticAnalyzer = null,
@@ -198,6 +200,7 @@ public sealed class HotReloadManager
                             _host.Components.MigrateSchema(tx.DeclaredSchema.Id, tx.DeclaredSchema, tx.MigrationPlan.Execute);
                         }
                         _activeSchemas[tx.DeclaredSchema.Id] = tx.DeclaredSchema;
+                        SchemaCommitted?.Invoke(tx.DeclaredSchema);
                     }
 
                     // 2. Atomic Program Pointer Swap in Host
@@ -263,6 +266,7 @@ public sealed class HotReloadManager
                     if (previousSchema != null && tx.DeclaredSchema != null)
                     {
                         _activeSchemas[previousSchema.Id] = previousSchema;
+                        SchemaCommitted?.Invoke(previousSchema);
                     }
 
                     tx.Status = PublishTransactionStatus.RolledBack;

@@ -17,6 +17,7 @@ import {
   removeNodes,
   serializeGraph,
   setNodeProperty,
+  setSchemaFieldDefault,
   undo,
   upsertSchema,
   type GraphDocument,
@@ -1140,6 +1141,14 @@ export function App() {
                     : <input value={value} onChange={(event) => setStack((current) => edit(current, setNodeProperty(current.present, selectedNode.id, key, event.target.value)))} />}
                 </label>
               ))}
+              {selectedNode.nodeType === "Schema.GetField" ? (
+                <SchemaFieldDefaultField
+                  graph={graph}
+                  schemaName={selectedNode.properties.Schema ?? ""}
+                  fieldName={selectedNode.properties.Field ?? ""}
+                  onChange={(value) => setStack((current) => edit(current, setSchemaFieldDefault(current.present, selectedNode.properties.Schema ?? "", selectedNode.properties.Field ?? "", value)))}
+                />
+              ) : null}
               <label className="field">Condition<input value={breakpointCondition} placeholder="r0==7" onChange={(event) => setBreakpointCondition(event.target.value)} /></label>
               <button disabled={!debugAllowed} onClick={() => void toggleBreakpoint()}>{selectedNode.properties.breakpoint === "true" ? "Clear breakpoint" : "Breakpoint"}</button>
             </div>
@@ -1458,6 +1467,21 @@ function matchesGraph(item: GraphSummary, query: string, side: string, owner = "
   const tagMatches = !tag.trim() || (item.tags ?? "").toLowerCase().includes(tag.trim().toLowerCase());
   const revisionMatches = !revision.trim() || (item.activeRevision ?? "").toLowerCase().includes(revision.trim().toLowerCase());
   return name && sideMatches && ownerMatches && tagMatches && revisionMatches;
+}
+
+function SchemaFieldDefaultField(props: { graph: GraphDocument; schemaName: string; fieldName: string; onChange: (value: string) => void }) {
+  const field = (props.graph.schemas ?? []).find((schema) => schema.name === props.schemaName)?.fields.find((item) => item.name === props.fieldName);
+  if (!field) {
+    return <p className="muted">Schema {props.schemaName || "?"} has no field {props.fieldName || "?"}.</p>;
+  }
+
+  const prototype = field.typeName.includes("EntProtoId");
+  return (
+    <label className="field">{prototype ? "Prototype" : "Default"}
+      <input value={field.defaultValue ?? ""} onChange={(event) => props.onChange(event.target.value)} />
+      <span className="muted">Applies when the entity prototype omits {field.name}. A value in YAML overrides it.</span>
+    </label>
+  );
 }
 
 function GraphRow(props: { item: GraphSummary; currentId: string; onOpen: () => void; onDisable: () => void; onDelete: () => void }) {

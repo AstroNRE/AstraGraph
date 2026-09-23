@@ -503,6 +503,16 @@ export function findVariableUses(document: GraphDocument, variable: { id: string
   });
 }
 
+export function setSchemaFieldDefault(document: GraphDocument, schemaName: string, fieldName: string, value: string): GraphDocument {
+  return {
+    ...document,
+    schemas: (document.schemas ?? []).map((schema) => schema.name !== schemaName ? schema : {
+      ...schema,
+      fields: schema.fields.map((field) => field.name === fieldName ? { ...field, defaultValue: value } : field)
+    })
+  };
+}
+
 export function setNodeProperty(document: GraphDocument, nodeId: string, key: string, value: string): GraphDocument {
   return {
     ...document,

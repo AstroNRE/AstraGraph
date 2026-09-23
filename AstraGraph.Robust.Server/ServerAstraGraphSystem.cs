@@ -127,6 +127,7 @@ public sealed class ServerAstraGraphSystem : SharedAstraGraphSystem
         if (!_subscriptionsWired && EventAdapter != null)
         {
             _hotReloadManager.SubscriptionsCommitted += OnSubscriptionsCommitted;
+            _hotReloadManager.SchemaCommitted += OnSchemaCommitted;
             _subscriptionsWired = true;
         }
 
@@ -155,6 +156,11 @@ public sealed class ServerAstraGraphSystem : SharedAstraGraphSystem
         EnsureInitialized();
         EnsureEngineCompatible();
         _facade.Initialize();
+    }
+
+    private void OnSchemaCommitted(SchemaType schema)
+    {
+        AstraSchemaRuntime.Registry?.RegisterSchema(schema);
     }
 
     private void OnSubscriptionsCommitted(IReadOnlyList<AstraGraph.Core.Events.GraphEventSubscription> subscriptions)

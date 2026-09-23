@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addNode, connectPins, createGraph, duplicateNodes, findVariableUses, nudgeNodes, parseGraph, removeNodes, serializeGraph, setNodeProperty } from "./graph";
+import { addNode, connectPins, createGraph, duplicateNodes, findVariableUses, nudgeNodes, parseGraph, removeNodes, serializeGraph, setNodeProperty, setSchemaFieldDefault } from "./graph";
 
 describe("graph editing", () => {
   it("duplicates a node with fresh ids and keeps the original wire", () => {
@@ -38,6 +38,19 @@ describe("graph editing", () => {
     expect(parsed.variables[0].persistent).toBe(true);
     expect(parsed.variables[0].replicated).toBe(true);
     expect(findVariableUses(parsed, parsed.variables[0]).map((use) => use.nodeId)).toEqual([parsed.nodes[0].id]);
+  });
+
+  it("writes a schema field default from the graph", () => {
+    const graph = {
+      ...createGraph("Weapon"),
+      schemas: [{ id: "schema-1", name: "MothroachStrike", isComponent: true, fields: [
+        { id: "field-1", name: "spawn", typeName: "EntProtoId<EntityPrototype>", defaultValue: "MobMothroach" },
+        { id: "field-2", name: "count", typeName: "int32", defaultValue: "1" }
+      ] }]
+    };
+    const next = setSchemaFieldDefault(graph, "MothroachStrike", "count", "5");
+    expect(next.schemas?.[0].fields[1].defaultValue).toBe("5");
+    expect(next.schemas?.[0].fields[0].defaultValue).toBe("MobMothroach");
   });
 
   it("writes a node property in place", () => {
