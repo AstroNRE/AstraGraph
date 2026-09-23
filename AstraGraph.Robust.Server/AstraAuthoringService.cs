@@ -147,18 +147,37 @@ public sealed class AstraAuthoringService : IAstraAuthoringService
             {
                 var doc = graph.Document;
                 var activeRev = _hotReloadManager.Host.GetProgram(doc.Id)?.Revision ?? RevisionId.New();
+                PlaceMissingNodes(doc);
                 _serverSession.RegisterGraph(new GraphSummaryDto(
                     doc.Id,
                     doc.Name,
                     doc.Kind,
                     doc.Side,
                     activeRev,
-                    1));
+                    1), GraphSerializer.Serialize(doc));
             }
         }
         catch (Exception ex)
         {
             DiscoveryWarning = ex.Message;
+        }
+    }
+
+    private static void PlaceMissingNodes(GraphDocument document)
+    {
+        var positions = document.EditorLayout.NodePositions;
+        var index = 0;
+        foreach (var node in document.Nodes)
+        {
+            var key = node.Id.ToString();
+            if (!positions.ContainsKey(key))
+            {
+                var column = index % 6;
+                var row = index / 6;
+                positions[key] = new NodePosition(80 + column * 280, 80 + row * 180);
+            }
+
+            index++;
         }
     }
 }

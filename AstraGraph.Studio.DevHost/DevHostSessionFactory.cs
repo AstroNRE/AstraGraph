@@ -48,7 +48,9 @@ public static class DevHostSessionFactory
             {
                 var document = graph.Document;
                 var revision = facade.Host.GetProgram(document.Id)?.Revision ?? RevisionId.New();
-                session.RegisterGraph(new GraphSummaryDto(document.Id, document.Name, document.Kind, document.Side, revision, 1));
+                session.RegisterGraph(
+                    new GraphSummaryDto(document.Id, document.Name, document.Kind, document.Side, revision, 1),
+                    GraphSerializer.Serialize(document));
             }
         }
 

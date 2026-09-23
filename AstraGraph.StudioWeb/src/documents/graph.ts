@@ -344,7 +344,10 @@ export function toFlow(document: GraphDocument): { nodes: FlowNode[]; edges: Flo
     nodes: [
       ...document.nodes.map((node) => ({
         id: node.id,
-        position: document.editorLayout.nodePositions[node.id] ?? { x: 80, y: 80 },
+        position: document.editorLayout.nodePositions[node.id] ?? {
+          x: 80 + (document.nodes.indexOf(node) % 6) * 280,
+          y: 80 + Math.floor(document.nodes.indexOf(node) / 6) * 180
+        },
         data: {
           label: node.name,
           nodeType: node.nodeType,

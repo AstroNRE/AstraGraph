@@ -70,10 +70,12 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         _bindingCatalog = bindingCatalog;
     }
 
-    public void RegisterGraph(GraphSummaryDto summary)
+    public void RegisterGraph(GraphSummaryDto summary, string? sourceJson = null)
     {
         ArgumentNullException.ThrowIfNull(summary);
         _graphs[summary.Id] = summary;
+        if (!string.IsNullOrWhiteSpace(sourceJson))
+            _liveSources[summary.Id] = sourceJson;
     }
 
     public AuthHandshakeResponse HandleHandshake(AuthHandshakeRequest request)
