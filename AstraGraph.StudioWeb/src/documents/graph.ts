@@ -513,6 +513,16 @@ export function setSchemaFieldDefault(document: GraphDocument, schemaName: strin
   };
 }
 
+export function setPinDefault(document: GraphDocument, nodeId: string, pinId: string, value: string): GraphDocument {
+  return {
+    ...document,
+    nodes: document.nodes.map((node) => node.id !== nodeId ? node : {
+      ...node,
+      pins: node.pins.map((pin) => pin.id === pinId ? { ...pin, defaultValue: value } : pin)
+    })
+  };
+}
+
 export function setNodeProperty(document: GraphDocument, nodeId: string, key: string, value: string): GraphDocument {
   return {
     ...document,

@@ -186,18 +186,7 @@ summary { cursor: pointer; font-size: 12px; color: var(--text-secondary); paddin
   padding: 10px;
   box-shadow: 0 16px 48px rgb(0 0 0 / 28%);
 }
-.astra-node {
-  min-width: 148px;
-  padding: 8px 12px;
-  background: var(--surface-elevated);
-  border-radius: 10px;
-  color: var(--text-primary);
-  box-shadow: 0 8px 22px rgb(0 0 0 / 16%);
-}
-.astra-node.event { box-shadow: inset 2px 0 0 var(--graph-event), 0 8px 22px rgb(0 0 0 / 16%); }
-.react-flow__node.selected .astra-node { box-shadow: 0 0 0 1px var(--accent), 0 8px 22px rgb(0 0 0 / 16%); }
 .astra-node-title { font-weight: 600; }
-.astra-node-type { color: var(--text-muted); font-size: 11px; margin-top: 2px; }
 .react-flow { background: var(--surface-root); }
 .react-flow__handle {
   width: 8px;

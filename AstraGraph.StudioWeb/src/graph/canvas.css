@@ -52,12 +52,111 @@
   color: var(--text-primary);
 }
 
-.semantic-far .astra-node-type,
-.semantic-far .pin {
+.semantic-far .astra-body {
   display: none;
 }
 
-.react-flow__edge.edge-alert path {
-  stroke: var(--danger, #d4544a);
-  stroke-width: 2;
+.astra-node {
+  min-width: 210px;
+  padding: 0;
+  overflow: visible;
+  border-radius: 8px;
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  box-shadow: 0 10px 24px rgb(0 0 0 / 28%);
+}
+
+.astra-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 8px 8px 0 0;
+  color: #14181f;
+  font-weight: 650;
+}
+
+html[data-theme="light"] .astra-head { color: #f7f8fa; }
+
+.tone-event .astra-head { background: var(--graph-event); }
+.tone-flow .astra-head { background: var(--graph-execution); }
+.tone-schema .astra-head { background: var(--graph-pure); }
+.tone-entity .astra-head { background: var(--graph-data); }
+.tone-function .astra-head { background: var(--accent); color: var(--accent-ink); }
+.tone-call .astra-head { background: #8a93a6; }
+
+html[data-theme="light"] .tone-call .astra-head { background: #3c4658; }
+
+.astra-node-title { flex: 1; min-width: 0; }
+.astra-node-type { font-size: 10px; font-weight: 550; opacity: 0.72; }
+
+.astra-body {
+  display: grid;
+  gap: 4px;
+  padding: 6px 8px 8px;
+}
+
+.pin-row,
+.node-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+}
+
+.pin-row.out,
+.node-field { justify-content: flex-end; }
+
+.pin-name,
+.node-field span {
+  font-size: 11px;
+  color: var(--text-primary);
+}
+
+.node-field span { color: var(--text-muted); margin-right: auto; }
+
+.node-value {
+  width: 92px;
+  margin: 0;
+  padding: 2px 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  background: var(--surface-root);
+  color: var(--text-primary);
+  font-size: 11px;
+}
+
+.node-check { width: auto; margin-left: auto; }
+
+.pin-row .react-flow__handle {
+  position: relative;
+  top: auto;
+  right: auto;
+  left: auto;
+  transform: none;
+  flex: 0 0 auto;
+}
+
+.pin-row .react-flow__handle.pin.execution { background: var(--graph-execution); }
+.pin-row .react-flow__handle.pin.data { background: var(--graph-data); }
+.pin-row .react-flow__handle.pin.event { background: var(--graph-event); }
+
+.react-flow__edge-path,
+.react-flow__connection-path {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.5;
+}
+
+.react-flow__edge.edge-exec .react-flow__edge-path { stroke: var(--graph-execution); }
+.react-flow__edge.edge-data .react-flow__edge-path { stroke: var(--graph-data); }
+.react-flow__edge.edge-bool .react-flow__edge-path { stroke: var(--graph-pure); }
+.react-flow__edge.edge-alert .react-flow__edge-path { stroke: var(--danger, #d4544a); }
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:focus .react-flow__edge-path { stroke-width: 3.6; }
+.react-flow__connection-path { stroke: var(--graph-data); }
+
+.react-flow__node.selected .astra-node {
+  box-shadow: 0 0 0 1px var(--text-primary), 0 10px 24px rgb(0 0 0 / 28%);
 }

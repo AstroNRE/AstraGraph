@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addNode, connectPins, createGraph, duplicateNodes, findVariableUses, nudgeNodes, parseGraph, removeNodes, serializeGraph, setNodeProperty, setSchemaFieldDefault } from "./graph";
+import { addNode, connectPins, createGraph, duplicateNodes, findVariableUses, nudgeNodes, parseGraph, removeNodes, serializeGraph, setNodeProperty, setPinDefault, setSchemaFieldDefault } from "./graph";
 
 describe("graph editing", () => {
   it("duplicates a node with fresh ids and keeps the original wire", () => {
@@ -51,6 +51,14 @@ describe("graph editing", () => {
     const next = setSchemaFieldDefault(graph, "MothroachStrike", "count", "5");
     expect(next.schemas?.[0].fields[1].defaultValue).toBe("5");
     expect(next.schemas?.[0].fields[0].defaultValue).toBe("MobMothroach");
+  });
+
+  it("writes an unwired pin default", () => {
+    const graph = addNode(createGraph("Demo"), "Flow.For", "Loop");
+    const pin = graph.nodes[0].pins.find((item) => item.name === "Start");
+    expect(pin).toBeTruthy();
+    const next = setPinDefault(graph, graph.nodes[0].id, pin!.id, "2");
+    expect(next.nodes[0].pins.find((item) => item.id === pin!.id)?.defaultValue).toBe("2");
   });
 
   it("writes a node property in place", () => {

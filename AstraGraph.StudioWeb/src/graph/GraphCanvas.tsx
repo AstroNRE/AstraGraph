@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Background,
+  ConnectionLineType,
   Controls,
   Handle,
   MiniMap,
@@ -17,7 +18,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import "./canvas.css";
-import { alignNodes, applyFlow, emptyAttributes, toFlow, type FlowEdge, type GraphDocument, type PinDocument } from "../documents/graph";
+import { alignNodes, applyFlow, emptyAttributes, setNodeProperty, setPinDefault, setSchemaFieldDefault, toFlow, type FlowEdge, type GraphDocument, type GraphSchemaDocument, type PinDocument } from "../documents/graph";
 
 type PinMark = "compatible" | "incompatible";
 
@@ -26,6 +27,9 @@ type AstraData = {
   nodeType: string;
   inputs: PinDocument[];
   outputs: PinDocument[];
+  properties?: Record<string, string>;
+  wired?: string[];
+  schemas?: GraphSchemaDocument[];
   pure?: boolean;
   side?: string;
   heat?: number;
@@ -33,47 +37,119 @@ type AstraData = {
   reasons?: Record<string, string>;
   alertPin?: string;
   comment?: boolean;
+  onProperty?: (nodeId: string, key: string, value: string) => void;
+  onPinDefault?: (nodeId: string, pinId: string, value: string) => void;
+  onSchemaDefault?: (schemaName: string, fieldName: string, value: string) => void;
 };
+
+const inlinePropertyKeys = ["eventType", "componentType", "ComponentType", "Schema", "Field", "Member", "Method", "Function"];
+
+function nodeTone(nodeType: string): string {
+  if (nodeType.startsWith("Event")) return "event";
+  if (nodeType.startsWith("Flow") || nodeType.startsWith("Core.Branch") || nodeType === "Branch") return "flow";
+  if (nodeType.startsWith("Schema")) return "schema";
+  if (nodeType.startsWith("Entity")) return "entity";
+  if (nodeType.startsWith("Function")) return "function";
+  return "call";
+}
+
+function shortType(nodeType: string): string {
+  const dot = nodeType.lastIndexOf(".");
+  return dot >= 0 ? nodeType.slice(dot + 1) : nodeType;
+}
+
+function edgeTone(pin: PinDocument | undefined): "exec" | "bool" | "data" {
+  if (!pin || pin.kind === "execution") return "exec";
+  const type = (pin.dataType ?? "").toLowerCase();
+  if (type === "bool" || type === "boolean") return "bool";
+  return "data";
+}
+
+const handleInRow = { position: "relative", top: "auto", right: "auto", bottom: "auto", left: "auto", transform: "none" } as const;
 
 function pinShape(pin: { name: string; kind: string }) {
   if (pin.kind === "data") return "data";
   return pin.name === "Then" ? "event" : "execution";
 }
 
-function AstraNodeView({ data }: NodeProps<Node<AstraData, "astra">>) {
+function PinValue({ pin, onChange }: { pin: PinDocument; onChange: (value: string) => void }) {
+  const type = (pin.dataType ?? "").toLowerCase();
+  const value = pin.defaultValue ?? "";
+  if (type === "bool" || type === "boolean") {
+    return <input className="nodrag nopan node-check" type="checkbox" checked={value === "true"} onChange={(event) => onChange(event.target.checked ? "true" : "false")} />;
+  }
+  if (type.includes("int") || type.includes("float") || type.includes("double")) {
+    return <input className="nodrag nopan node-value" type="number" value={value} onChange={(event) => onChange(event.target.value)} />;
+  }
+  if (type.includes("string") || type.includes("proto")) {
+    return <input className="nodrag nopan node-value" value={value} placeholder={pin.name} onChange={(event) => onChange(event.target.value)} />;
+  }
+  return null;
+}
+
+function AstraNodeView({ id, data }: NodeProps<Node<AstraData, "astra">>) {
   if (data.comment) return <div className="astra-comment"><strong>{data.label}</strong><div>{data.nodeType}</div></div>;
-  const eventNode = data.nodeType.startsWith("Event") || data.outputs.some((pin) => pin.name === "Then");
+  const wired = new Set(data.wired ?? []);
+  const properties = data.properties ?? {};
+  const schemaName = properties.Schema ?? "";
+  const fieldName = properties.Field ?? "";
+  const schemaField = data.nodeType === "Schema.GetField"
+    ? (data.schemas ?? []).find((schema) => schema.name === schemaName)?.fields.find((field) => field.name === fieldName)
+    : undefined;
+  const prototypeField = (schemaField?.typeName ?? "").includes("EntProtoId");
   return (
-    <div className={eventNode ? "astra-node event" : "astra-node"}>
-      {data.inputs.map((pin, index) => (
-        <Handle
-          key={pin.id}
-          id={pin.id}
-          className={`pin ${pinShape(pin)} ${data.marks?.[pin.id] ?? ""} ${data.alertPin === pin.id ? "alert" : ""}`}
-          type="target"
-          position={Position.Left}
-          title={data.reasons?.[pin.id] || `${pin.name}: ${pin.dataType || pin.kind}`}
-          style={{ top: 28 + index * 16 }}
-        />
-      ))}
-      <div className="astra-node-title">
-        {data.label}
+    <div className={`astra-node tone-${nodeTone(data.nodeType)}`}>
+      <header className="astra-head">
+        <span className="astra-node-title">{data.label}</span>
+        <span className="astra-node-type">{shortType(data.nodeType)}</span>
         {data.pure ? <span className="node-badge">pure</span> : null}
-        {data.side ? <span className="node-badge">{data.side}</span> : null}
         {data.heat ? <span className="node-badge">{data.heat}</span> : null}
+      </header>
+      <div className="astra-body">
+        {inlinePropertyKeys.filter((key) => key in properties).map((key) => (
+          <label className="node-field" key={key}>
+            <span>{key}</span>
+            <input className="nodrag nopan node-value" value={properties[key] ?? ""} onChange={(event) => data.onProperty?.(id, key, event.target.value)} />
+          </label>
+        ))}
+        {schemaField ? (
+          <label className="node-field">
+            <span>{prototypeField ? "Prototype" : "Default"}</span>
+            <input className="nodrag nopan node-value" value={schemaField.defaultValue ?? ""} onChange={(event) => data.onSchemaDefault?.(schemaName, fieldName, event.target.value)} />
+          </label>
+        ) : null}
+        {data.inputs.map((pin) => (
+          <div className="pin-row in" key={pin.id}>
+            <Handle
+              id={pin.id}
+              className={`pin ${pinShape(pin)} ${data.marks?.[pin.id] ?? ""} ${data.alertPin === pin.id ? "alert" : ""}`}
+              type="target"
+              position={Position.Left}
+              role="button"
+              aria-label={`Input ${pin.name}`}
+              title={data.reasons?.[pin.id] || `${pin.name}: ${pin.dataType || pin.kind}`}
+              style={handleInRow}
+            />
+            <span className="pin-name">{pin.name}</span>
+            {pin.kind === "data" && !wired.has(pin.id) ? <PinValue pin={pin} onChange={(value) => data.onPinDefault?.(id, pin.id, value)} /> : null}
+          </div>
+        ))}
+        {data.outputs.map((pin) => (
+          <div className="pin-row out" key={pin.id}>
+            <span className="pin-name">{pin.name}</span>
+            <Handle
+              id={pin.id}
+              className={`pin ${pinShape(pin)} ${data.marks?.[pin.id] ?? ""} ${data.alertPin === pin.id ? "alert" : ""}`}
+              type="source"
+              position={Position.Right}
+              role="button"
+              aria-label={`Output ${pin.name}`}
+              title={data.reasons?.[pin.id] || `${pin.name}: ${pin.dataType || pin.kind}`}
+              style={handleInRow}
+            />
+          </div>
+        ))}
       </div>
-      <div className="astra-node-type">{data.nodeType}</div>
-      {data.outputs.map((pin, index) => (
-        <Handle
-          key={pin.id}
-          id={pin.id}
-          className={`pin ${pinShape(pin)} ${data.marks?.[pin.id] ?? ""} ${data.alertPin === pin.id ? "alert" : ""}`}
-          type="source"
-          position={Position.Right}
-          title={data.reasons?.[pin.id] || `${pin.name}: ${pin.dataType || pin.kind}`}
-          style={{ top: 28 + index * 16 }}
-        />
-      ))}
     </div>
   );
 }
@@ -156,10 +232,21 @@ function CanvasSurface(props: {
         heat: props.heat?.[node.id],
         marks: props.pinMarks,
         reasons: props.pinReasons,
-        alertPin: props.alertPin
+        alertPin: props.alertPin,
+        properties: props.document.nodes.find((item) => item.id === node.id)?.properties,
+        wired: props.document.connections.filter((wire) => wire.toNode === node.id).map((wire) => wire.toPin),
+        schemas: props.document.schemas,
+        onProperty: (nodeId, key, value) => props.onChange(setNodeProperty(props.document, nodeId, key, value)),
+        onPinDefault: (nodeId, pinId, value) => props.onChange(setPinDefault(props.document, nodeId, pinId, value)),
+        onSchemaDefault: (schemaName, fieldName, value) => props.onChange(setSchemaFieldDefault(props.document, schemaName, fieldName, value))
       }
     })));
-    setEdges(flow.edges.map((edge) => ({ ...edge, className: props.alertPin && (edge.sourceHandle === props.alertPin || edge.targetHandle === props.alertPin) ? "edge-alert" : undefined })));
+    setEdges(flow.edges.map((edge) => {
+      const source = props.document.nodes.find((node) => node.id === edge.source);
+      const pin = source?.pins.find((item) => item.id === edge.sourceHandle);
+      const alert = props.alertPin && (edge.sourceHandle === props.alertPin || edge.targetHandle === props.alertPin);
+      return { ...edge, type: "default", className: alert ? "edge-alert" : `edge-${edgeTone(pin)}`, interactionWidth: 20 };
+    }));
   }, [props.alertPin, props.document, props.heat, props.pinMarks, props.pinReasons, props.selectedId, setEdges, setNodes]);
 
   useEffect(() => {
@@ -205,6 +292,9 @@ function CanvasSurface(props: {
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}
+      defaultEdgeOptions={{ type: "default", interactionWidth: 20 }}
+      connectionLineType={ConnectionLineType.Bezier}
+      connectionLineStyle={{ strokeWidth: 2.5 }}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}
