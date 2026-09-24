@@ -200,6 +200,7 @@ public sealed class SemanticAnalyzer
 
             if (document.Side == GraphSide.SharedPredicted &&
                 (node.NodeType.Equals("PersistentId.New", StringComparison.OrdinalIgnoreCase) ||
+                 node.NodeType.Equals("Bui.Set", StringComparison.OrdinalIgnoreCase) ||
                  (node.Properties.TryGetValue("IsDeterministic", out var det) && det.Equals("false", StringComparison.OrdinalIgnoreCase))))
             {
                 diagnostics.ReportError(DiagnosticCodes.NonDeterministicOperationInPrediction, $"Node '{node.Name}' is non-deterministic and cannot be executed in predicted context.", node.Id, suggestedFix: "set-deterministic");
@@ -584,7 +585,7 @@ public sealed class SemanticAnalyzer
                 return new AstYieldContinuationStatement(ContinuationKind.DoAfter, [delayExpr], node.Id.Value, node.Id);
             }
 
-            if (IsMutatingContainer(nodeType))
+            if (IsMutatingContainer(nodeType) || IsBuiMutation(nodeType))
             {
                 return new AstVariableAssignStatement(SymbolId.Empty, ResultName(node), LowerCall(node), node.Id);
             }
@@ -702,7 +703,8 @@ public sealed class SemanticAnalyzer
             nodeType.Equals("List.Set", StringComparison.OrdinalIgnoreCase) ||
             nodeType.Equals("List.Remove", StringComparison.OrdinalIgnoreCase) ||
             nodeType.Equals("PersistentId.New", StringComparison.OrdinalIgnoreCase) ||
-            IsMutatingContainer(nodeType);
+            IsMutatingContainer(nodeType) ||
+            IsBuiMutation(nodeType);
 
         private static bool IsMutatingContainer(string nodeType) =>
             nodeType.Equals("Container.Insert", StringComparison.OrdinalIgnoreCase) ||
@@ -717,8 +719,18 @@ public sealed class SemanticAnalyzer
             nodeType.Equals("Inventory.Contains", StringComparison.OrdinalIgnoreCase) ||
             nodeType.Equals("Entity.GetHeldItem", StringComparison.OrdinalIgnoreCase);
 
+        private static bool IsBuiMutation(string nodeType) =>
+            nodeType.Equals("Bui.Set", StringComparison.OrdinalIgnoreCase);
+
+        private static bool IsBuiQuery(string nodeType) =>
+            nodeType.Equals("Ui.Rows", StringComparison.OrdinalIgnoreCase) ||
+            nodeType.Equals("Bui.Field", StringComparison.OrdinalIgnoreCase);
+
         private static bool IsGameplayContainer(string nodeType) =>
             IsMutatingContainer(nodeType) || IsContainerQuery(nodeType);
+
+        private static bool IsDirectNative(string nodeType) =>
+            IsGameplayContainer(nodeType) || IsBuiMutation(nodeType) || IsBuiQuery(nodeType);
 
         public AstExpression LowerPinExpression(PinDocument pin)
         {
@@ -749,7 +761,8 @@ public sealed class SemanticAnalyzer
 
                 if (nodeType.Equals("Native.Call", StringComparison.OrdinalIgnoreCase) ||
                     nodeType.Equals("Graph.Call", StringComparison.OrdinalIgnoreCase) ||
-                    IsContainerQuery(nodeType))
+                    IsContainerQuery(nodeType) ||
+                    IsBuiQuery(nodeType))
                 {
                     return LowerCall(node, pin);
                 }
@@ -995,7 +1008,7 @@ public sealed class SemanticAnalyzer
             var nodeType = node.NodeType;
             var descriptor = nodeType.Equals("Graph.Call", StringComparison.OrdinalIgnoreCase)
                 ? "Graph.Call"
-                : IsGameplayContainer(nodeType)
+                : IsDirectNative(nodeType)
                     ? nodeType
                     : node.Properties.GetValueOrDefault("Method", string.Empty);
             var args = new List<AstExpression>();

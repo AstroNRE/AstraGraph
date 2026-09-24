@@ -42,31 +42,82 @@ public static class UiHtmlPage
             .Append("input { background: #0c0c0c; border: 1px solid #555; padding: 6px; }")
             .Append("label.astra-label { display: block; }")
             .Append("progress { width: 100%; height: 16px; }")
+            .Append(".astra-list { display: flex; flex-direction: column; gap: 4px; overflow: auto; }")
+            .Append(".astra-list-row { text-align: left; }")
+            .Append(".astra-list-row.is-selected { outline: 1px solid #edbc63; }")
+            .Append(".astra-list-row:disabled { opacity: 0.45; }")
             .Append(".astra-missing { outline: 1px dashed #a55; padding: 4px; }")
             .Append(document.Css ?? "")
             .Append("</style></head><body>")
             .Append(body)
             .Append("<script>")
             .Append("const astraBindings = ").Append(bindingJson).Append(';')
+            .Append("function astraText(value) {")
+            .Append("const text = String(value);")
+            .Append("const split = text.indexOf(\":\");")
+            .Append("const kind = split > 0 ? text.slice(0, split) : \"\";")
+            .Append("return kind === \"string\" || kind === \"int\" || kind === \"bool\" || kind === \"float\" ? text.slice(split + 1) : text;")
+            .Append('}')
             .Append("function astraApplyState(state) {")
             .Append("if (!state) return;")
             .Append("for (const binding of astraBindings) {")
             .Append("const node = document.querySelector('[data-astra-id=\"' + binding.elementId + '\"]');")
             .Append("if (!node || state[binding.state] == null) continue;")
-            .Append("const value = String(state[binding.state]);")
-            .Append("if (binding.property === \"Text\" && \"value\" in node) node.value = value;")
+            .Append("const value = astraText(state[binding.state]);")
+            .Append("if (binding.property === \"Items\" && node.hasAttribute(\"data-astra-list\")) astraFillList(node, value);")
+            .Append("else if (binding.property === \"Text\" && \"value\" in node) node.value = value;")
             .Append("else if (binding.property === \"Text\") node.textContent = value;")
             .Append("else if (binding.property === \"Value\" && node instanceof HTMLProgressElement) node.value = Number(value);")
             .Append("}}")
+            .Append("function astraFillList(node, json) {")
+            .Append("let rows = [];")
+            .Append("try { rows = JSON.parse(json); } catch (error) { rows = []; }")
+            .Append("if (!Array.isArray(rows)) rows = [];")
+            .Append("const selected = node.getAttribute(\"data-selected-id\") || \"\";")
+            .Append("node.replaceChildren();")
+            .Append("let kept = false;")
+            .Append("for (const row of rows) {")
+            .Append("if (!row || typeof row !== \"object\") continue;")
+            .Append("const id = String(row.id ?? \"\");")
+            .Append("const button = document.createElement(\"button\");")
+            .Append("button.type = \"button\";")
+            .Append("button.className = \"astra-list-row\";")
+            .Append("button.textContent = String(row.text ?? id);")
+            .Append("button.dataset.id = id;")
+            .Append("const disabled = row.disabled === true || row.disabled === \"true\";")
+            .Append("if (disabled) button.disabled = true;")
+            .Append("if (!disabled && id === selected) { button.classList.add(\"is-selected\"); kept = true; }")
+            .Append("node.appendChild(button);")
+            .Append('}')
+            .Append("if (!kept) node.removeAttribute(\"data-selected-id\");")
+            .Append('}')
             .Append("function astraSend(name, payload) {")
             .Append("const url = \"astra-bui://action?name=\" + encodeURIComponent(name) + \"&payload=\" + encodeURIComponent(JSON.stringify(payload || {}));")
             .Append("if (window.parent && window.parent !== window) { window.parent.postMessage({ type: \"astra-bui\", url: url }, \"*\"); return; }")
             .Append("location.href = url;")
             .Append('}')
+            .Append("function astraSelected(node) {")
+            .Append("const listId = node.getAttribute(\"data-astra-selection\");")
+            .Append("if (!listId) return \"\";")
+            .Append("const list = document.querySelector('[data-astra-id=\"' + listId + '\"]');")
+            .Append("return list ? (list.getAttribute(\"data-selected-id\") || \"\") : \"\";")
+            .Append('}')
             .Append("document.addEventListener(\"click\", (event) => {")
+            .Append("const row = event.target.closest(\".astra-list-row\");")
+            .Append("if (row) {")
+            .Append("if (row.disabled) return;")
+            .Append("const list = row.closest(\"[data-astra-list]\");")
+            .Append("if (!list) return;")
+            .Append("list.setAttribute(\"data-selected-id\", row.dataset.id || \"\");")
+            .Append("for (const item of list.querySelectorAll(\".astra-list-row\")) item.classList.toggle(\"is-selected\", item === row);")
+            .Append("const action = list.getAttribute(\"data-astra-action\");")
+            .Append("if (action) astraSend(action, { id: row.dataset.id || \"\" });")
+            .Append("return;")
+            .Append('}')
             .Append("const node = event.target.closest(\"[data-astra-action]\");")
             .Append("if (!node) return;")
-            .Append("astraSend(node.getAttribute(\"data-astra-action\"), {});")
+            .Append("const id = astraSelected(node);")
+            .Append("astraSend(node.getAttribute(\"data-astra-action\"), id ? { id: id } : {});")
             .Append("});")
             .Append("document.addEventListener(\"change\", (event) => {")
             .Append("const node = event.target;")
@@ -139,12 +190,19 @@ public static class UiHtmlPage
         var id = Encode(node.Id);
         var action = document.Events.FirstOrDefault(item => item.ElementId == node.Id)?.TargetAction;
         var actionAttr = string.IsNullOrWhiteSpace(action) ? "" : " data-astra-action=\"" + Encode(action) + "\"";
+        var selection = node.Properties.TryGetValue("Selection", out var selectedList) ? selectedList?.ToString() : null;
+        var selectionAttr = string.IsNullOrWhiteSpace(selection) ? "" : " data-astra-selection=\"" + Encode(selection) + "\"";
         var classAttr = classes.Length == 0 ? "" : " class=\"" + classes + "\"";
         var text = Encode(node.Text ?? node.Name ?? "");
         switch (type)
         {
+            case "ItemList":
+                body.Append("<div data-astra-id=\"").Append(id).Append("\" data-astra-list=\"1\" class=\"astra-list");
+                if (classes.Length > 0) body.Append(' ').Append(classes);
+                body.Append('"').Append(actionAttr).Append("></div>");
+                return;
             case "Button":
-                body.Append("<button type=\"button\" data-astra-id=\"").Append(id).Append('"').Append(classAttr).Append(actionAttr);
+                body.Append("<button type=\"button\" data-astra-id=\"").Append(id).Append('"').Append(classAttr).Append(actionAttr).Append(selectionAttr);
                 if (!node.Enabled) body.Append(" disabled");
                 body.Append('>').Append(text.Length == 0 ? "Button" : text).Append("</button>");
                 return;

@@ -1,5 +1,9 @@
+using System.Collections;
 using System.Reflection;
 using AstraGraph.Binding;
+using AstraGraph.Core;
+using AstraGraph.Robust.Client;
+using AstraGraph.UI.Html;
 using Robust.Shared.Containers;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Map;
@@ -46,7 +50,75 @@ public static class GameplayBindings
         Register(catalog, nameof(InventoryTryInsert), "Inventory.TryInsert");
         Register(catalog, nameof(InventoryTryRemove), "Inventory.TryRemove");
         Register(catalog, nameof(GetHeldItem), "Entity.GetHeldItem");
+        Register(catalog, nameof(UiRows), "Ui.Rows");
+        Register(catalog, nameof(BuiField), "Bui.Field");
+        Register(catalog, nameof(BuiSet), "Bui.Set", deterministic: false);
     }
+
+    public static string UiRows(AstraList? list, string? idField, string? textField, string? disabledField) =>
+        UiListRows.Format(list, idField, textField, disabledField);
+
+    public static string BuiField(string? payload, string? name) =>
+        UiListRows.Field(payload, name);
+
+    public static bool BuiSet(int owner, string name, string value)
+    {
+        var ui = UserInterface(owner);
+        if (string.IsNullOrEmpty(name) || ui == null || InterfacesField?.GetValue(ui) is not IDictionary interfaces || interfaces.Count == 0)
+        {
+            return false;
+        }
+
+        var uid = new EntityUid(owner);
+        var system = Entities.EntitySysManager.GetEntitySystem<SharedUserInterfaceSystem>();
+        var wrote = false;
+        foreach (DictionaryEntry entry in interfaces)
+        {
+            if (entry.Key is not Enum key)
+            {
+                continue;
+            }
+
+            ui.States.TryGetValue(key, out var previous);
+            system.SetUiState(new Entity<UserInterfaceComponent?>(uid, ui), key, AssignState(previous, name, value));
+            wrote = true;
+        }
+
+        return wrote;
+    }
+
+    private static UserInterfaceComponent? UserInterface(int owner)
+    {
+        var uid = new EntityUid(owner);
+        if (!Entities.EntityExists(uid) ||
+            !Entities.ComponentFactory.TryGetRegistration<UserInterfaceComponent>(out _) ||
+            !Entities.TryGetComponent(uid, out UserInterfaceComponent? ui))
+        {
+            return null;
+        }
+
+        return ui;
+    }
+
+    public static AstraBuiState AssignState(BoundUserInterfaceState? previous, string name, string value)
+    {
+        var source = previous as AstraBuiState;
+        var state = new AstraBuiState
+        {
+            Revision = (source?.Revision ?? 0) + 1,
+            ContractHash = source?.ContractHash ?? "",
+            Values = source == null ? [] : new Dictionary<string, string>(source.Values, StringComparer.Ordinal),
+            TypedValues = source == null ? [] : new Dictionary<string, string>(source.TypedValues, StringComparer.Ordinal),
+            ClientActions = source == null ? [] : [.. source.ClientActions],
+            ServerNotifications = source == null ? [] : [.. source.ServerNotifications]
+        };
+        state.Values[name] = value ?? "";
+        state.TypedValues[name] = "string:" + (value ?? "");
+        return state;
+    }
+
+    private static readonly FieldInfo? InterfacesField =
+        typeof(UserInterfaceComponent).GetField("Interfaces", BindingFlags.Instance | BindingFlags.NonPublic);
 
     public static bool ContainerHas(int owner, string containerId) =>
         TryGetContainer(owner, containerId, out _);
@@ -205,10 +277,10 @@ public static class GameplayBindings
     private static IEntityManager Entities =>
         _entities ?? throw new InvalidOperationException("Gameplay bindings are not attached to an entity manager.");
 
-    private static void Register(BindingCatalog catalog, string name, string descriptor)
+    private static void Register(BindingCatalog catalog, string name, string descriptor, bool deterministic = true)
     {
         var method = typeof(GameplayBindings).GetMethod(name, BindingFlags.Public | BindingFlags.Static)
             ?? throw new InvalidOperationException($"Missing gameplay method {name}.");
-        catalog.RegisterMethod(method, customDescriptor: descriptor, isDeterministic: true, profile: SecurityProfile.Gameplay);
+        catalog.RegisterMethod(method, customDescriptor: descriptor, isDeterministic: deterministic, profile: SecurityProfile.Gameplay);
     }
 }

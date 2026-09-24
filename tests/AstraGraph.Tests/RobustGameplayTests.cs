@@ -60,6 +60,29 @@ public sealed class RobustGameplayTests
         Assert.That(Call(catalog, "Container.Has", box, "storage").AsBool(), Is.True);
     }
 
+    [Test]
+    public void BuiSet_WritesAStringStateAndSkipsAnEntityWithoutUi()
+    {
+        var simulation = RobustServerSimulation.NewSimulation().InitializeInstance();
+        var entities = simulation.Resolve<IEntityManager>();
+        var catalog = new BindingCatalog();
+        GameplayBindings.Index(catalog, entities);
+
+        var owner = (int)catalog.FindMethod("Entity.Spawn")!.Invoker([]).AsInt64();
+        Assert.That(Call(catalog, "Bui.Set", owner, "Parts", "[]").AsBool(), Is.False);
+
+        var state = GameplayBindings.AssignState(null, "Parts", "[{\"id\":\"barrel-1\"}]");
+        Assert.That(state.Values["Parts"], Is.EqualTo("[{\"id\":\"barrel-1\"}]"));
+        Assert.That(state.TypedValues["Parts"], Is.EqualTo("string:[{\"id\":\"barrel-1\"}]"));
+        Assert.That(state.Revision, Is.EqualTo(1));
+
+        var next = GameplayBindings.AssignState(state, "Reason", "occupied");
+        Assert.That(next.Revision, Is.EqualTo(2));
+        Assert.That(next.Values["Parts"], Is.EqualTo("[{\"id\":\"barrel-1\"}]"));
+        Assert.That(next.Values["Reason"], Is.EqualTo("occupied"));
+        Assert.That(state.Values.ContainsKey("Reason"), Is.False);
+    }
+
     private static AstraValue Call(BindingCatalog catalog, string name, params object[] args)
     {
         var values = args.Select(arg => arg switch

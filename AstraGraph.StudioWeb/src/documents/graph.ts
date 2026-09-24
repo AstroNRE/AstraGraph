@@ -406,6 +406,33 @@ const gameplayPins: Record<string, { properties?: Record<string, string>; pins: 
       { name: "Item", direction: "output", kind: "data", dataType: "EntityUid" }
     ]
   },
+  "Ui.Rows": {
+    pins: [
+      { name: "List", direction: "input", kind: "data", dataType: "object" },
+      { name: "IdField", direction: "input", kind: "data", dataType: "string", defaultValue: "Id" },
+      { name: "TextField", direction: "input", kind: "data", dataType: "string", defaultValue: "Text" },
+      { name: "DisabledField", direction: "input", kind: "data", dataType: "string", defaultValue: "Disabled" },
+      { name: "Rows", direction: "output", kind: "data", dataType: "string" }
+    ]
+  },
+  "Bui.Field": {
+    pins: [
+      { name: "Payload", direction: "input", kind: "data", dataType: "string" },
+      { name: "Field", direction: "input", kind: "data", dataType: "string", defaultValue: "id" },
+      { name: "Value", direction: "output", kind: "data", dataType: "string" }
+    ]
+  },
+  "Bui.Set": {
+    properties: { IsDeterministic: "false" },
+    pins: [
+      { name: "In", direction: "input", kind: "execution" },
+      { name: "Out", direction: "output", kind: "execution" },
+      { name: "Owner", direction: "input", kind: "data", dataType: "EntityUid" },
+      { name: "Name", direction: "input", kind: "data", dataType: "string" },
+      { name: "Value", direction: "input", kind: "data", dataType: "string" },
+      { name: "Success", direction: "output", kind: "data", dataType: "bool" }
+    ]
+  },
   "Native.GetMember": {
     properties: { Member: "" },
     pins: [

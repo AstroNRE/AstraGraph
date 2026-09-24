@@ -36,6 +36,12 @@ describe("graph editing", () => {
     expect(identified.nodes[2].properties.IsDeterministic).toBe("false");
     const inserted = addNode(identified, "Container.Insert", "Insert");
     expect(inserted.nodes[3].pins.map((pin) => pin.name)).toEqual(["In", "Out", "Owner", "Container", "Item", "Success"]);
+    const rows = addNode(inserted, "Ui.Rows", "Rows");
+    expect(rows.nodes[4].pins.map((pin) => pin.name)).toEqual(["List", "IdField", "TextField", "DisabledField", "Rows"]);
+    const field = addNode(rows, "Bui.Field", "Id");
+    expect(field.nodes[5].pins.find((pin) => pin.name === "Field")?.defaultValue).toBe("id");
+    const set = addNode(field, "Bui.Set", "State");
+    expect(set.nodes[6].properties.IsDeterministic).toBe("false");
   });
 
   it("keeps variable persistence across serialize and finds a reference", () => {

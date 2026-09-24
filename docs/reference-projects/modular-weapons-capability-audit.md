@@ -41,7 +41,7 @@ A graph can subscribe to a Robust event, read a schema component, branch, loop, 
 | persistent primitives | Working end-to-end | Bool, int, double, entity id, vector, and a single string. |
 | persistent structs / collections / components | Partial | State format 2 stores a struct by schema id and field id, and a list, including nested values. Format 1 still loads. One bad object becomes null and the rest of the file stays. Component instances are still not a snapshot. |
 | network replication | Partial | Field flags `Replicated` and `Predicted` exist. Not proven for structs. |
-| BUI state / actions | Partial | State is a string map. Actions are a name plus a payload. No list, selection, or disabled row. |
+| BUI state / actions | Partial | An item list renders server rows (`id`, `text`, `disabled`). A button can send the selected id. `Ui.Rows` formats a list of structs, `Bui.Field` reads the id, `Bui.Set` writes one string into the entity's interface state. The client still only sends intent. |
 | hot reload | Partial | Same event and component can publish. A new pair after the bus lock does not subscribe. Schema changes do not migrate stored values. |
 | debugging / profiling | Partial | Studio trace and profile exist. No struct or collection inspector. |
 
@@ -49,9 +49,7 @@ A graph can subscribe to a Robust event, read a schema component, branch, loop, 
 
 The slice is: place a gun on a bench, open the Astra UI, see parts, swap a barrel, shoot with the new profile, restart, and see the same assembly.
 
-That fails today for four generic reasons:
-
-1. The UI cannot show a server-owned list of parts and send `InstallPart` as an intent. It can show a static page and a button name.
+That fails today because the weapon graphs are not written yet. The interface can show a server-owned list and send `InstallPart` with the selected id. The server graph still has to validate that id and change the assembly.
 
 Heat, fouling, manufacturing lots, RNG, curves, and localization are later slices. They are absent and should stay absent until the slice above exists.
 
@@ -64,7 +62,7 @@ Do not add a second type system. Extend `SchemaType`, `AstraList`, and `Persiste
 3. Persist those values in the existing snapshot, versioned, by schema id and field id. One bad object must not wipe the file. Done as format 2. Format 1 still loads.
 4. Persistent object id that is not `EntityUid`, usable by a gun, a car, or a tool. Done. `PersistentObjectId` is a value, stored in a struct field, and it round-trips in the state file. `PersistentId.New` is rejected on a predicted graph.
 5. Generic container and inventory reads and inserts. No weapon slot node. Done. The slot name is a string. `Container.Has`, `Insert`, `Remove`, `Contents`, `Inventory.Find`, `Contains`, `TryInsert`, `TryRemove`, and `Entity.GetHeldItem`. A missing container is a failed insert, not a new slot.
-6. BUI list, selection, and an action that carries an id. The server graph decides the result.
+6. BUI list, selection, and an action that carries an id. The server graph decides the result. Done. `Ui.Rows`, `Bui.Field`, and `Bui.Set`. A missing interface is a failed set, not a new window. `Bui.Set` is rejected on a predicted graph.
 7. Only then the first weapon graphs, laid out left to right as a chain.
 
 Graphs for the mechanic go in Night City content. The capabilities above go in AstraGraph.

@@ -28,6 +28,7 @@ public static class BuiltinUiCatalog
         catalog.Add(Control(UiControlIds.Button, "Button", "Input", true,
         [
             Prop("Text", "String", UiPropertyEditorKind.Text, "Content"),
+            Prop("Selection", "String", UiPropertyEditorKind.Text, "Content"),
             Prop("Disabled", "Boolean", UiPropertyEditorKind.Boolean, "Behavior", "false"),
             Prop("ToggleMode", "Boolean", UiPropertyEditorKind.Boolean, "Behavior", "false"),
             ..Common()
@@ -60,10 +61,11 @@ public static class BuiltinUiCatalog
         catalog.Add(Control(UiControlIds.ItemList, "ItemList", "Display", false,
         [
             Prop("ItemSeparation", "Int32", UiPropertyEditorKind.Integer, "Layout", "0"),
+            Prop("Items", "String", UiPropertyEditorKind.MultilineText, "Content"),
             ..Common()
         ],
         [
-            Event("OnItemSelected", "ItemListSelectedEventArgs", [new UiEventPayloadField("ItemIndex", "Int32")])
+            Event("OnItemSelected", "ItemListSelectedEventArgs", [new UiEventPayloadField("Id", "String")])
         ]));
         catalog.Add(Control(UiControlIds.ProgressBar, "ProgressBar", "Display", false,
         [

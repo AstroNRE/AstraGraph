@@ -51,6 +51,60 @@ public sealed class UiHtmlPageTests
     }
 
     [Test]
+    public void Render_ListCarriesSelectionAndADisabledRowAction()
+    {
+        var list = new UiElementNode
+        {
+            Id = "parts",
+            ControlTypeId = UiControlIds.ItemList
+        };
+        var button = new UiElementNode
+        {
+            Id = "install",
+            ControlTypeId = UiControlIds.Button,
+            Text = "Install",
+            Properties = new Dictionary<string, object?> { ["Selection"] = "parts" }
+        };
+        var root = new UiElementNode
+        {
+            Id = "root",
+            ControlTypeId = UiControlIds.BoxContainer,
+            Children = [list, button]
+        };
+        var document = new UiDocument
+        {
+            Id = GraphId.New(),
+            Name = "Bench",
+            Root = root,
+            Bindings =
+            [
+                new UiBindingDefinition
+                {
+                    BindingId = "parts",
+                    ElementId = "parts",
+                    TargetProperty = "Items",
+                    StateVariable = "Parts"
+                }
+            ],
+            Events =
+            [
+                new UiEventSubscription { SubscriptionId = "select", ElementId = "parts", EventName = "OnItemSelected", TargetAction = "SelectPart" },
+                new UiEventSubscription { SubscriptionId = "install", ElementId = "install", EventName = "OnPressed", TargetAction = "InstallPart" }
+            ]
+        };
+
+        var html = UiHtmlPage.Render(document);
+
+        Assert.That(html, Does.Contain("data-astra-list=\"1\""));
+        Assert.That(html, Does.Contain("data-astra-action=\"SelectPart\""));
+        Assert.That(html, Does.Contain("data-astra-selection=\"parts\""));
+        Assert.That(html, Does.Contain("data-astra-action=\"InstallPart\""));
+        Assert.That(html, Does.Contain("astraFillList"));
+        Assert.That(html, Does.Contain("data-selected-id"));
+        Assert.That(html, Does.Contain("row.disabled"));
+    }
+
+    [Test]
     public void Render_IncludesBuildTextureSprite()
     {
         var sprite = new UiElementNode
