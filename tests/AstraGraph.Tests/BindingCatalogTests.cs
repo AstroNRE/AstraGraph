@@ -113,6 +113,7 @@ public sealed class BindingCatalogTests
 
         var resolver = new CatalogEntryPointTypeResolver(catalog);
         Assert.That(resolver.Resolve(nameof(SampleHitEvent)), Is.EqualTo(typeof(SampleHitEvent)));
+        Assert.That(resolver.Resolve(nameof(SampleMathService)), Is.EqualTo(typeof(SampleMathService)));
     }
 }
 

@@ -1,4 +1,5 @@
 using AstraGraph.Binding;
+using AstraGraph.Robust.Client;
 using AstraGraph.Runtime;
 using AstraGraph.Runtime.Network;
 using AstraGraph.State;
@@ -157,6 +158,8 @@ public abstract class SharedAstraGraphSystem : EntitySystem
         }
 
         GameplayBindings.Index(catalog, _entMan);
+        catalog.IndexEventType(typeof(BoundUIOpenedEvent));
+        catalog.IndexEventType(typeof(AstraBuiUiMessage));
         if (Host.HostServices is RobustVmHostServices services)
         {
             services.UseCatalog(catalog);

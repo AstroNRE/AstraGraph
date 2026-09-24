@@ -1,3 +1,4 @@
+using System.Reflection;
 using AstraGraph.Binding;
 using AstraGraph.Core;
 
@@ -37,11 +38,66 @@ public sealed class CatalogEntryPointTypeResolver : IEntryPointTypeResolver
 
     public Type? Resolve(string typeName)
     {
+        if (string.IsNullOrWhiteSpace(typeName))
+        {
+            return null;
+        }
+
         if (_catalog.TryGetNamedType(typeName, out var named) && named != null)
         {
             return named;
         }
 
-        return ReflectionEntryPointTypeResolver.Instance.Resolve(typeName);
+        var reflected = ReflectionEntryPointTypeResolver.Instance.Resolve(typeName);
+        if (reflected != null)
+        {
+            return reflected;
+        }
+
+        return ShortNames().TryGetValue(typeName, out var found) ? found : null;
+    }
+
+    private Dictionary<string, Type>? _shortNames;
+
+    private Dictionary<string, Type> ShortNames()
+    {
+        if (_shortNames != null)
+        {
+            return _shortNames;
+        }
+
+        var map = new Dictionary<string, Type>(StringComparer.Ordinal);
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            if (assembly.IsDynamic)
+            {
+                continue;
+            }
+
+            Type[] types;
+            try
+            {
+                types = assembly.GetExportedTypes();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                types = ex.Types.OfType<Type>().ToArray();
+            }
+            catch (Exception)
+            {
+                continue;
+            }
+
+            foreach (var type in types)
+            {
+                if (type is { IsPublic: true, IsGenericTypeDefinition: false })
+                {
+                    map.TryAdd(type.Name, type);
+                }
+            }
+        }
+
+        _shortNames = map;
+        return map;
     }
 }
