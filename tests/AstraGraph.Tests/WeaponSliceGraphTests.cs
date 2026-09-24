@@ -193,11 +193,12 @@ public sealed class WeaponSliceGraphTests
     {
         private readonly List<NodeDocument> _nodes = [];
         private readonly List<ConnectionDocument> _connections = [];
-        private int _row;
+        private readonly Dictionary<string, NodePosition> _positions = [];
+        private readonly HashSet<(int X, int Y)> _used = [];
 
-        public NodeDocument Event(string name, string eventType, string component, int x) =>
+        public NodeDocument Event(string name, string eventType, string component, int x, int y) =>
             Place(Node(name, "Event." + name, new Dictionary<string, string> { ["eventType"] = eventType, ["componentType"] = component },
-                Exec("Out", false), Data("Entity", "EntityUid", false), Data("Event", "object", false)), x, 80);
+                Exec("Out", false), Data("Entity", "EntityUid", false), Data("Event", "object", false)), x, y);
 
         public NodeDocument Branch(string name, int x) =>
             Place(Node(name, "Core.Branch", null, Exec("In", true), Exec("True", false), Exec("False", false), Data("Condition", "bool", true)), x, 80);
@@ -243,9 +244,7 @@ public sealed class WeaponSliceGraphTests
 
         public NodeDocument Data(string type, string name, int x, params (string Name, string Type, string? Default)[] pins)
         {
-            var specs = pins.Select(pin => pin.Default == null && pins.Count(item => item.Name == pin.Name) >= 0
-                ? Data(pin.Name, pin.Type, pin.Default != null, pin.Default)
-                : Data(pin.Name, pin.Type, false)).ToArray();
+            var specs = pins.Select(pin => Data(pin.Name, pin.Type, false, pin.Default)).ToArray();
             return Place(Node(name, type, null, specs), x, 300);
         }
 
@@ -290,7 +289,7 @@ public sealed class WeaponSliceGraphTests
 
         public GraphDocument Document() => new()
         {
-            Id = GraphId.Parse("c1000000-0000-4000-8000-0000000000c1"),
+            Id = GraphId.FromString("c1000000-0000-4000-8000-0000000000c1"),
             Name = "WeaponBench",
             Kind = GraphKind.System,
             Side = GraphSide.Server,
@@ -298,10 +297,7 @@ public sealed class WeaponSliceGraphTests
             Variables = [new GraphVariableDocument { Name = "Rows", TypeName = "object" }],
             Nodes = _nodes,
             Connections = _connections,
-            EditorLayout = new EditorLayoutDocument
-            {
-                NodePositions = _nodes.ToDictionary(node => node.Id.Value.ToString(), node => new NodePosition(node.PositionX, node.PositionY))
-            },
+            EditorLayout = new EditorLayoutDocument { NodePositions = _positions },
             Schemas =
             [
                 Schema("11aa11aa-11aa-41aa-81aa-11aa11aa11aa", "WeaponAssembly", true,
@@ -323,8 +319,12 @@ public sealed class WeaponSliceGraphTests
 
         private NodeDocument Place(NodeDocument node, int x, int y)
         {
-            node.PositionX = x;
-            node.PositionY = y + (_row++ % 2 == 0 ? 0 : 0);
+            while (!_used.Add((x, y)))
+            {
+                y += 220;
+            }
+
+            _positions[node.Id.Value.ToString("D")] = new NodePosition(x, y);
             return node;
         }
 
@@ -370,12 +370,12 @@ public sealed class WeaponSliceGraphTests
 
         private static ComponentSchemaDocument Schema(string id, string name, bool component, params (string Id, string Name, string Type, string Default)[] fields) => new()
         {
-            Id = SchemaId.Parse(id),
+            Id = SchemaId.FromString(id),
             Name = name,
             Kind = component ? "Component" : "Struct",
             Fields = fields.Select(field => new ComponentFieldDocument
             {
-                Id = FieldId.Parse(field.Id),
+                Id = FieldId.FromString(field.Id),
                 Name = field.Name,
                 TypeName = field.Type,
                 DefaultValue = field.Default
