@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { alignmentGuides, boxesInRect, builtinControls, canParent, findNode, findParent, insertChild, layoutTree, nodeType, remapIds, remapSubtree, removeNode, reorder, shortType, snapValue, updateNode, type UiControlInfo, type UiDocumentModel, type UiNode } from "./uiTree";
+import { alignmentGuides, boxesInRect, builtinControls, canParent, findNode, findParent, insertChild, layoutTree, nodeType, remapIds, remapSubtree, removeNode, reorder, shortType, snapValue, updateNode, type UiControlInfo, type UiDocumentModel, type UiNode, type UiPropertyInfo } from "./uiTree";
 import { buildLogicGraphs } from "./uiLogic";
 
 const tabs = ["Design", "Logic", "State", "Contract", "Styles", "Preview", "Diagnostics"] as const;
-const viewports = [
-  { name: "640×480", width: 640, height: 480 },
-  { name: "1280×720", width: 1280, height: 720 },
-  { name: "1920×1080", width: 1920, height: 1080 }
-];
+
+function clampSize(value: number, fallback: number) {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(4096, Math.max(64, Math.round(value)));
+}
 
 function newId() {
   return crypto.randomUUID();
@@ -169,7 +169,7 @@ export function UiDesigner(props: {
   styles?: string[];
   assets?: string[];
   onPatch?: (documentId: string, operations: { kind: string; elementId: string; propertyName?: string; value?: string }[]) => void;
-  onPreview?: (document: UiDocumentModel) => void;
+  onPreview?: (document: UiDocumentModel) => void | Promise<{ mode?: string; xaml?: string; framePng?: string } | void>;
   onOpenGraph?: (graph: ReturnType<typeof buildLogicGraphs>["client"]) => void;
 }) {
   const catalog = props.catalog && props.catalog.length > 0 ? props.catalog : builtinControls;
@@ -183,21 +183,38 @@ export function UiDesigner(props: {
   const [zoom, setZoom] = useState(1);
   const [locale, setLocale] = useState("en");
   const [previewNote, setPreviewNote] = useState("");
-  const [snap, setSnap] = useState(8);
+  const [snap] = useState(8);
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [guides, setGuides] = useState<{ x?: number; y?: number }>({});
   const [clipboard, setClipboard] = useState<UiNode | null>(null);
   const [selection, setSelection] = useState<string[]>([]);
+  const [surface, setSurface] = useState<{ mode: string; framePng: string }>({ mode: "", framePng: "" });
 
   useEffect(() => {
     setDraft(props.documents[0] ?? null);
   }, [props.documents]);
 
-  function commit(next: UiDocumentModel) {
+  async function refreshSurface(document: UiDocumentModel) {
+    try {
+      const surfaceResult = await props.onPreview?.(document);
+      if (!surfaceResult) return;
+      setSurface({ mode: surfaceResult.mode ?? "", framePng: surfaceResult.framePng ?? "" });
+    } catch {
+      setSurface({ mode: "offline", framePng: "" });
+    }
+  }
+
+  useEffect(() => {
     if (!draft) return;
-    setPast((items) => [...items.slice(-49), draft]);
+    void refreshSurface(draft);
+  }, [draft?.id]);
+
+  function commit(next: UiDocumentModel, baseline: UiDocumentModel | null = draft) {
+    if (!baseline) return;
+    setPast((items) => [...items.slice(-49), baseline]);
     setFuture([]);
     setDraft(next);
+    void refreshSurface(next);
   }
 
   function undo() {
@@ -245,14 +262,20 @@ export function UiDesigner(props: {
 
   if (!draft) {
     return (
-      <div>
-        <button type="button" onClick={() => { const created = emptyDocument("UI"); setSelected(created.root.id); setDraft(created); }}>New UI</button>
-        <button type="button" onClick={() => { const created = emptyDocument("BUI"); setSelected(created.root.id); setDraft(created); }}>New BUI</button>
-        <button type="button" onClick={() => { const created = templateDocument("mothroach"); setSelected(created.root.id); setDraft(created); }}>Mothroach</button>
-        <button type="button" onClick={() => { const created = templateDocument("vehicle"); setSelected(created.root.id); setDraft(created); }}>Vehicle</button>
-        <button type="button" onClick={() => { const created = templateDocument("surgery"); setSelected(created.root.id); setDraft(created); }}>Surgery</button>
-        <button type="button" onClick={() => { const created = templateDocument("form"); setSelected(created.root.id); setDraft(created); }}>Form</button>
-        <button type="button" onClick={() => { const created = templateDocument("inventory"); setSelected(created.root.id); setDraft(created); }}>Inventory</button>
+      <div className="ui-designer figma-viewport">
+        <div className="figma-empty">
+          <strong>Design</strong>
+          <p>Выбери шаблон или пустой фрейм. Холст, слои и инспектор откроются как в Figma.</p>
+          <div className="figma-empty-actions">
+            <button type="button" className="primary" onClick={() => { const created = emptyDocument("UI"); setSelected(created.root.id); setDraft(created); }}>New UI</button>
+            <button type="button" onClick={() => { const created = emptyDocument("BUI"); setSelected(created.root.id); setDraft(created); }}>New BUI</button>
+            <button type="button" onClick={() => { const created = templateDocument("mothroach"); setSelected(created.root.id); setDraft(created); }}>Mothroach</button>
+            <button type="button" onClick={() => { const created = templateDocument("vehicle"); setSelected(created.root.id); setDraft(created); }}>Vehicle</button>
+            <button type="button" onClick={() => { const created = templateDocument("surgery"); setSelected(created.root.id); setDraft(created); }}>Surgery</button>
+            <button type="button" onClick={() => { const created = templateDocument("form"); setSelected(created.root.id); setDraft(created); }}>Form</button>
+            <button type="button" onClick={() => { const created = templateDocument("inventory"); setSelected(created.root.id); setDraft(created); }}>Inventory</button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -330,44 +353,50 @@ export function UiDesigner(props: {
         setSelected(copied.node.id);
       }
     }}>
-      <div className="dock-bar">
+      <div className="dock-bar figma-modes">
         {tabs.map((name) => <button key={name} type="button" className={name === tab ? "active" : ""} onClick={() => setTab(name)}>{name}</button>)}
+        <span className="grow" />
         <button type="button" onClick={undo}>Undo</button>
         <button type="button" onClick={redo}>Redo</button>
-        <span className="muted">{draft.documentKind ?? "UI"}</span>
+        <button type="button" onClick={() => props.onSave(draft)}>Save</button>
       </div>
       {tab === "Design" ? (
         <div className="ui-body">
-          <aside>
-            <label className="field">Search controls
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search controls..." />
-            </label>
-            {grouped.map(([category, controls]) => (
-              <div key={category}>
-                <div className="section-label">{category}</div>
-                {controls.map((control) => (
-                  <button
-                    key={control.typeId}
-                    type="button"
-                    draggable
-                    onDragStart={(event) => event.dataTransfer.setData("application/x-astra-control", control.typeId)}
-                    onClick={() => place(control.typeId)}
-                  >{control.displayName}</button>
-                ))}
-              </div>
-            ))}
-            <div className="section-label">Layers</div>
-            <label className="field"><input value={layerQuery} onChange={(event) => setLayerQuery(event.target.value)} placeholder="Search layers" /></label>
-            <Layer node={draft.root} selected={selected || draft.root.id} query={layerQuery} onSelect={setSelected} />
-          </aside>
-          <main className="ui-canvas" onClick={() => setSelected(draft.root.id)}>
-            <div className="ui-toolbar">
-              <span className="badge">Browser Approximation</span>
-              <label>Zoom <input type="number" min={0.5} max={2} step={0.25} value={zoom} onChange={(event) => setZoom(Number(event.target.value) || 1)} /></label>
-              <label>Snap <input type="number" min={0} max={32} step={8} value={snap} onChange={(event) => setSnap(Number(event.target.value) || 0)} /></label>
-              {viewports.map((viewport) => <button key={viewport.name} type="button" onClick={() => commit({ ...draft, width: viewport.width, height: viewport.height })}>{viewport.name}</button>)}
+          <aside className="figma-side">
+            <div className="figma-section">Controls</div>
+            <input className="figma-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search controls" />
+            <div className="figma-assets">
+              {grouped.map(([category, controls]) => (
+                <div key={category}>
+                  <div className="figma-section">{category}</div>
+                  {controls.map((control) => (
+                    <button
+                      key={control.typeId}
+                      type="button"
+                      className="figma-asset"
+                      draggable
+                      onDragStart={(event) => {
+                        event.dataTransfer.setData("application/x-astra-control", control.typeId);
+                        event.dataTransfer.setData("text/plain", control.typeId);
+                        event.dataTransfer.effectAllowed = "copy";
+                      }}
+                      onClick={() => place(control.typeId)}
+                    >{control.displayName}</button>
+                  ))}
+                </div>
+              ))}
             </div>
-            <div className="ui-breadcrumbs">{breadcrumb(draft.root, current.id).join(" / ")}</div>
+            <div className="figma-section">Layers</div>
+            <input className="figma-search" value={layerQuery} onChange={(event) => setLayerQuery(event.target.value)} placeholder="Search layers" />
+            <div className="figma-layers">
+              <Layer node={draft.root} selected={selected || draft.root.id} query={layerQuery} depth={0} onSelect={setSelected} />
+            </div>
+          </aside>
+          <main className="figma-viewport" onClick={() => setSelected(draft.root.id)} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }}>
+            <div className="figma-crumbs">{breadcrumb(draft.root, current.id).join("  /  ")}</div>
+            <div className="figma-world">
+              <div className="figma-frame-wrap">
+                <div className={current.id === draft.root.id ? "figma-frame-label selected" : "figma-frame-label"}>{draft.name}</div>
             <DesignCanvas
               document={draft}
               selected={selection.length > 0 ? selection : [selected || draft.root.id]}
@@ -385,36 +414,57 @@ export function UiDesigner(props: {
                 commit({ ...draft, root: updateNode(draft.root, id, { properties }) });
               }}
               onDrop={onDrop}
+              onResize={(width, height, done, baseline) => {
+                const next = { ...baseline, width, height };
+                if (done) commit(next, baseline);
+                else setDraft(next);
+              }}
+              framePng={surface.framePng}
+              mode={surface.mode}
               knownTypes={new Set(catalog.flatMap((item) => [item.typeId, shortType(item.typeId), item.displayName]))}
             />
+              </div>
+            </div>
+            <div className="figma-zoom" onClick={(event) => event.stopPropagation()}>
+              <button type="button" onClick={() => setZoom((value) => Math.max(0.25, Math.round((value - 0.25) * 4) / 4))}>−</button>
+              <span>{Math.round(zoom * 100)}%</span>
+              <button type="button" onClick={() => setZoom((value) => Math.min(2, Math.round((value + 0.25) * 4) / 4))}>+</button>
+              <label>W <input type="number" min={64} max={4096} defaultValue={draft.width} key={`w-${draft.width}`} onBlur={(event) => commit({ ...draft, width: clampSize(Number(event.target.value), draft.width) })} /></label>
+              <label>H <input type="number" min={64} max={4096} defaultValue={draft.height} key={`h-${draft.height}`} onBlur={(event) => commit({ ...draft, height: clampSize(Number(event.target.value), draft.height) })} /></label>
+            </div>
           </main>
-          <aside>
-            <div className="section-label">{info?.displayName ?? shortType(nodeType(current))}</div>
-            <label className="field">Name
+          <aside className="figma-side figma-inspect">
+            <div className="figma-inspect-title">{current.name || info?.displayName || shortType(nodeType(current))}</div>
+            <div className="figma-inspect-type">{info?.displayName ?? shortType(nodeType(current))}</div>
+            <label className="figma-prop">Name
               <input value={current.name ?? ""} onChange={(event) => patch({ name: event.target.value })} />
             </label>
-            {(info?.properties ?? []).map((property) => (
-              <label key={property.name} className="field">{property.category} · {property.name}
-                {property.editorKind === "Boolean" ? (
-                  <input type="checkbox" checked={(current.properties?.[property.name] ?? property.defaultValue ?? "false") === "true" || (property.name === "Visible" && current.visible !== false)} onChange={(event) => setProperty(property.name, event.target.checked ? "true" : "false")} />
-                ) : property.editorKind === "Enum" ? (
-                  <select value={current.properties?.[property.name] ?? current.orientation ?? property.enumValues?.[0] ?? ""} onChange={(event) => setProperty(property.name, event.target.value)}>
-                    {(property.enumValues ?? []).map((option) => <option key={option}>{option}</option>)}
-                  </select>
-                ) : (
-                  <input value={property.name === "Text" ? current.text ?? "" : current.properties?.[property.name] ?? ""} onChange={(event) => setProperty(property.name, event.target.value)} />
-                )}
-                <button type="button" onClick={() => setProperty(property.name, "")}>Reset</button>
-              </label>
+            {[...groupProperties(info?.properties ?? [])].map(([category, properties]) => (
+              <div key={category}>
+                <div className="figma-section">{category}</div>
+                {properties.map((property) => (
+                  <label key={property.name} className="figma-prop">{property.name}
+                    {property.editorKind === "Boolean" ? (
+                      <input type="checkbox" checked={(current.properties?.[property.name] ?? property.defaultValue ?? "false") === "true" || (property.name === "Visible" && current.visible !== false)} onChange={(event) => setProperty(property.name, event.target.checked ? "true" : "false")} />
+                    ) : property.editorKind === "Enum" ? (
+                      <select value={current.properties?.[property.name] ?? current.orientation ?? property.enumValues?.[0] ?? ""} onChange={(event) => setProperty(property.name, event.target.value)}>
+                        {(property.enumValues ?? []).map((option) => <option key={option}>{option}</option>)}
+                      </select>
+                    ) : (
+                      <input value={property.name === "Text" ? current.text ?? "" : current.properties?.[property.name] ?? ""} onChange={(event) => setProperty(property.name, event.target.value)} />
+                    )}
+                  </label>
+                ))}
+              </div>
             ))}
-            <div className="section-label">Style classes</div>
+            <div className="figma-section">Style</div>
             <div className="ui-tags">
               {(current.styleClasses ?? []).map((name) => <button key={name} type="button" onClick={() => patch({ styleClasses: (current.styleClasses ?? []).filter((item) => item !== name) })}>{name} ×</button>)}
             </div>
             <StyleAdder classes={current.styleClasses ?? []} onAdd={(name) => patch({ styleClasses: [...(current.styleClasses ?? []), name] })} />
-            <div className="section-label">Events</div>
-            {(info?.events ?? []).map((item) => <div key={item.name}>{item.name}</div>)}
-            <div className="ui-row">
+            <div className="figma-section">Events</div>
+            {(info?.events ?? []).map((item) => <div key={item.name} className="figma-prop">{item.name}</div>)}
+            <div className="figma-actions">
               <button type="button" onClick={() => { const parent = findParent(draft.root, current.id); if (!parent) return; const index = parent.children.findIndex((child) => child.id === current.id); if (index > 0) commit({ ...draft, root: reorder(draft.root, parent.id, index, index - 1) }); }}>Up</button>
               <button type="button" onClick={() => { const parent = findParent(draft.root, current.id); if (!parent) return; const index = parent.children.findIndex((child) => child.id === current.id); if (index >= 0 && index < parent.children.length - 1) commit({ ...draft, root: reorder(draft.root, parent.id, index, index + 1) }); }}>Down</button>
               <button type="button" onClick={() => commit({ ...draft, root: removeNode(draft.root, current.id) })}>Delete</button>
@@ -504,15 +554,15 @@ export function UiDesigner(props: {
           </label>
           <p className="muted">{locale} · browser mock of the same control types. Robust Preview opens the real client controls.</p>
           <p className="muted">State {Object.entries(draft.localState ?? {}).map(([key, value]) => `${key}=${value || "∅"}`).join(" · ") || "empty"}</p>
-          <div style={{ width: Math.min(draft.width, 960), background: "#171a22", padding: 8 }}>
-            <ControlView node={draft.root} document={draft} selected="" onSelect={() => undefined} onDrop={() => undefined} />
+          <div className="xaml-surface" style={{ width: Math.min(draft.width, 960), minHeight: 160 }}>
+            {surface.framePng ? <img className="xaml-frame" alt="" src={surface.framePng.startsWith("data:") ? surface.framePng : `data:image/png;base64,${surface.framePng}`} /> : <p className="xaml-wait">Тот же кадр, что на холсте: окно Robust из XAML, не HTML.</p>}
           </div>
           <button type="button" onClick={() => { props.onPreview?.(draft); setPreviewNote("Preview in Game requested. Headless hot reload runs when the game client is not attached."); }}>Preview in Game</button>
           <p className="muted">{previewNote}</p>
           <span className="badge">Robust Preview</span>
         </div>
       ) : null}
-      <button type="button" onClick={() => props.onSave(draft)}>Save UI</button>
+      {tab === "Design" ? null : <button type="button" onClick={() => props.onSave(draft)}>Save UI</button>}
     </div>
   );
 }
@@ -529,18 +579,47 @@ function DesignCanvas(props: {
   onGuides: (guides: { x?: number; y?: number }) => void;
   onMove: (id: string, x: number, y: number) => void;
   onDrop: (parentId: string, index: number, typeId?: string, elementId?: string) => void;
+  onResize: (width: number, height: number, done: boolean, baseline: UiDocumentModel) => void;
+  framePng: string;
+  mode: string;
   knownTypes: Set<string>;
 }) {
-  const boxes = layoutTree(props.document.root, 8, 8, Math.max(160, props.document.width - 16), props.snap || 8);
-  const height = Math.max(props.document.height, ...boxes.map((box) => box.y + box.h + 16));
+  const boxes = layoutTree(props.document.root, 0, 0, props.document.width, props.snap || 8);
+  void props.knownTypes;
+  void props.mode;
+  const rootBox = boxes.find((box) => box.id === props.document.root.id);
+  if (rootBox) {
+    rootBox.x = 0;
+    rootBox.y = 0;
+    rootBox.w = props.document.width;
+    rootBox.h = Math.max(props.document.height, rootBox.h);
+  }
+  const height = Math.max(props.document.height, ...boxes.map((box) => box.y + box.h));
+  const stage = useRef<HTMLDivElement>(null);
   const start = useRef<{ x: number; y: number } | null>(null);
-  function local(event: React.MouseEvent<HTMLDivElement>) {
-    const bounds = event.currentTarget.getBoundingClientRect();
+  function local(event: { clientX: number; clientY: number }) {
+    const bounds = stage.current?.getBoundingClientRect();
+    if (!bounds) return { x: 0, y: 0 };
     return { x: (event.clientX - bounds.left) / props.zoom, y: (event.clientY - bounds.top) / props.zoom };
+  }
+  function acceptDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    const typeId = event.dataTransfer.getData("application/x-astra-control") || event.dataTransfer.getData("text/plain");
+    const elementId = event.dataTransfer.getData("application/x-astra-element");
+    const point = local(event);
+    const hit = [...boxes].reverse().find((box) => point.x >= box.x && point.x <= box.x + box.w && point.y >= box.y && point.y <= box.y + box.h);
+    const node = hit ? findNode(props.document.root, hit.id) : props.document.root;
+    const target = node && (shortType(nodeType(node)).endsWith("Container") || shortType(nodeType(node)) === "Panel")
+      ? node
+      : findParent(props.document.root, node?.id ?? props.document.root.id) ?? props.document.root;
+    const index = target.children.findIndex((child) => child.id === node?.id);
+    props.onDrop(target.id, index >= 0 ? index + 1 : target.children.length, typeId, elementId);
   }
   return (
     <div
-      className="ui-stage ui-rulers"
+      ref={stage}
+      className="ui-stage"
       style={{ transform: `scale(${props.zoom})`, transformOrigin: "top left", width: props.document.width, height, position: "relative" }}
       onMouseDown={(event) => {
         if (event.target !== event.currentTarget) return;
@@ -557,51 +636,61 @@ function DesignCanvas(props: {
         start.current = null;
         props.onMarquee(null);
       }}
+      onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }}
+      onDrop={acceptDrop}
     >
+      {props.framePng ? <img className="xaml-frame" alt="" src={props.framePng.startsWith("data:") ? props.framePng : `data:image/png;base64,${props.framePng}`} /> : null}
       {boxes.map((box) => {
         const node = findNode(props.document.root, box.id);
         if (!node) return null;
         const type = shortType(nodeType(node));
         const text = boundText(node, props.document.localState ?? {}, props.document.bindings);
+        const selected = props.selected.includes(box.id);
+        const container = type.endsWith("Container") || type === "Panel";
+        const color = node.properties?.FontColorOverride;
         return (
           <div
             key={box.id}
-            className={props.selected.includes(box.id) ? "ui-node selected" : "ui-node"}
-            style={{ position: "absolute", left: box.x, top: box.y, width: box.w, minHeight: box.h }}
-            onMouseDown={(event) => {
-              event.stopPropagation();
-              props.onSelect([box.id]);
-              const parent = findParent(props.document.root, box.id);
-              if (!parent || shortType(nodeType(parent)) !== "LayoutContainer") return;
-              const origin = { x: event.clientX, y: event.clientY, ox: Number(node.properties?.["editor.x"] ?? 0), oy: Number(node.properties?.["editor.y"] ?? 0) };
-              const move = (ev: PointerEvent) => {
-                const x = snapValue(origin.ox + (ev.clientX - origin.x) / props.zoom, props.snap);
-                const y = snapValue(origin.oy + (ev.clientY - origin.y) / props.zoom, props.snap);
-                props.onGuides(alignmentGuides(boxes, box.id, box.x + x - origin.ox, box.y + y - origin.oy));
-                props.onMove(box.id, x, y);
-              };
-              const up = () => {
-                window.removeEventListener("pointermove", move);
-                window.removeEventListener("pointerup", up);
-                props.onGuides({});
-              };
-              window.addEventListener("pointermove", move);
-              window.addEventListener("pointerup", up);
-            }}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              props.onDrop(box.id, node.children.length, event.dataTransfer.getData("application/x-astra-control"), event.dataTransfer.getData("application/x-astra-element"));
-            }}
+            className={`ui-node kind-${type}${selected ? " selected" : ""}${container ? " kind-container" : ""}`}
+            style={{ position: "absolute", left: box.x, top: box.y, width: box.w, height: box.h, color }}
+            onMouseDown={(event) => { event.stopPropagation(); props.onSelect([box.id]); }}
+            onDragOver={(event) => { event.preventDefault(); event.stopPropagation(); }}
+            onDrop={(event) => { event.stopPropagation(); acceptDrop(event); }}
           >
-            <span className="muted">{props.knownTypes.has(nodeType(node)) || props.knownTypes.has(shortType(nodeType(node))) ? type : "MissingControlPlaceholder"}</span>
-            {type === "Button" ? <button type="button">{text}</button> : null}
-            {type === "LineEdit" ? <input aria-label={node.name || "LineEdit"} defaultValue={text} /> : null}
-            {type === "Label" ? <span>{text}</span> : null}
+            {type === "Button" ? <span className="game-button">{text || node.name || "Button"}</span> : null}
+            {type === "LineEdit" ? <span className="game-line">{text || "Text"}</span> : null}
+            {type === "Label" ? <span className="game-label">{text || node.name || "Label"}</span> : null}
+            {type === "ProgressBar" ? <span className="game-progress" /> : null}
+            {container && node.id === props.document.root.id ? <span className="game-title">{props.document.name}</span> : null}
+            {selected ? <span className="figma-handles" aria-hidden="true">{["nw", "n", "ne", "e", "se", "s", "sw", "w"].map((handle) => <i key={handle} className={`h-${handle}`} />)}</span> : null}
           </div>
         );
       })}
+      <button
+        type="button"
+        className="frame-resize"
+        aria-label="Resize window"
+        onMouseDown={(event) => {
+          event.stopPropagation();
+          const origin = { x: event.clientX, y: event.clientY, width: props.document.width, height: props.document.height, baseline: props.document };
+          resizeStart.current = origin;
+          const move = (ev: PointerEvent) => {
+            const width = clampSize(origin.width + (ev.clientX - origin.x) / props.zoom, origin.width);
+            const height = clampSize(origin.height + (ev.clientY - origin.y) / props.zoom, origin.height);
+            props.onResize(width, height, false, origin.baseline);
+          };
+          const up = (ev: PointerEvent) => {
+            window.removeEventListener("pointermove", move);
+            window.removeEventListener("pointerup", up);
+            const width = clampSize(origin.width + (ev.clientX - origin.x) / props.zoom, origin.width);
+            const height = clampSize(origin.height + (ev.clientY - origin.y) / props.zoom, origin.height);
+            props.onResize(width, height, true, origin.baseline);
+            resizeStart.current = null;
+          };
+          window.addEventListener("pointermove", move);
+          window.addEventListener("pointerup", up);
+        }}
+      />
       {props.marquee ? <div className="ui-marquee" style={{ left: props.marquee.x, top: props.marquee.y, width: props.marquee.w, height: props.marquee.h }} /> : null}
       {props.guides.x != null ? <div className="ui-guide" style={{ left: props.guides.x }} /> : null}
       {props.guides.y != null ? <div className="ui-guide-y" style={{ top: props.guides.y }} /> : null}
@@ -619,17 +708,30 @@ function breadcrumb(node: UiNode, id: string, trail: string[] = []): string[] {
   return [];
 }
 
-function Layer(props: { node: UiNode; selected: string; query: string; onSelect: (id: string) => void }) {
-  const label = `${shortType(nodeType(props.node))} ${props.node.name ?? ""}`;
-  if (props.query && !label.toLowerCase().includes(props.query.toLowerCase()) && props.node.children.length === 0) return null;
+function Layer(props: { node: UiNode; selected: string; query: string; depth: number; onSelect: (id: string) => void }) {
+  const type = shortType(nodeType(props.node));
+  const label = props.node.name || type;
+  if (props.query && !`${type} ${label}`.toLowerCase().includes(props.query.toLowerCase()) && props.node.children.length === 0) return null;
   return (
-    <ul className="list">
-      <li>
-        <button type="button" className={props.node.id === props.selected ? "active" : ""} onClick={() => props.onSelect(props.node.id)}>{label}</button>
-        {props.node.children.map((child) => <Layer key={child.id} node={child} selected={props.selected} query={props.query} onSelect={props.onSelect} />)}
-      </li>
-    </ul>
+    <>
+      <button type="button" className={props.node.id === props.selected ? "figma-layer active" : "figma-layer"} style={{ paddingLeft: 8 + props.depth * 16 }} onClick={() => props.onSelect(props.node.id)}>
+        <span className="figma-layer-name">{label}</span>
+        <span className="figma-layer-type">{type}</span>
+      </button>
+      {props.node.children.map((child) => <Layer key={child.id} node={child} selected={props.selected} query={props.query} depth={props.depth + 1} onSelect={props.onSelect} />)}
+    </>
   );
+}
+
+function groupProperties(properties: UiPropertyInfo[]) {
+  const groups = new Map<string, UiPropertyInfo[]>();
+  for (const property of properties) {
+    const category = property.category || "Layout";
+    const list = groups.get(category) ?? [];
+    list.push(property);
+    groups.set(category, list);
+  }
+  return groups;
 }
 
 function StyleAdder(props: { classes: string[]; onAdd: (name: string) => void }) {

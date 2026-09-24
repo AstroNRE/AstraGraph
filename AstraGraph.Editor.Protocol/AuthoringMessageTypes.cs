@@ -541,6 +541,7 @@ public sealed class UiPreviewResponseMsg : AuthoringMessage
     public bool Preserved { get; init; }
     public int ElementCount { get; init; }
     public string Mode { get; init; } = "headless";
+    public string Xaml { get; init; } = "";
     public string? ErrorMessage { get; init; }
 }
 

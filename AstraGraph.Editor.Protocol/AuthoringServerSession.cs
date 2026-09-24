@@ -2160,6 +2160,7 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             Preserved = _uiPreview.PreservedIds.Count > 0,
             ElementCount = stored.AllElements().Count(),
             Mode = "headless",
+            Xaml = UiXamlAdapter.Export(stored),
             ErrorMessage = ok ? null : string.Join("; ", diagnostics.Select(item => item.Message))
         };
     }

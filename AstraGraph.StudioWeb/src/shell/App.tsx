@@ -981,7 +981,7 @@ export function App() {
           ) : null}
         </div>
       </header>
-      <div className="workspace">
+      <div className={activity === "design" ? "workspace ui-mode" : "workspace"}>
         <nav className="activity" aria-label="Activity">
           {activities.map((item) => (
             <button key={item} className={item === activity ? "active" : ""} onClick={() => { setActivity(item); if (item === "audit") void loadAudit(); if (item === "types") void loadSchemas(); }}>{item}</button>
@@ -1047,7 +1047,6 @@ export function App() {
             />
           ) : null}
           {activity === "types" ? <SchemaEditor schemas={schemas} note={schemaNote} onSave={(schema) => void saveSchema(schema)} /> : null}
-          {activity === "design" ? <UiDesigner documents={uiDocuments} catalog={uiCatalog} styles={uiStyles} layout={uiLayout} onSave={(document) => void saveUi(document)} onDiagnose={(document) => void diagnoseUi(document)} onPreview={(document) => void client?.ui.preview(document)} onPatch={(documentId, operations) => void client?.ui.patch(documentId, operations)} onOpenGraph={(graph) => { setActivity("explorer"); setStack({ past: [], present: graph, future: [] }); setSelected(""); }} /> : null}
           {activity === "runtime" ? (
             <div>
               <button type="button" onClick={() => void loadRuntime()}>Refresh runtime</button>
@@ -1085,15 +1084,24 @@ export function App() {
           ) : null}
         </aside>
         <main className="canvas">
-          {openTabs.length > 0 ? (
+          <div className="dock-bar" role="tablist" aria-label="Canvas">
+            <button type="button" className={activity === "design" ? "active" : ""} onClick={() => setActivity("design")}>UI canvas</button>
+            <button type="button" className={activity === "design" ? "" : "active"} onClick={() => setActivity("explorer")}>Graph canvas</button>
+          </div>
+          {activity === "design" ? <UiDesigner documents={uiDocuments} catalog={uiCatalog} styles={uiStyles} layout={uiLayout} onSave={(document) => void saveUi(document)} onDiagnose={(document) => void diagnoseUi(document)} onPreview={async (document) => {
+            const response = await client?.ui.preview(document);
+            const body = response?.body ?? {};
+            return { mode: String(body.mode ?? "offline"), xaml: String(body.xaml ?? ""), framePng: String(body.framePng ?? "") };
+          }} onPatch={(documentId, operations) => void client?.ui.patch(documentId, operations)} onOpenGraph={(next) => { setActivity("explorer"); setStack({ past: [], present: next, future: [] }); setSelected(""); }} /> : null}
+          {activity !== "design" && openTabs.length > 0 ? (
             <div className="dock-bar" role="tablist" aria-label="Open graphs">
               {openTabs.map((tab) => (
                 <button key={tab.id} type="button" role="tab" aria-selected={tab.id === graph.id} className={tab.id === graph.id ? "active" : ""} onClick={() => void openListed(tab)}>{tab.name}</button>
               ))}
             </div>
           ) : null}
-          {preview ? <div className="banner"><strong>Preview Mode</strong><span>No authoring backend connected</span></div> : null}
-          {headRevision !== baseRevision && headRevision !== emptyRevision && baseRevision !== emptyRevision ? (
+          {activity !== "design" && preview ? <div className="banner"><strong>Preview Mode</strong><span>No authoring backend connected</span></div> : null}
+          {activity !== "design" && headRevision !== baseRevision && headRevision !== emptyRevision && baseRevision !== emptyRevision ? (
             <div className="banner">
               <strong>OUT OF DATE</strong>
               <span>Head {headRevision.slice(0, 8)} · base {baseRevision.slice(0, 8)}</span>
@@ -1101,8 +1109,8 @@ export function App() {
               {recoveryJson ? <button onClick={restoreRecovery}>Restore local</button> : null}
             </div>
           ) : null}
-          {recoveryJson && headRevision === baseRevision ? <div className="banner"><strong>Local recovery</strong><button onClick={restoreRecovery}>Restore</button></div> : null}
-          <GraphCanvas
+          {activity !== "design" && recoveryJson && headRevision === baseRevision ? <div className="banner"><strong>Local recovery</strong><button onClick={restoreRecovery}>Restore</button></div> : null}
+          {activity !== "design" ? <GraphCanvas
             document={graph}
             selectedId={selected}
             focusToken={focusToken}
@@ -1123,7 +1131,7 @@ export function App() {
                 existing.map((wire) => ({ sourcePinId: wire.fromPin, targetPinId: wire.toPin })));
               return { ok: response.body.valid === true, reason: String(response.body.reason ?? "") };
             }}
-          />
+          /> : null}
         </main>
         <aside className="panel">
           <div className="section-label">Inspector</div>
