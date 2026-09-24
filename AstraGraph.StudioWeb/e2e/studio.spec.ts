@@ -25,8 +25,9 @@ test("design canvas uses a frame, layers, and inspector", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Button" })).toBeVisible();
   await expect(page.locator(".figma-frame-label")).toHaveText("Window");
   await expect(page.locator(".figma-zoom")).toContainText("100%");
+  await expect(page.frameLocator(".html-page").getByText("Window")).toBeVisible();
   await page.getByRole("button", { name: "Button", exact: true }).dragTo(page.locator(".ui-stage"));
-  await expect(page.locator(".game-button")).toBeVisible();
+  await expect(page.frameLocator(".html-page").getByRole("button", { name: "Button" })).toBeVisible();
   const width = page.locator(".figma-zoom input").first();
   await width.fill("700");
   await width.blur();

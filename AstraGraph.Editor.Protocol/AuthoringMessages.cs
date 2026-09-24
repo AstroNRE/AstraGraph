@@ -313,7 +313,8 @@ public sealed record UiDocumentDto(
     IReadOnlyList<UiEventDto>? Events = null,
     IReadOnlyDictionary<string, string>? LocalState = null,
     IReadOnlyList<UiStateVariableDto>? StateVariables = null,
-    string DocumentKind = "UI");
+    string DocumentKind = "UI",
+    string? Css = null);
 
 public sealed record UiStateVariableDto(
     string Id,
