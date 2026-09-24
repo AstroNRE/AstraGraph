@@ -174,13 +174,33 @@ public sealed class WeaponSliceGraphTests
             var rowProto = Field(prefix + "Prototype", "WeaponPart", "Prototype", "string", x + 1120);
             var setText = Set(prefix + "Text", "PartRow", "Text", x + 1120);
             var label = Field(prefix + "Label", "WeaponPart", "Label", "string", x + 1400);
-            var setOff = Set(prefix + "Off", "PartRow", "Disabled", x + 1400, "false");
+            var setOff = Set(prefix + "Off", "PartRow", "Disabled", x + 1400, "false", "bool");
             var readRows = Read(prefix + "Read", "Rows", x + 1680, "List<PartRow>");
             var add = Call("List.Add", prefix + "Add", x + 1680, ("List", "List<PartRow>", null), ("Item", "PartRow", null), ("ListOut", "List<PartRow>", null));
             var store = Assign(prefix + "Store", "Rows", x + 1960, "List<PartRow>");
             var readBuilt = Read(prefix + "Built", "Rows", x + 2100, "List<PartRow>");
             var rows = Call("Ui.Rows", prefix + "Json", x + 2380, ("List", "List<PartRow>", null), ("IdField", "string", "Id"), ("TextField", "string", "Text"), ("DisabledField", "string", "Disabled"), ("Rows", "string", null));
             var publish = Call("Bui.Set", prefix + "Publish", x + 2520, ("Owner", "EntityUid", null), ("Name", "string", "Parts"), ("Value", "string", null), ("Success", "bool", null));
+            var gun = Call("Entity.GetHeldItem", prefix + "Gun", x + 2740, ("Holder", "EntityUid", null), ("Container", "string", "gun"), ("Item", "int64", null));
+            var inGun = Call("Entity.GetHeldItem", prefix + "InGun", x + 2960, ("Holder", "int64", null), ("Container", "string", "barrel"), ("Item", "int64", null));
+            var hasBarrel = NotZero(prefix + "HasBarrel", x + 3180);
+            var barrelGate = Branch(prefix + "Installed?", x + 3180);
+            var installedComp = Component(prefix + "Installed", "WeaponPart", x + 3400, "int64");
+            var installedGate = Branch(prefix + "InstalledPart?", x + 3400);
+            var plainPublish = Call("Bui.Set", prefix + "Plain", x + 3620, ("Owner", "EntityUid", null), ("Name", "string", "Parts"), ("Value", "string", null), ("Success", "bool", null));
+            var installedMade = Data("Schema.Make", prefix + "InstalledMake", x + 3620, ("Value", "PartRow", null));
+            installedMade.Properties["Schema"] = "PartRow";
+            var installedId = Set(prefix + "InstalledId", "PartRow", "Id", x + 3840);
+            var installedProto = Field(prefix + "InstalledPrototype", "WeaponPart", "Prototype", "string", x + 4060);
+            var installedText = Set(prefix + "InstalledText", "PartRow", "Text", x + 4060);
+            var installedLabel = Field(prefix + "InstalledLabel", "WeaponPart", "Label", "string", x + 4280);
+            var installedOff = Set(prefix + "InstalledOff", "PartRow", "Disabled", x + 4280, "true", "bool");
+            var installedRead = Read(prefix + "InstalledRead", "Rows", x + 4500, "List<PartRow>");
+            var installedAdd = Call("List.Add", prefix + "InstalledAdd", x + 4500, ("List", "List<PartRow>", null), ("Item", "PartRow", null), ("ListOut", "List<PartRow>", null));
+            var installedStore = Assign(prefix + "InstalledStore", "Rows", x + 4720, "List<PartRow>");
+            var installedBuilt = Read(prefix + "InstalledBuilt", "Rows", x + 4940, "List<PartRow>");
+            var installedJson = Call("Ui.Rows", prefix + "InstalledJson", x + 5160, ("List", "List<PartRow>", null), ("IdField", "string", "Id"), ("TextField", "string", "Text"), ("DisabledField", "string", "Disabled"), ("Rows", "string", null));
+            var installedPublish = Call("Bui.Set", prefix + "InstalledPublish", x + 5380, ("Owner", "EntityUid", null), ("Name", "string", "Parts"), ("Value", "string", null), ("Success", "bool", null));
 
             Exec(clear, each);
             Exec(each, "Body", rowGate);
@@ -189,7 +209,16 @@ public sealed class WeaponSliceGraphTests
             Exec(setText, setOff);
             Exec(setOff, add);
             Exec(add, store);
-            Exec(each, "Out", publish);
+            Exec(each, "Out", barrelGate);
+            Exec(barrelGate, "False", publish);
+            Exec(barrelGate, "True", installedGate);
+            Exec(installedGate, "False", plainPublish);
+            Exec(installedGate, "True", installedId);
+            Exec(installedId, installedText);
+            Exec(installedText, installedOff);
+            Exec(installedOff, installedAdd);
+            Exec(installedAdd, installedStore);
+            Exec(installedStore, installedPublish);
 
             DataWire(created, "List", clear, "Value");
             DataWire(contents, "Contents", each, "Collection");
@@ -207,18 +236,39 @@ public sealed class WeaponSliceGraphTests
             DataWire(add, "List", store, "Value");
             DataWire(readBuilt, "Value", rows, "List");
             DataWire(rows, "Rows", publish, "Value");
-            _refreshes[clear] = (contents, publish);
+            DataWire(rows, "Rows", plainPublish, "Value");
+            DataWire(gun, "Item", inGun, "Holder");
+            DataWire(inGun, "Item", hasBarrel, "A");
+            DataWire(hasBarrel, "Result", barrelGate, "Condition");
+            DataWire(inGun, "Item", installedComp, "Entity");
+            DataWire(installedComp, "Found", installedGate, "Condition");
+            DataWire(installedComp, "Component", installedProto, "Component");
+            DataWire(installedComp, "Component", installedLabel, "Component");
+            DataWire(installedMade, "Value", installedId, "Target");
+            DataWire(installedProto, "Value", installedId, "Value");
+            DataWire(installedId, "Result", installedText, "Target");
+            DataWire(installedLabel, "Value", installedText, "Value");
+            DataWire(installedText, "Result", installedOff, "Target");
+            DataWire(installedRead, "Value", installedAdd, "List");
+            DataWire(installedOff, "Result", installedAdd, "Item");
+            DataWire(installedAdd, "List", installedStore, "Value");
+            DataWire(installedBuilt, "Value", installedJson, "List");
+            DataWire(installedJson, "Rows", installedPublish, "Value");
+            _refreshes[clear] = (contents, publish, gun, plainPublish, installedPublish);
             return clear;
         }
 
         public void WireRefresh(NodeDocument clear, NodeDocument bench)
         {
-            var (contents, publish) = _refreshes[clear];
+            var (contents, publish, gun, plainPublish, installedPublish) = _refreshes[clear];
             DataWire(bench, "Entity", contents, "Owner");
             DataWire(bench, "Entity", publish, "Owner");
+            DataWire(bench, "Entity", gun, "Holder");
+            DataWire(bench, "Entity", plainPublish, "Owner");
+            DataWire(bench, "Entity", installedPublish, "Owner");
         }
 
-        private readonly Dictionary<NodeDocument, (NodeDocument Contents, NodeDocument Publish)> _refreshes = [];
+        private readonly Dictionary<NodeDocument, (NodeDocument Contents, NodeDocument Publish, NodeDocument Gun, NodeDocument PlainPublish, NodeDocument InstalledPublish)> _refreshes = [];
 
         public NodeDocument Event(string name, string eventType, string component, int x, int y) =>
             Place(Node(name, "Event." + name, new Dictionary<string, string> { ["eventType"] = eventType, ["componentType"] = component },
@@ -246,9 +296,9 @@ public sealed class WeaponSliceGraphTests
             Place(Node(name, "Schema.GetField", new Dictionary<string, string> { ["Schema"] = schema, ["Field"] = field },
                 Data("Component", "component", true), Data("Value", type, false)), x, Y(300));
 
-        public NodeDocument Set(string name, string schema, string field, int x, string? valueDefault = null) =>
+        public NodeDocument Set(string name, string schema, string field, int x, string? valueDefault = null, string valueType = "object") =>
             Place(Node(name, "Schema.SetField", new Dictionary<string, string> { ["Schema"] = schema, ["Field"] = field },
-                Exec("In", true), Exec("Out", false), Data("Target", "object", true), Data("Value", "object", true, valueDefault), Data("Result", "object", false)), x, Y(80));
+                Exec("In", true), Exec("Out", false), Data("Target", "object", true), Data("Value", valueType, true, valueDefault), Data("Result", "object", false)), x, Y(80));
 
         public NodeDocument Member(string name, string member, string type, int x) =>
             Place(Node(name, "Native.GetMember", new Dictionary<string, string> { ["Member"] = member },

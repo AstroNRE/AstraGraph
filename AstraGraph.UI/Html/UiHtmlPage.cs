@@ -85,7 +85,7 @@ public static class UiHtmlPage
             .Append("const button = document.createElement(\"button\");")
             .Append("button.type = \"button\";")
             .Append("button.className = \"astra-list-row\";")
-            .Append("button.textContent = String(row.text ?? id);")
+            .Append("button.textContent = String(row.text ?? id) + (disabled ? \" · installed\" : \"\");")
             .Append("button.dataset.id = id;")
             .Append("const disabled = row.disabled === true || row.disabled === \"true\";")
             .Append("if (disabled) button.disabled = true;")
