@@ -44,6 +44,8 @@ public sealed class RobustVmHostServices : IVmHostServices
     public void SetVariable(SymbolId variableId, string name, AstraValue value) =>
         _fallback.SetVariable(variableId, name, value);
 
+    public void ClearVariables() => _fallback.ClearVariables();
+
     public AstraValue CallNative(string methodDescriptor, IReadOnlyList<AstraValue> arguments)
     {
         var found = _catalog?.FindMethod(methodDescriptor);

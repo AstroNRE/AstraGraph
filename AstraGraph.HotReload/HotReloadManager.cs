@@ -438,6 +438,7 @@ public sealed class HotReloadManager
             entityValue = AstraValue.Null;
         }
 
+        _host.HostServices.ClearVariables();
         var context = new AstraEventInvocationContext(entityValue, component ?? entity, eventObject);
         _host.HostServices.PushEventContext(context);
         try
@@ -459,52 +460,21 @@ public sealed class HotReloadManager
 
     private void CopyVariablesToEvent(object eventObject)
     {
-        foreach (var property in WritableProperties(eventObject))
+        foreach (var property in eventObject.GetType().GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
         {
-            var value = _host.HostServices.GetVariable(SymbolId.Empty, property.Name);
-            if (value.Type == AstraValueType.Null || !TryConvert(value, property.PropertyType, out var converted))
+            if (property.GetIndexParameters().Length != 0 || !property.CanRead)
             {
                 continue;
             }
 
-            property.SetValue(eventObject, converted);
+            var value = _host.HostServices.GetVariable(SymbolId.Empty, property.Name);
+            if (value.Type == AstraValueType.Null)
+            {
+                continue;
+            }
+
+            AstraValueBox.WriteMember(eventObject, property.Name, value);
         }
-    }
-
-    private static IEnumerable<System.Reflection.PropertyInfo> WritableProperties(object eventObject)
-    {
-        return eventObject.GetType().GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
-            .Where(property => property.CanRead && property.CanWrite && property.GetIndexParameters().Length == 0);
-    }
-
-    private static bool TryConvert(AstraValue value, Type target, out object? converted)
-    {
-        converted = null;
-        if (target == typeof(bool) && (value.Type == AstraValueType.Bool || value.Type == AstraValueType.Int64))
-        {
-            converted = value.Type == AstraValueType.Bool ? value.AsBool() : value.AsInt64() != 0;
-            return true;
-        }
-
-        if (target == typeof(string))
-        {
-            converted = value.AsString();
-            return true;
-        }
-
-        if (target == typeof(int) || target == typeof(long) || target == typeof(short) || target == typeof(byte))
-        {
-            converted = Convert.ChangeType(value.AsInt64(), target);
-            return true;
-        }
-
-        if (target == typeof(float) || target == typeof(double))
-        {
-            converted = Convert.ChangeType(value.AsDouble(), target);
-            return true;
-        }
-
-        return false;
     }
 
     private string CatalogHash()

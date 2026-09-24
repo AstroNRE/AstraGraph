@@ -36,6 +36,13 @@ public interface IVmHostServices
     void RegisterGraphFunction(string name, BytecodeProgram program, BytecodeFunction function)
     {
     }
+
+    /// <summary>
+    /// Drops values written by the previous event so a later event only copies what it assigns.
+    /// </summary>
+    void ClearVariables()
+    {
+    }
 }
 
 /// <summary>
@@ -75,6 +82,8 @@ public sealed class DefaultVmHostServices : IVmHostServices
         ArgumentNullException.ThrowIfNull(handler);
         _nativeHandlers[descriptor] = handler;
     }
+
+    public void ClearVariables() => _variables.Clear();
 
     public void SetVariableDirect(string name, AstraValue value) => _variables[name] = value;
 

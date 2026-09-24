@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Globalization;
 using System.Reflection;
 
 namespace AstraGraph.Core;
@@ -84,6 +85,92 @@ public static class AstraValueBox
         }
 
         return AstraValue.Null;
+    }
+
+    /// <summary>
+    /// Writes a primitive onto a public property. Init-only record properties fall back to the backing field,
+    /// so a boxed event struct keeps the value when the caller unboxes it.
+    /// </summary>
+    public static bool WriteMember(object? target, string member, AstraValue value)
+    {
+        if (target is null || string.IsNullOrEmpty(member) || value.Type == AstraValueType.Null)
+        {
+            return false;
+        }
+
+        if (target is AstraValue boxed)
+        {
+            target = boxed.AsObject();
+        }
+
+        if (target is null)
+        {
+            return false;
+        }
+
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public;
+        var type = target.GetType();
+        var property = type.GetProperty(member, flags);
+        if (property == null || property.GetIndexParameters().Length != 0)
+        {
+            return false;
+        }
+
+        if (!TryConvert(value, property.PropertyType, out var converted))
+        {
+            return false;
+        }
+
+        if (property.CanWrite)
+        {
+            try
+            {
+                property.SetValue(target, converted);
+                return true;
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+            {
+            }
+        }
+
+        var backing = type.GetField("<" + member + ">k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
+        if (backing == null || !TryConvert(value, backing.FieldType, out converted))
+        {
+            return false;
+        }
+
+        backing.SetValue(target, converted);
+        return true;
+    }
+
+    private static bool TryConvert(AstraValue value, Type target, out object? converted)
+    {
+        converted = null;
+        if (target == typeof(bool) && (value.Type == AstraValueType.Bool || value.Type == AstraValueType.Int64))
+        {
+            converted = value.Type == AstraValueType.Bool ? value.AsBool() : value.AsInt64() != 0;
+            return true;
+        }
+
+        if (target == typeof(string))
+        {
+            converted = value.AsString();
+            return true;
+        }
+
+        if (target == typeof(int) || target == typeof(long) || target == typeof(short) || target == typeof(byte))
+        {
+            converted = Convert.ChangeType(value.AsInt64(), target, CultureInfo.InvariantCulture);
+            return true;
+        }
+
+        if (target == typeof(float) || target == typeof(double))
+        {
+            converted = Convert.ChangeType(value.AsDouble(), target, CultureInfo.InvariantCulture);
+            return true;
+        }
+
+        return false;
     }
 
     public static bool HasMember(object? target, string member)

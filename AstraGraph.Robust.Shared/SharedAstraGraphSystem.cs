@@ -143,7 +143,9 @@ public abstract class SharedAstraGraphSystem : EntitySystem
             return;
         }
 
-        services.UseSchemaComponents(new SchemaComponentSource(Host.Components, AstraSchemaRuntime.Registry));
+        services.UseSchemaComponents(new SchemaProxyMirror(
+            new SchemaComponentSource(Host.Components, AstraSchemaRuntime.Registry),
+            _entMan));
         _schemasWired = true;
     }
 

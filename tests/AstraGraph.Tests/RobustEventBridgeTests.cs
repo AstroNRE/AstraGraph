@@ -62,6 +62,32 @@ public sealed class RobustEventBridgeTests
     }
 
     [Test]
+    public void GraphEventRouter_DirectedStructWrite_CopiesBackToTheCaller()
+    {
+        var router = new GraphEventRouter();
+        var descriptor = new GraphEventSubscription(GraphId.New(), "OnDamage", typeof(string), typeof(TestDamageEvent));
+        router.SubscribeDirected(descriptor, (_, _, boxed) =>
+        {
+            Assert.That(AstraValueBox.WriteMember(boxed, nameof(TestDamageEvent.Damage), AstraValue.FromInt32(20)), Is.True);
+        });
+
+        var ev = new TestDamageEvent { Damage = 10 };
+        router.DispatchComponentRefEvent("owner", "component", ref ev);
+
+        Assert.That(ev.Damage, Is.EqualTo(20));
+    }
+
+    [Test]
+    public void WriteMember_SetsAnInitOnlyRecordField()
+    {
+        object boxed = new RateProbe(1f);
+        Assert.That(AstraValueBox.WriteMember(boxed, nameof(RateProbe.FireRate), AstraValue.FromDouble(4.5)), Is.True);
+        Assert.That(((RateProbe)boxed).FireRate, Is.EqualTo(4.5f));
+    }
+
+    public readonly record struct RateProbe(float FireRate);
+
+    [Test]
     public void GraphEventRouter_DispatchRefEvent_UnmutatedEventRemainsUntouched()
     {
         var router = new GraphEventRouter();

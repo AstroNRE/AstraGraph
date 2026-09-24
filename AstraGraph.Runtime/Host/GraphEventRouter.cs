@@ -249,7 +249,16 @@ public sealed class GraphEventRouter
         {
             if (sub.DirectedHandler != null)
             {
-                sub.DirectedHandler(uid, comp, ev);
+                if (typeof(TEvent).IsValueType)
+                {
+                    object box = ev!;
+                    sub.DirectedHandler(uid, comp, box);
+                    ev = (TEvent)box;
+                }
+                else
+                {
+                    sub.DirectedHandler(uid, comp, ev);
+                }
             }
             else if (sub.RefHandler is RefComponentEventDispatcher<TComp, TEvent> compHandler)
             {
