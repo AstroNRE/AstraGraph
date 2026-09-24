@@ -53,12 +53,12 @@ public sealed class WeaponSliceGraphTests
         var gun = graph.Call("Entity.GetHeldItem", "Gun", 1520, ("Holder", "EntityUid", null), ("Container", "string", "gun"), ("Item", "int64", null));
         var hasGun = graph.NotZero("HasGun", 1800);
         var gunGate = graph.Branch("Gun?", 1800);
-        var partComp = graph.Component("PartData", "WeaponPart", 2080);
+        var partComp = graph.Component("PartData", "WeaponPart", 2080, "int64");
         var partDataGate = graph.Branch("PartData?", 2080);
         var slot = graph.Field("Slot", "WeaponPart", "Slot", "string", 2360);
         var barrel = graph.Equal("IsBarrel", "barrel", 2360);
         var slotGate = graph.Branch("Barrel?", 2640);
-        var assembly = graph.Component("Assembly", "WeaponAssembly", 2920);
+        var assembly = graph.Component("Assembly", "WeaponAssembly", 2920, "int64");
         var assemblyGate = graph.Branch("Assembly?", 2920);
         var prototype = graph.Field("Prototype", "WeaponPart", "Prototype", "string", 3200);
         var rate = graph.Field("Rate", "WeaponPart", "FireRate", "float32", 3480);
@@ -66,27 +66,10 @@ public sealed class WeaponSliceGraphTests
         var setBarrel = graph.Set("SetBarrel", "WeaponAssembly", "Barrel", 3200);
         var setRate = graph.Set("SetRate", "WeaponAssembly", "FireRate", 3480);
         var setSpeed = graph.Set("SetSpeed", "WeaponAssembly", "ProjectileSpeed", 3760);
-        var insert = graph.Call("Container.Insert", "Insert", 4040, ("Owner", "EntityUid", null), ("Container", "string", "barrel"), ("Item", "EntityUid", null), ("Success", "bool", null));
-        var created = graph.Data("List.Create", "Empty", 4320, ("List", "object", null));
-        var clear = graph.Assign("Clear", "Rows", 4320);
-        var contents = graph.Call("Container.Contents", "Contents", 4600, ("Owner", "EntityUid", null), ("Container", "string", "parts"), ("Contents", "List<EntityUid>", null));
-        var each = graph.ForEach("EachPart", 4600);
-        var rowComp = graph.Component("RowData", "WeaponPart", 4880);
-        var rowGate = graph.Branch("Row?", 4880);
-        var label = graph.Field("Label", "WeaponPart", "Label", "string", 5160);
-        var rowProto = graph.Field("RowPrototype", "WeaponPart", "Prototype", "string", 5440);
-        var made = graph.Data("Schema.Make", "Row", 5160, ("Value", "object", null));
-        made.Properties["Schema"] = "PartRow";
-        var setId = graph.Set("SetId", "PartRow", "Id", 5440);
-        var setText = graph.Set("SetText", "PartRow", "Text", 5720);
-        var setOff = graph.Set("SetOff", "PartRow", "Disabled", 6000);
-        setOff.Pins.First(pin => pin.Name == "Value").DefaultValue = "false";
-        var readRows = graph.Read("ReadRows", "Rows", 6000);
-        var add = graph.Call("List.Add", "Add", 6280, ("List", "object", null), ("Item", "object", null), ("ListOut", "object", null));
-        var store = graph.Assign("Store", "Rows", 6280);
-        var readBuilt = graph.Read("ReadBuilt", "Rows", 6560);
-        var rows = graph.Call("Ui.Rows", "RowsJson", 6560, ("List", "object", null), ("IdField", "string", "Id"), ("TextField", "string", "Text"), ("DisabledField", "string", "Disabled"), ("Rows", "string", null));
-        var publish = graph.Call("Bui.Set", "Publish", 6840, ("Owner", "EntityUid", null), ("Name", "string", "Parts"), ("Value", "string", null), ("Success", "bool", null));
+        var insert = graph.Call("Container.Insert", "Insert", 4040, ("Owner", "int64", null), ("Container", "string", "barrel"), ("Item", "int64", null), ("Success", "bool", null));
+        var afterInstall = graph.Refresh("Done", 4320);
+        graph.UseRow(560);
+        var onOpen = graph.Refresh("Open", 360);
 
         graph.Exec(message, installGate);
         graph.Exec(installGate, "True", partGate);
@@ -98,22 +81,8 @@ public sealed class WeaponSliceGraphTests
         graph.Exec(setBarrel, setRate);
         graph.Exec(setRate, setSpeed);
         graph.Exec(setSpeed, insert);
-        graph.Exec(insert, clear);
-        graph.Exec(installGate, "False", clear);
-        graph.Exec(partGate, "False", clear);
-        graph.Exec(gunGate, "False", clear);
-        graph.Exec(partDataGate, "False", clear);
-        graph.Exec(slotGate, "False", clear);
-        graph.Exec(assemblyGate, "False", clear);
-        graph.Exec(open, clear);
-        graph.Exec(clear, each);
-        graph.Exec(each, "Body", rowGate);
-        graph.Exec(rowGate, "True", setId);
-        graph.Exec(setId, setText);
-        graph.Exec(setText, setOff);
-        graph.Exec(setOff, add);
-        graph.Exec(add, store);
-        graph.Exec(each, "Out", publish);
+        graph.Exec(insert, afterInstall);
+        graph.Exec(open, onOpen);
 
         graph.DataWire(message, "Event", action, "Target");
         graph.DataWire(action, "Value", isInstall, "A");
@@ -144,24 +113,8 @@ public sealed class WeaponSliceGraphTests
         graph.DataWire(speed, "Value", setSpeed, "Value");
         graph.DataWire(gun, "Item", insert, "Owner");
         graph.DataWire(part, "Item", insert, "Item");
-        graph.DataWire(created, "List", clear, "Value");
-        graph.DataWire(open, "Entity", contents, "Owner");
-        graph.DataWire(contents, "Contents", each, "Collection");
-        graph.DataWire(each, "Current", rowComp, "Entity");
-        graph.DataWire(rowComp, "Found", rowGate, "Condition");
-        graph.DataWire(rowComp, "Component", label, "Component");
-        graph.DataWire(rowComp, "Component", rowProto, "Component");
-        graph.DataWire(made, "Value", setId, "Target");
-        graph.DataWire(rowProto, "Value", setId, "Value");
-        graph.DataWire(setId, "Result", setText, "Target");
-        graph.DataWire(label, "Value", setText, "Value");
-        graph.DataWire(setText, "Result", setOff, "Target");
-        graph.DataWire(readRows, "Value", add, "List");
-        graph.DataWire(setOff, "Result", add, "Item");
-        graph.DataWire(add, "List", store, "Value");
-        graph.DataWire(readBuilt, "Value", rows, "List");
-        graph.DataWire(rows, "Rows", publish, "Value");
-        graph.DataWire(open, "Entity", publish, "Owner");
+        graph.WireRefresh(afterInstall, open);
+        graph.WireRefresh(onOpen, open);
 
         return graph.Document();
     }
@@ -222,9 +175,9 @@ public sealed class WeaponSliceGraphTests
             Place(Node(name, "Schema.GetField", new Dictionary<string, string> { ["Schema"] = schema, ["Field"] = field },
                 Data("Component", "component", true), Data("Value", type, false)), x, 300);
 
-        public NodeDocument Set(string name, string schema, string field, int x) =>
+        public NodeDocument Set(string name, string schema, string field, int x, string? valueDefault = null) =>
             Place(Node(name, "Schema.SetField", new Dictionary<string, string> { ["Schema"] = schema, ["Field"] = field },
-                Exec("In", true), Exec("Out", false), Data("Target", "object", true), Data("Value", "object", true), Data("Result", "object", false)), x, 80);
+                Exec("In", true), Exec("Out", false), Data("Target", "object", true), Data("Value", "object", true, valueDefault), Data("Result", "object", false)), x, 80);
 
         public NodeDocument Member(string name, string member, string type, int x) =>
             Place(Node(name, "Native.GetMember", new Dictionary<string, string> { ["Member"] = member },
@@ -299,7 +252,7 @@ public sealed class WeaponSliceGraphTests
             Kind = GraphKind.System,
             Side = GraphSide.Server,
             Metadata = new GraphMetadata { Description = "Bench lists parts and installs a barrel the server accepts. The client only sends the part id." },
-            Variables = [new GraphVariableDocument { Name = "Rows", TypeName = "object" }],
+            Variables = [new GraphVariableDocument { Name = "Rows", TypeName = "List<PartRow>" }],
             Nodes = _nodes,
             Connections = _connections,
             EditorLayout = new EditorLayoutDocument { NodePositions = _positions },

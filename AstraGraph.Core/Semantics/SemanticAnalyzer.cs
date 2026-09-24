@@ -40,23 +40,7 @@ public sealed class SemanticAnalyzer
             }
         }
 
-        // 2. Validate variables
-        var variableDecls = new List<AstVariableDeclaration>();
-        var variableMap = new Dictionary<string, AstVariableDeclaration>(StringComparer.Ordinal);
-
-        foreach (var v in document.Variables)
-        {
-            if (!_typeRegistry.TryGetType(v.TypeName, out var varType) || varType is null)
-            {
-                diagnostics.ReportError(DiagnosticCodes.UnknownType, $"Variable '{v.Name}' has unknown type '{v.TypeName}'.", symbolId: v.Id);
-                varType = PrimitiveType.Int32; // fallback to avoid null ref cascades
-            }
-
-            var decl = new AstVariableDeclaration(v.Id, v.Name, varType);
-            variableDecls.Add(decl);
-            variableMap[v.Name] = decl;
-        }
-
+        // 2. Schemas first, so a variable can be a struct or a list of structs from this graph.
         foreach (var schemaDocument in document.Schemas)
         {
             if (string.IsNullOrWhiteSpace(schemaDocument.Name))
@@ -83,6 +67,22 @@ public sealed class SemanticAnalyzer
         foreach (var schemaDocument in pendingSchemas)
         {
             _typeRegistry.RegisterSchema(SchemaDocuments.ToSchema(schemaDocument, _typeRegistry));
+        }
+
+        var variableDecls = new List<AstVariableDeclaration>();
+        var variableMap = new Dictionary<string, AstVariableDeclaration>(StringComparer.Ordinal);
+
+        foreach (var v in document.Variables)
+        {
+            if (!_typeRegistry.TryGetType(v.TypeName, out var varType) || varType is null)
+            {
+                diagnostics.ReportError(DiagnosticCodes.UnknownType, $"Variable '{v.Name}' has unknown type '{v.TypeName}'.", symbolId: v.Id);
+                varType = PrimitiveType.Int32; // fallback to avoid null ref cascades
+            }
+
+            var decl = new AstVariableDeclaration(v.Id, v.Name, varType);
+            variableDecls.Add(decl);
+            variableMap[v.Name] = decl;
         }
 
         foreach (var schemaDocument in document.Schemas)
