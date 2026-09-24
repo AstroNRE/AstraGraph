@@ -49,7 +49,7 @@ A graph can subscribe to a Robust event, read a schema component, branch, loop, 
 
 The slice is: place a gun on a bench, open the Astra UI, see parts, swap a barrel, shoot with the new profile, restart, and see the same assembly.
 
-That fails today because the weapon graphs are not written yet. The interface can show a server-owned list and send `InstallPart` with the selected id. The server graph still has to validate that id and change the assembly.
+The bench graph lists parts and installs a barrel. The profile graph writes the assembly's fire rate and projectile speed when the gun refreshes. The running game still uses the pinned AstraGraph until that pin moves, so these graphs do not execute in a build that predates the pin.
 
 Heat, fouling, manufacturing lots, RNG, curves, and localization are later slices. They are absent and should stay absent until the slice above exists.
 
@@ -63,6 +63,6 @@ Do not add a second type system. Extend `SchemaType`, `AstraList`, and `Persiste
 4. Persistent object id that is not `EntityUid`, usable by a gun, a car, or a tool. Done. `PersistentObjectId` is a value, stored in a struct field, and it round-trips in the state file. `PersistentId.New` is rejected on a predicted graph.
 5. Generic container and inventory reads and inserts. No weapon slot node. Done. The slot name is a string. `Container.Has`, `Insert`, `Remove`, `Contents`, `Inventory.Find`, `Contains`, `TryInsert`, `TryRemove`, and `Entity.GetHeldItem`. A missing container is a failed insert, not a new slot.
 6. BUI list, selection, and an action that carries an id. The server graph decides the result. Done. `Ui.Rows`, `Bui.Field`, and `Bui.Set`. A missing interface is a failed set, not a new window. `Bui.Set` is rejected on a predicted graph.
-7. Only then the first weapon graphs, laid out left to right as a chain.
+7. First weapon graphs, laid out left to right. `WeaponProfile` copies `WeaponAssembly` fire rate and projectile speed onto `GunRefreshModifiersEvent`. `WeaponBench` lists parts from the bench container and installs a barrel only when the server graph accepts the id. A directed value-type event keeps writes made through a boxed handler. Primitive schema writes are copied onto the component shell the map saver reads.
 
 Graphs for the mechanic go in Night City content. The capabilities above go in AstraGraph.

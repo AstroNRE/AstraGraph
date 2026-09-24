@@ -257,20 +257,25 @@ public sealed class WeaponSliceGraphTests
                 specs.Add(Exec("Out", false));
             }
 
+            var outputs = type switch
+            {
+                "Inventory.Find" or "Entity.GetHeldItem" => new[] { "Item" },
+                "Container.Contents" => new[] { "Contents" },
+                "Bui.Field" => new[] { "Value" },
+                "Ui.Rows" => new[] { "Rows" },
+                "Container.Insert" or "Bui.Set" => new[] { "Success" },
+                "List.Add" => new[] { "ListOut" },
+                _ => Array.Empty<string>()
+            };
             foreach (var pin in pins)
             {
-                var output = pin.Name is "Item" or "Contents" or "Value" or "Rows" or "Success" or "ListOut";
-                if (pin.Name == "List" && type == "List.Add")
-                {
-                    output = false;
-                }
-
                 if (pin.Name == "ListOut")
                 {
                     specs.Add(new PinDocument { Name = "List", Direction = PinDirection.Output, Kind = PinKind.Data, DataType = pin.Type });
                     continue;
                 }
 
+                var output = outputs.Contains(pin.Name);
                 specs.Add(output
                     ? Data(pin.Name, pin.Type, false)
                     : Data(pin.Name, pin.Type, true, pin.Default));
