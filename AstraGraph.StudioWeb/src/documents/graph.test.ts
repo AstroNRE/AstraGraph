@@ -27,6 +27,12 @@ describe("graph editing", () => {
     expect(moved.editorLayout.nodePositions[graph.nodes[0].id].x).toBe(graph.editorLayout.nodePositions[graph.nodes[0].id].x + 16);
   });
 
+  it("gives struct and list nodes their pins", () => {
+    const graph = addNode(addNode(createGraph("Parts"), "Schema.SetField", "Set"), "List.Add", "Add");
+    expect(graph.nodes[0].pins.map((pin) => pin.name)).toEqual(["In", "Out", "Target", "Value", "Result"]);
+    expect(graph.nodes[1].pins.filter((pin) => pin.direction === "output").map((pin) => pin.name)).toEqual(["Out", "List"]);
+  });
+
   it("keeps variable persistence across serialize and finds a reference", () => {
     const graph = addNode(createGraph("Demo"), "Core.VariableAssign", "Assign");
     graph.nodes[0].properties.variable = "Health";

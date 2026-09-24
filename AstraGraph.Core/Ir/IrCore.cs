@@ -55,7 +55,16 @@ public enum IrOpCode
     CollectionLength,
     CollectionGet,
     HasValue,
-    Move
+    Move,
+
+    // Appended. Existing opcode numbers stay stable.
+    StructMake,
+    StructCopy,
+    SetField,
+    ListMake,
+    CollectionAdd,
+    CollectionSet,
+    CollectionRemove
 }
 
 /// <summary>

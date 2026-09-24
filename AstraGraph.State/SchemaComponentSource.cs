@@ -42,6 +42,13 @@ public sealed class SchemaComponentSource : ISchemaComponentSource
         {
             var field = schema.FindField(fieldName);
             return field == null ? AstraValue.Null : storage.GetField(field.Id);
+        }, (fieldName, value) =>
+        {
+            var field = schema.FindField(fieldName);
+            if (field != null)
+            {
+                storage.SetField(field.Id, value);
+            }
         });
     }
 

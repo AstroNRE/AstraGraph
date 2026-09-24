@@ -241,6 +241,43 @@ public static class IrToBytecodeCompiler
                 return new BytecodeInstruction(opCode, destReg, collection, index, 0);
             }
 
+            case IrOpCode.StructMake:
+            case IrOpCode.ListMake:
+            {
+                var key = pool.GetOrAddString(instr.StringPayload ?? string.Empty);
+                return new BytecodeInstruction(opCode, destReg, key, 0, 0);
+            }
+
+            case IrOpCode.StructCopy:
+            {
+                var source = (instr.Operands != null && instr.Operands.Count > 0 && instr.Operands[0] is IrRegister copySource) ? copySource.Index : 0;
+                return new BytecodeInstruction(opCode, destReg, source, 0, 0);
+            }
+
+            case IrOpCode.SetField:
+            case IrOpCode.CollectionAdd:
+            {
+                var target = (instr.Operands != null && instr.Operands.Count > 0 && instr.Operands[0] is IrRegister setTarget) ? setTarget.Index : 0;
+                var value = (instr.Operands != null && instr.Operands.Count > 1 && instr.Operands[1] is IrRegister setValue) ? setValue.Index : 0;
+                var key = pool.GetOrAddString(instr.StringPayload ?? string.Empty);
+                return new BytecodeInstruction(opCode, destReg, target, instr.OpCode == IrOpCode.SetField ? key : value, instr.OpCode == IrOpCode.SetField ? value : 0);
+            }
+
+            case IrOpCode.CollectionSet:
+            {
+                var collection = (instr.Operands != null && instr.Operands.Count > 0 && instr.Operands[0] is IrRegister setCollection) ? setCollection.Index : 0;
+                var index = (instr.Operands != null && instr.Operands.Count > 1 && instr.Operands[1] is IrRegister setIndex) ? setIndex.Index : 0;
+                var item = (instr.Operands != null && instr.Operands.Count > 2 && instr.Operands[2] is IrRegister setItem) ? setItem.Index : 0;
+                return new BytecodeInstruction(opCode, destReg, collection, index, item);
+            }
+
+            case IrOpCode.CollectionRemove:
+            {
+                var collection = (instr.Operands != null && instr.Operands.Count > 0 && instr.Operands[0] is IrRegister removeCollection) ? removeCollection.Index : 0;
+                var index = (instr.Operands != null && instr.Operands.Count > 1 && instr.Operands[1] is IrRegister removeIndex) ? removeIndex.Index : 0;
+                return new BytecodeInstruction(opCode, destReg, collection, index, 0);
+            }
+
             default:
                 return new BytecodeInstruction(opCode, destReg, 0, 0, 0);
         }

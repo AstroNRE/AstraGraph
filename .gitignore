@@ -26,10 +26,11 @@ Thumbs.db
 
 ## Plan folder (if kept local)
 plan/
-
+.cursor\rules
+docs\reference-projects\modular-weapons-capability-audit.md
 ## Frontend dependencies. The built Studio in AstraGraph.StudioWeb/dist stays in source control.
 **/node_modules/
 
 AstraGraph.StudioWeb/AstraGraphDev/
 
-.cursor\rules
+

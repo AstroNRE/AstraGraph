@@ -62,6 +62,33 @@ public sealed class SemanticAnalyzer
             if (string.IsNullOrWhiteSpace(schemaDocument.Name))
             {
                 diagnostics.ReportError(DiagnosticCodes.UnknownSchema, "Component schema is missing a name.");
+            }
+        }
+
+        var pendingSchemas = document.Schemas.Where(schema => !string.IsNullOrWhiteSpace(schema.Name)).ToList();
+        var registrationGuard = pendingSchemas.Count;
+        while (pendingSchemas.Count > 0 && registrationGuard-- >= 0)
+        {
+            var readyIndex = pendingSchemas.FindIndex(schema => CanRegisterSchema(schema, pendingSchemas));
+            if (readyIndex < 0)
+            {
+                break;
+            }
+
+            var ready = pendingSchemas[readyIndex];
+            pendingSchemas.RemoveAt(readyIndex);
+            _typeRegistry.RegisterSchema(SchemaDocuments.ToSchema(ready, _typeRegistry));
+        }
+
+        foreach (var schemaDocument in pendingSchemas)
+        {
+            _typeRegistry.RegisterSchema(SchemaDocuments.ToSchema(schemaDocument, _typeRegistry));
+        }
+
+        foreach (var schemaDocument in document.Schemas)
+        {
+            if (string.IsNullOrWhiteSpace(schemaDocument.Name))
+            {
                 continue;
             }
 
@@ -72,8 +99,6 @@ public sealed class SemanticAnalyzer
                     diagnostics.ReportError(DiagnosticCodes.UnknownType, $"Schema '{schemaDocument.Name}' field '{field.Name}' has unknown type '{field.TypeName}'.");
                 }
             }
-
-            _typeRegistry.RegisterSchema(SchemaDocuments.ToSchema(schemaDocument, _typeRegistry));
         }
 
         // 3. Validate connections
@@ -468,6 +493,27 @@ public sealed class SemanticAnalyzer
         stack.Remove(current.Id);
     }
 
+    private bool CanRegisterSchema(ComponentSchemaDocument schema, List<ComponentSchemaDocument> pending)
+    {
+        foreach (var field in schema.Fields)
+        {
+            if (_typeRegistry.TryGetType(field.TypeName, out _))
+            {
+                continue;
+            }
+
+            var waiting = pending.Exists(other =>
+                !ReferenceEquals(other, schema) &&
+                string.Equals(other.Name, field.TypeName, StringComparison.Ordinal));
+            if (waiting)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private sealed class ExpressionLowerer
     {
         private readonly TypeRegistry _typeRegistry;
@@ -542,8 +588,102 @@ public sealed class SemanticAnalyzer
                 return new AstExpressionStatement(LowerCall(node), node.Id);
             }
 
+            if (nodeType.Equals("Schema.SetField", StringComparison.OrdinalIgnoreCase))
+            {
+                var targetPin = node.FindPin("Target", PinDirection.Input);
+                var valuePin = node.FindPin("Value", PinDirection.Input);
+                var target = targetPin != null ? LowerPinExpression(targetPin) : new AstLiteralExpression(null, PrimitiveType.Void, node.Id);
+                var value = valuePin != null ? LowerPinExpression(valuePin) : new AstLiteralExpression(null, PrimitiveType.Void, node.Id);
+                var fieldName = node.Properties.GetValueOrDefault("Field", string.Empty);
+                var schemaName = node.Properties.GetValueOrDefault("Schema", string.Empty);
+                ReportMissingField(node, schemaName, fieldName);
+                return new AstVariableAssignStatement(
+                    SymbolId.Empty,
+                    ResultName(node),
+                    new AstSetFieldExpression(target, FieldKey(schemaName, fieldName), value, target.Type, node.Id),
+                    node.Id);
+            }
+
+            if (nodeType.Equals("List.Add", StringComparison.OrdinalIgnoreCase))
+            {
+                return CollectionMutation(node, static (collection, index, item, type, id) => new AstCollectionAddExpression(collection, item, type, id));
+            }
+
+            if (nodeType.Equals("List.Set", StringComparison.OrdinalIgnoreCase))
+            {
+                return CollectionMutation(node, static (collection, index, item, type, id) => new AstCollectionSetExpression(collection, index, item, type, id));
+            }
+
+            if (nodeType.Equals("List.Remove", StringComparison.OrdinalIgnoreCase))
+            {
+                return CollectionMutation(node, static (collection, index, item, type, id) => new AstCollectionRemoveExpression(collection, index, type, id));
+            }
+
             return null;
         }
+
+        private AstVariableAssignStatement CollectionMutation(
+            NodeDocument node,
+            Func<AstExpression, AstExpression, AstExpression, AstraType, NodeId, AstExpression> create)
+        {
+            var collectionPin = node.FindPin("List", PinDirection.Input);
+            var indexPin = node.FindPin("Index", PinDirection.Input);
+            var itemPin = node.FindPin("Item", PinDirection.Input);
+            var collection = collectionPin != null ? LowerPinExpression(collectionPin) : new AstLiteralExpression(null, PrimitiveType.Void, node.Id);
+            var index = indexPin != null ? LowerPinExpression(indexPin) : new AstLiteralExpression(0, PrimitiveType.Int32, node.Id);
+            var item = itemPin != null ? LowerPinExpression(itemPin) : new AstLiteralExpression(null, PrimitiveType.Void, node.Id);
+            _typeRegistry.TryGetType(collectionPin?.DataType ?? string.Empty, out var collectionType);
+            return new AstVariableAssignStatement(
+                SymbolId.Empty,
+                ResultName(node),
+                create(collection, index, item, collectionType ?? collection.Type, node.Id),
+                node.Id);
+        }
+
+        private void ReportMissingField(NodeDocument node, string schemaName, string fieldName, PinId? pinId = null)
+        {
+            if (string.IsNullOrEmpty(schemaName) || string.IsNullOrEmpty(fieldName))
+            {
+                return;
+            }
+
+            if (_typeRegistry.TryGetType(schemaName, out var schemaType) && schemaType is SchemaType schema && schema.FindField(fieldName) == null)
+            {
+                _diagnostics.ReportError(DiagnosticCodes.UnknownField, $"Schema '{schemaName}' has no field '{fieldName}'.", node.Id, pinId);
+            }
+        }
+
+        private string FieldKey(string schemaName, string fieldName)
+        {
+            if (_typeRegistry.TryGetType(schemaName, out var schemaType) && schemaType is SchemaType schema)
+            {
+                var field = schema.FindField(fieldName);
+                if (field != null && field.Id.Value != Guid.Empty)
+                {
+                    return $"{field.Id.Value:D}|{fieldName}";
+                }
+            }
+
+            return fieldName;
+        }
+
+        private string SchemaKey(string schemaName)
+        {
+            if (_typeRegistry.TryGetType(schemaName, out var schemaType) && schemaType is SchemaType schema && schema.Id.Value != Guid.Empty)
+            {
+                return $"{schema.Id.Value:D}|{schemaName}";
+            }
+
+            return schemaName;
+        }
+
+        private static string ResultName(NodeDocument node) => "$result:" + node.Id.Value.ToString("N");
+
+        private static bool IsStoredMutation(string nodeType) =>
+            nodeType.Equals("Schema.SetField", StringComparison.OrdinalIgnoreCase) ||
+            nodeType.Equals("List.Add", StringComparison.OrdinalIgnoreCase) ||
+            nodeType.Equals("List.Set", StringComparison.OrdinalIgnoreCase) ||
+            nodeType.Equals("List.Remove", StringComparison.OrdinalIgnoreCase);
 
         public AstExpression LowerPinExpression(PinDocument pin)
         {
@@ -662,17 +802,62 @@ public sealed class SemanticAnalyzer
 
                 if (nodeType.Equals("Schema.GetField", StringComparison.OrdinalIgnoreCase))
                 {
-                    var componentPin = node.FindPin("Component", PinDirection.Input);
+                    var componentPin = node.FindPin("Component", PinDirection.Input) ?? node.FindPin("Target", PinDirection.Input);
                     var component = componentPin != null ? LowerPinExpression(componentPin) : new AstLiteralExpression(null, PrimitiveType.Void, node.Id);
                     var fieldName = node.Properties.GetValueOrDefault("Field", pin.Name);
                     var schemaName = node.Properties.GetValueOrDefault("Schema", string.Empty);
-                    if (_typeRegistry.TryGetType(schemaName, out var schemaType) && schemaType is SchemaType schema && schema.FindField(fieldName) == null)
+                    ReportMissingField(node, schemaName, fieldName, pin.Id);
+                    _typeRegistry.TryGetType(pin.DataType, out var fieldType);
+                    return new AstFieldReadExpression(component, FieldKey(schemaName, fieldName), fieldType ?? PrimitiveType.Int32, node.Id);
+                }
+
+                if (nodeType.Equals("Schema.Make", StringComparison.OrdinalIgnoreCase))
+                {
+                    var schemaName = node.Properties.GetValueOrDefault("Schema", string.Empty);
+                    if (!string.IsNullOrEmpty(schemaName) && !_typeRegistry.TryGetType(schemaName, out _))
                     {
-                        _diagnostics.ReportError(DiagnosticCodes.UnknownField, $"Schema '{schemaName}' has no field '{fieldName}'.", node.Id, pin.Id);
+                        _diagnostics.ReportError(DiagnosticCodes.UnknownSchema, $"Schema '{schemaName}' is not declared.", node.Id, pin.Id);
                     }
 
-                    _typeRegistry.TryGetType(pin.DataType, out var fieldType);
-                    return new AstFieldReadExpression(component, fieldName, fieldType ?? PrimitiveType.Int32, node.Id);
+                    _typeRegistry.TryGetType(pin.DataType, out var structType);
+                    return new AstStructMakeExpression(SchemaKey(schemaName), structType ?? PrimitiveType.String, node.Id);
+                }
+
+                if (nodeType.Equals("Schema.Copy", StringComparison.OrdinalIgnoreCase))
+                {
+                    var sourcePin = node.FindPin("Value", PinDirection.Input);
+                    var source = sourcePin != null ? LowerPinExpression(sourcePin) : new AstLiteralExpression(null, PrimitiveType.Void, node.Id);
+                    _typeRegistry.TryGetType(pin.DataType, out var copyType);
+                    return new AstStructCopyExpression(source, copyType ?? source.Type, node.Id);
+                }
+
+                if (nodeType.Equals("List.Create", StringComparison.OrdinalIgnoreCase))
+                {
+                    _typeRegistry.TryGetType(pin.DataType, out var listType);
+                    return new AstListMakeExpression(listType ?? PrimitiveType.String, node.Id);
+                }
+
+                if (nodeType.Equals("List.Get", StringComparison.OrdinalIgnoreCase))
+                {
+                    var collectionPin = node.FindPin("List", PinDirection.Input);
+                    var indexPin = node.FindPin("Index", PinDirection.Input);
+                    var collection = collectionPin != null ? LowerPinExpression(collectionPin) : new AstLiteralExpression(null, PrimitiveType.Void, node.Id);
+                    var index = indexPin != null ? LowerPinExpression(indexPin) : new AstLiteralExpression(0, PrimitiveType.Int32, node.Id);
+                    _typeRegistry.TryGetType(pin.DataType, out var elementType);
+                    return new AstCollectionGetExpression(collection, index, elementType ?? PrimitiveType.String, node.Id);
+                }
+
+                if (nodeType.Equals("List.Count", StringComparison.OrdinalIgnoreCase))
+                {
+                    var collectionPin = node.FindPin("List", PinDirection.Input);
+                    var collection = collectionPin != null ? LowerPinExpression(collectionPin) : new AstLiteralExpression(null, PrimitiveType.Void, node.Id);
+                    return new AstCollectionLengthExpression(collection, node.Id);
+                }
+
+                if (IsStoredMutation(nodeType) && pin.Direction == PinDirection.Output)
+                {
+                    _typeRegistry.TryGetType(pin.DataType, out var resultType);
+                    return new AstVariableReadExpression(SymbolId.Empty, ResultName(node), resultType ?? PrimitiveType.String, node.Id);
                 }
 
                 if (nodeType.Equals("Nullable.HasValue", StringComparison.OrdinalIgnoreCase))

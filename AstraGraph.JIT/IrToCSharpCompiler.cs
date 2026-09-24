@@ -343,6 +343,34 @@ public sealed class IrToCSharpCompiler
                 break;
             }
 
+            case IrOpCode.StructMake:
+                sb.AppendLine($"                r[{dest}] = AstraValues.MakeStruct(\"{EscapeString(instr.StringPayload ?? string.Empty)}\");");
+                break;
+
+            case IrOpCode.StructCopy:
+                sb.AppendLine($"                r[{dest}] = AstraValues.CopyValue(r[{((IrRegister)instr.Operands![0]).Index}]);");
+                break;
+
+            case IrOpCode.SetField:
+                sb.AppendLine($"                r[{dest}] = AstraValues.SetField(r[{((IrRegister)instr.Operands![0]).Index}], \"{EscapeString(instr.StringPayload ?? string.Empty)}\", r[{((IrRegister)instr.Operands[1]).Index}]);");
+                break;
+
+            case IrOpCode.ListMake:
+                sb.AppendLine($"                r[{dest}] = AstraValues.MakeList();");
+                break;
+
+            case IrOpCode.CollectionAdd:
+                sb.AppendLine($"                r[{dest}] = AstraValues.CollectionAdd(r[{((IrRegister)instr.Operands![0]).Index}], r[{((IrRegister)instr.Operands[1]).Index}]);");
+                break;
+
+            case IrOpCode.CollectionSet:
+                sb.AppendLine($"                r[{dest}] = AstraValues.CollectionSet(r[{((IrRegister)instr.Operands![0]).Index}], r[{((IrRegister)instr.Operands[1]).Index}].AsInt32(), r[{((IrRegister)instr.Operands[2]).Index}]);");
+                break;
+
+            case IrOpCode.CollectionRemove:
+                sb.AppendLine($"                r[{dest}] = AstraValues.CollectionRemove(r[{((IrRegister)instr.Operands![0]).Index}], r[{((IrRegister)instr.Operands[1]).Index}].AsInt32());");
+                break;
+
             default:
                 break;
         }

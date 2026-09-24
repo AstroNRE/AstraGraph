@@ -1,19 +1,56 @@
 namespace AstraGraph.Core;
 
 /// <summary>
-/// Typed list carried through the VM. Native collections are boxed into this at member reads.
+/// Mutable list carried through the VM. Elements may be structs.
 /// </summary>
 public sealed class AstraList
 {
-    public AstraList(IReadOnlyList<AstraValue> items)
+    private readonly List<AstraValue> _items;
+
+    public AstraList()
     {
-        Items = items ?? throw new ArgumentNullException(nameof(items));
+        _items = [];
     }
 
-    public IReadOnlyList<AstraValue> Items { get; }
+    public AstraList(IReadOnlyList<AstraValue> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        _items = [.. items];
+    }
 
-    public int Count => Items.Count;
+    public IReadOnlyList<AstraValue> Items => _items;
+
+    public int Count => _items.Count;
 
     public AstraValue Get(int index) =>
-        (uint)index >= (uint)Items.Count ? AstraValue.Null : Items[index];
+        (uint)index >= (uint)_items.Count ? AstraValue.Null : _items[index];
+
+    public void Add(AstraValue value) => _items.Add(value);
+
+    public void Set(int index, AstraValue value)
+    {
+        if ((uint)index < (uint)_items.Count)
+        {
+            _items[index] = value;
+        }
+    }
+
+    public void RemoveAt(int index)
+    {
+        if ((uint)index < (uint)_items.Count)
+        {
+            _items.RemoveAt(index);
+        }
+    }
+
+    public AstraList Copy()
+    {
+        var copy = new AstraList();
+        foreach (var item in _items)
+        {
+            copy._items.Add(AstraValues.CopyValue(item));
+        }
+
+        return copy;
+    }
 }

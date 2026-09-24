@@ -336,8 +336,7 @@ public sealed class AstraVm
                     case IrOpCode.GetField:
                     {
                         var name = program.Constants[instr.Op2].Value?.ToString() ?? string.Empty;
-                        var component = registers[instr.Op1].AsObject() as SchemaComponentValue;
-                        registers[dest] = component?.Read(name) ?? AstraValue.Null;
+                        registers[dest] = AstraValues.GetField(registers[instr.Op1], name);
                         break;
                     }
 
@@ -355,6 +354,40 @@ public sealed class AstraVm
 
                     case IrOpCode.Move:
                         registers[dest] = registers[instr.Op1];
+                        break;
+
+                    case IrOpCode.StructMake:
+                    {
+                        var key = program.Constants[instr.Op1].Value?.ToString() ?? string.Empty;
+                        registers[dest] = AstraValues.MakeStruct(key);
+                        break;
+                    }
+
+                    case IrOpCode.StructCopy:
+                        registers[dest] = AstraValues.CopyValue(registers[instr.Op1]);
+                        break;
+
+                    case IrOpCode.SetField:
+                    {
+                        var key = program.Constants[instr.Op2].Value?.ToString() ?? string.Empty;
+                        registers[dest] = AstraValues.SetField(registers[instr.Op1], key, registers[instr.Extra]);
+                        break;
+                    }
+
+                    case IrOpCode.ListMake:
+                        registers[dest] = AstraValues.MakeList();
+                        break;
+
+                    case IrOpCode.CollectionAdd:
+                        registers[dest] = AstraValues.CollectionAdd(registers[instr.Op1], registers[instr.Op2]);
+                        break;
+
+                    case IrOpCode.CollectionSet:
+                        registers[dest] = AstraValues.CollectionSet(registers[instr.Op1], (int)registers[instr.Op2].AsInt64(), registers[instr.Extra]);
+                        break;
+
+                    case IrOpCode.CollectionRemove:
+                        registers[dest] = AstraValues.CollectionRemove(registers[instr.Op1], (int)registers[instr.Op2].AsInt64());
                         break;
                 }
 

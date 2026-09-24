@@ -47,7 +47,7 @@ const inlinePropertyKeys = ["eventType", "componentType", "ComponentType", "Sche
 function nodeTone(nodeType: string): string {
   if (nodeType.startsWith("Event")) return "event";
   if (nodeType.startsWith("Flow") || nodeType.startsWith("Core.Branch") || nodeType === "Branch") return "flow";
-  if (nodeType.startsWith("Schema")) return "schema";
+  if (nodeType.startsWith("Schema") || nodeType.startsWith("List")) return "schema";
   if (nodeType.startsWith("Entity")) return "entity";
   if (nodeType.startsWith("Function")) return "function";
   return "call";

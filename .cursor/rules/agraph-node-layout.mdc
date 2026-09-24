@@ -1,0 +1,13 @@
+---
+description: Lay out .agraph nodes as a left-to-right logic chain
+alwaysApply: true
+---
+
+# .agraph layout
+
+When writing or editing a `.agraph` graph, place nodes in a logical chain from left to right following execution and data flow.
+
+- Each next step sits to the right of the step it follows.
+- Data that feeds a step sits beside that step, not on top of it.
+- Do not stack nodes on the same coordinates.
+- Keep enough space between nodes that wires read as a sequence.

@@ -412,6 +412,93 @@ public static class AstToIrCompiler
                     return reg;
                 }
 
+                case AstStructMakeExpression make:
+                {
+                    var reg = AllocateRegister(make.Type);
+                    currentBlock.AddInstruction(new IrInstruction(
+                        IrOpCode.StructMake,
+                        reg,
+                        StringPayload: make.SchemaKey,
+                        SourceNodeId: make.SourceNodeId));
+                    return reg;
+                }
+
+                case AstStructCopyExpression copy:
+                {
+                    var source = EmitExpression(copy.Source, currentBlock);
+                    var reg = AllocateRegister(copy.Type);
+                    currentBlock.AddInstruction(new IrInstruction(
+                        IrOpCode.StructCopy,
+                        reg,
+                        [source],
+                        SourceNodeId: copy.SourceNodeId));
+                    return reg;
+                }
+
+                case AstSetFieldExpression setField:
+                {
+                    var target = EmitExpression(setField.Target, currentBlock);
+                    var value = EmitExpression(setField.Value, currentBlock);
+                    var reg = AllocateRegister(setField.Type);
+                    currentBlock.AddInstruction(new IrInstruction(
+                        IrOpCode.SetField,
+                        reg,
+                        [target, value],
+                        StringPayload: setField.FieldKey,
+                        SourceNodeId: setField.SourceNodeId));
+                    return reg;
+                }
+
+                case AstListMakeExpression list:
+                {
+                    var reg = AllocateRegister(list.Type);
+                    currentBlock.AddInstruction(new IrInstruction(
+                        IrOpCode.ListMake,
+                        reg,
+                        SourceNodeId: list.SourceNodeId));
+                    return reg;
+                }
+
+                case AstCollectionAddExpression add:
+                {
+                    var collection = EmitExpression(add.Collection, currentBlock);
+                    var item = EmitExpression(add.Item, currentBlock);
+                    var reg = AllocateRegister(add.Type);
+                    currentBlock.AddInstruction(new IrInstruction(
+                        IrOpCode.CollectionAdd,
+                        reg,
+                        [collection, item],
+                        SourceNodeId: add.SourceNodeId));
+                    return reg;
+                }
+
+                case AstCollectionSetExpression setItem:
+                {
+                    var collection = EmitExpression(setItem.Collection, currentBlock);
+                    var index = EmitExpression(setItem.Index, currentBlock);
+                    var item = EmitExpression(setItem.Item, currentBlock);
+                    var reg = AllocateRegister(setItem.Type);
+                    currentBlock.AddInstruction(new IrInstruction(
+                        IrOpCode.CollectionSet,
+                        reg,
+                        [collection, index, item],
+                        SourceNodeId: setItem.SourceNodeId));
+                    return reg;
+                }
+
+                case AstCollectionRemoveExpression remove:
+                {
+                    var collection = EmitExpression(remove.Collection, currentBlock);
+                    var index = EmitExpression(remove.Index, currentBlock);
+                    var reg = AllocateRegister(remove.Type);
+                    currentBlock.AddInstruction(new IrInstruction(
+                        IrOpCode.CollectionRemove,
+                        reg,
+                        [collection, index],
+                        SourceNodeId: remove.SourceNodeId));
+                    return reg;
+                }
+
                 default:
                     return AllocateRegister(expr.Type);
             }

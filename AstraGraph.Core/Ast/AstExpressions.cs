@@ -107,3 +107,43 @@ public sealed record AstCollectionGetExpression(
 public sealed record AstHasValueExpression(
     AstExpression Value,
     NodeId? SourceNodeId = null) : AstExpression(PrimitiveType.Bool, SourceNodeId);
+
+public sealed record AstStructMakeExpression(
+    string SchemaKey,
+    AstraType Type,
+    NodeId? SourceNodeId = null) : AstExpression(Type, SourceNodeId);
+
+public sealed record AstStructCopyExpression(
+    AstExpression Source,
+    AstraType Type,
+    NodeId? SourceNodeId = null) : AstExpression(Type, SourceNodeId);
+
+public sealed record AstSetFieldExpression(
+    AstExpression Target,
+    string FieldKey,
+    AstExpression Value,
+    AstraType Type,
+    NodeId? SourceNodeId = null) : AstExpression(Type, SourceNodeId);
+
+public sealed record AstListMakeExpression(
+    AstraType Type,
+    NodeId? SourceNodeId = null) : AstExpression(Type, SourceNodeId);
+
+public sealed record AstCollectionAddExpression(
+    AstExpression Collection,
+    AstExpression Item,
+    AstraType Type,
+    NodeId? SourceNodeId = null) : AstExpression(Type, SourceNodeId);
+
+public sealed record AstCollectionSetExpression(
+    AstExpression Collection,
+    AstExpression Index,
+    AstExpression Item,
+    AstraType Type,
+    NodeId? SourceNodeId = null) : AstExpression(Type, SourceNodeId);
+
+public sealed record AstCollectionRemoveExpression(
+    AstExpression Collection,
+    AstExpression Index,
+    AstraType Type,
+    NodeId? SourceNodeId = null) : AstExpression(Type, SourceNodeId);

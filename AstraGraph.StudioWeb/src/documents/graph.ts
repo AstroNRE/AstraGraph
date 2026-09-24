@@ -256,6 +256,74 @@ const gameplayPins: Record<string, { properties?: Record<string, string>; pins: 
       { name: "Value", direction: "output", kind: "data", dataType: "int32" }
     ]
   },
+  "Schema.Make": {
+    properties: { Schema: "" },
+    pins: [
+      { name: "Value", direction: "output", kind: "data", dataType: "object" }
+    ]
+  },
+  "Schema.Copy": {
+    pins: [
+      { name: "Value", direction: "input", kind: "data", dataType: "object" },
+      { name: "Copy", direction: "output", kind: "data", dataType: "object" }
+    ]
+  },
+  "Schema.SetField": {
+    properties: { Schema: "", Field: "" },
+    pins: [
+      { name: "In", direction: "input", kind: "execution" },
+      { name: "Out", direction: "output", kind: "execution" },
+      { name: "Target", direction: "input", kind: "data", dataType: "object" },
+      { name: "Value", direction: "input", kind: "data", dataType: "object" },
+      { name: "Result", direction: "output", kind: "data", dataType: "object" }
+    ]
+  },
+  "List.Create": {
+    pins: [
+      { name: "List", direction: "output", kind: "data", dataType: "object" }
+    ]
+  },
+  "List.Add": {
+    pins: [
+      { name: "In", direction: "input", kind: "execution" },
+      { name: "Out", direction: "output", kind: "execution" },
+      { name: "List", direction: "input", kind: "data", dataType: "object" },
+      { name: "Item", direction: "input", kind: "data", dataType: "object" },
+      { name: "List", direction: "output", kind: "data", dataType: "object" }
+    ]
+  },
+  "List.Set": {
+    pins: [
+      { name: "In", direction: "input", kind: "execution" },
+      { name: "Out", direction: "output", kind: "execution" },
+      { name: "List", direction: "input", kind: "data", dataType: "object" },
+      { name: "Index", direction: "input", kind: "data", dataType: "int32" },
+      { name: "Item", direction: "input", kind: "data", dataType: "object" },
+      { name: "List", direction: "output", kind: "data", dataType: "object" }
+    ]
+  },
+  "List.Remove": {
+    pins: [
+      { name: "In", direction: "input", kind: "execution" },
+      { name: "Out", direction: "output", kind: "execution" },
+      { name: "List", direction: "input", kind: "data", dataType: "object" },
+      { name: "Index", direction: "input", kind: "data", dataType: "int32" },
+      { name: "List", direction: "output", kind: "data", dataType: "object" }
+    ]
+  },
+  "List.Get": {
+    pins: [
+      { name: "List", direction: "input", kind: "data", dataType: "object" },
+      { name: "Index", direction: "input", kind: "data", dataType: "int32", defaultValue: "0" },
+      { name: "Value", direction: "output", kind: "data", dataType: "object" }
+    ]
+  },
+  "List.Count": {
+    pins: [
+      { name: "List", direction: "input", kind: "data", dataType: "object" },
+      { name: "Count", direction: "output", kind: "data", dataType: "int32" }
+    ]
+  },
   "Native.GetMember": {
     properties: { Member: "" },
     pins: [
