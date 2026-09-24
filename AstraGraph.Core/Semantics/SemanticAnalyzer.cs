@@ -201,6 +201,7 @@ public sealed class SemanticAnalyzer
             if (document.Side == GraphSide.SharedPredicted &&
                 (node.NodeType.Equals("PersistentId.New", StringComparison.OrdinalIgnoreCase) ||
                  node.NodeType.Equals("Bui.Set", StringComparison.OrdinalIgnoreCase) ||
+                 node.NodeType.Equals("System.Invoke", StringComparison.OrdinalIgnoreCase) ||
                  (node.Properties.TryGetValue("IsDeterministic", out var det) && det.Equals("false", StringComparison.OrdinalIgnoreCase))))
             {
                 diagnostics.ReportError(DiagnosticCodes.NonDeterministicOperationInPrediction, $"Node '{node.Name}' is non-deterministic and cannot be executed in predicted context.", node.Id, suggestedFix: "set-deterministic");
@@ -704,7 +705,8 @@ public sealed class SemanticAnalyzer
             nodeType.Equals("List.Remove", StringComparison.OrdinalIgnoreCase) ||
             nodeType.Equals("PersistentId.New", StringComparison.OrdinalIgnoreCase) ||
             IsMutatingContainer(nodeType) ||
-            IsBuiMutation(nodeType);
+            IsBuiMutation(nodeType) ||
+            IsSystemCall(nodeType);
 
         private static bool IsMutatingContainer(string nodeType) =>
             nodeType.Equals("Container.Insert", StringComparison.OrdinalIgnoreCase) ||
@@ -722,6 +724,9 @@ public sealed class SemanticAnalyzer
         private static bool IsBuiMutation(string nodeType) =>
             nodeType.Equals("Bui.Set", StringComparison.OrdinalIgnoreCase);
 
+        private static bool IsSystemCall(string nodeType) =>
+            nodeType.Equals("System.Invoke", StringComparison.OrdinalIgnoreCase);
+
         private static bool IsBuiQuery(string nodeType) =>
             nodeType.Equals("Ui.Rows", StringComparison.OrdinalIgnoreCase) ||
             nodeType.Equals("Bui.Field", StringComparison.OrdinalIgnoreCase);
@@ -730,7 +735,7 @@ public sealed class SemanticAnalyzer
             IsMutatingContainer(nodeType) || IsContainerQuery(nodeType);
 
         private static bool IsDirectNative(string nodeType) =>
-            IsGameplayContainer(nodeType) || IsBuiMutation(nodeType) || IsBuiQuery(nodeType);
+            IsGameplayContainer(nodeType) || IsBuiMutation(nodeType) || IsBuiQuery(nodeType) || IsSystemCall(nodeType);
 
         public AstExpression LowerPinExpression(PinDocument pin)
         {

@@ -83,6 +83,20 @@ public sealed class RobustGameplayTests
         Assert.That(state.Values.ContainsKey("Reason"), Is.False);
     }
 
+    [Test]
+    public void Invoke_CallsAOneArgumentSystemMethod()
+    {
+        var simulation = RobustServerSimulation.NewSimulation().InitializeInstance();
+        var entities = simulation.Resolve<IEntityManager>();
+        var catalog = new BindingCatalog();
+        GameplayBindings.Index(catalog, entities);
+
+        var spawned = (int)catalog.FindMethod("Entity.Spawn")!.Invoker([]).AsInt64();
+        Assert.That(Call(catalog, "System.Invoke", "SharedTransformSystem", "GetWorldPosition", spawned).AsBool(), Is.True);
+        Assert.That(Call(catalog, "System.Invoke", "MissingSystem", "GetWorldPosition", spawned).AsBool(), Is.False);
+        Assert.That(Call(catalog, "System.Invoke", "SharedTransformSystem", "MissingMethod", spawned).AsBool(), Is.False);
+    }
+
     private static AstraValue Call(BindingCatalog catalog, string name, params object[] args)
     {
         var values = args.Select(arg => arg switch

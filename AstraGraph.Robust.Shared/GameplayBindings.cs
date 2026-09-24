@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Reflection;
+using Robust.Shared.Log;
 using AstraGraph.Binding;
 using AstraGraph.Core;
 using AstraGraph.Robust.Client;
@@ -53,6 +54,43 @@ public static class GameplayBindings
         Register(catalog, nameof(UiRows), "Ui.Rows");
         Register(catalog, nameof(BuiField), "Bui.Field");
         Register(catalog, nameof(BuiSet), "Bui.Set", deterministic: false);
+        Register(catalog, nameof(Invoke), "System.Invoke", deterministic: false);
+    }
+
+    /// <summary>
+    /// Calls one public entity-system method that takes the entity.
+    /// The graph names the system and the method. The host resolves the live system.
+    /// </summary>
+    public static bool Invoke(string systemName, string methodName, int entity)
+    {
+        if (string.IsNullOrWhiteSpace(systemName) || string.IsNullOrWhiteSpace(methodName) || entity == 0)
+        {
+            return false;
+        }
+
+        var system = FindLiveSystem(systemName);
+        if (system == null)
+        {
+            return false;
+        }
+
+        var method = FindInvokeMethod(system.GetType(), methodName);
+        var uid = new EntityUid(entity);
+        if (method == null || !Entities.EntityExists(uid) || !TryMakeArgument(method.GetParameters()[0].ParameterType, uid, out var argument))
+        {
+            return false;
+        }
+
+        try
+        {
+            method.Invoke(system, [argument]);
+            return true;
+        }
+        catch (TargetInvocationException ex)
+        {
+            Logger.GetSawmill("astra").Error($"System.Invoke {systemName}.{methodName} failed: {ex.InnerException ?? ex}");
+            return false;
+        }
     }
 
     public static string UiRows(AstraList? list, string? idField, string? textField, string? disabledField) =>
@@ -274,6 +312,118 @@ public static class GameplayBindings
 
     public static void QueueDeleteEntity(int entity) =>
         Entities.QueueDeleteEntity(new EntityUid(entity));
+
+    private static object? FindLiveSystem(string name)
+    {
+        object? inherited = null;
+        foreach (var type in Entities.EntitySysManager.GetEntitySystemTypes())
+        {
+            if (!NameOrBaseName(type, name) || !Entities.EntitySysManager.TryGetEntitySystem(type, out var system) || system == null)
+            {
+                continue;
+            }
+
+            if (type.Name == name)
+            {
+                return system;
+            }
+
+            inherited ??= system;
+        }
+
+        return inherited;
+    }
+
+    private static bool NameOrBaseName(Type type, string name)
+    {
+        for (var cursor = type; cursor != null && cursor != typeof(object); cursor = cursor.BaseType)
+        {
+            if (cursor.Name == name)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static MethodInfo? FindInvokeMethod(Type systemType, string methodName)
+    {
+        var matches = new List<MethodInfo>();
+        foreach (var method in systemType.GetMethods(BindingFlags.Instance | BindingFlags.Public))
+        {
+            if (!method.Name.Equals(methodName, StringComparison.Ordinal) || method.IsGenericMethodDefinition)
+            {
+                continue;
+            }
+
+            var parameters = method.GetParameters();
+            if (parameters.Length != 1 || parameters[0].IsOut || parameters[0].ParameterType.IsByRef)
+            {
+                continue;
+            }
+
+            matches.Add(method);
+        }
+
+        if (matches.Count == 1)
+        {
+            return matches[0];
+        }
+
+        MethodInfo? entityArgument = null;
+        foreach (var method in matches)
+        {
+            if (!IsEntityArgument(method.GetParameters()[0].ParameterType))
+            {
+                continue;
+            }
+
+            if (entityArgument != null)
+            {
+                return null;
+            }
+
+            entityArgument = method;
+        }
+
+        return entityArgument;
+    }
+
+    private static bool IsEntityArgument(Type type) =>
+        type == typeof(EntityUid) ||
+        type == typeof(int) ||
+        type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Entity<>);
+
+    private static bool TryMakeArgument(Type parameterType, EntityUid uid, out object? argument)
+    {
+        argument = null;
+        if (parameterType == typeof(EntityUid))
+        {
+            argument = uid;
+            return true;
+        }
+
+        if (parameterType == typeof(int))
+        {
+            argument = (int)uid;
+            return true;
+        }
+
+        if (!parameterType.IsValueType || !parameterType.IsGenericType || parameterType.GetGenericTypeDefinition() != typeof(Entity<>))
+        {
+            return false;
+        }
+
+        var componentType = parameterType.GetGenericArguments()[0];
+        if (!Entities.TryGetComponent(uid, componentType, out var component))
+        {
+            return false;
+        }
+
+        argument = Activator.CreateInstance(parameterType, uid, component);
+        return argument != null;
+    }
 
     private static IEntityManager Entities =>
         _entities ?? throw new InvalidOperationException("Gameplay bindings are not attached to an entity manager.");

@@ -181,6 +181,7 @@ public sealed class WeaponSliceGraphTests
             var readBuilt = Read(prefix + "Built", "Rows", x + 2100, "List<PartRow>");
             var rows = Call("Ui.Rows", prefix + "Json", x + 2380, ("List", "List<PartRow>", null), ("IdField", "string", "Id"), ("TextField", "string", "Text"), ("DisabledField", "string", "Disabled"), ("Rows", "string", null));
             var publish = Call("Bui.Set", prefix + "Publish", x + 2520, ("Owner", "EntityUid", null), ("Name", "string", "Parts"), ("Value", "string", null), ("Success", "bool", null));
+            var refreshGun = Call("System.Invoke", prefix + "RefreshGun", x + 2740, ("System", "string", "SharedGunSystem"), ("Method", "string", "RefreshModifiers"), ("Entity", "int64", null), ("Success", "bool", null));
             var gun = Call("Entity.GetHeldItem", prefix + "Gun", x + 2740, ("Holder", "EntityUid", null), ("Container", "string", "gun"), ("Item", "int64", null));
             var inGun = Call("Entity.GetHeldItem", prefix + "InGun", x + 2960, ("Holder", "int64", null), ("Container", "string", "barrel"), ("Item", "int64", null));
             var hasBarrel = NotZero(prefix + "HasBarrel", x + 3180);
@@ -209,7 +210,8 @@ public sealed class WeaponSliceGraphTests
             Exec(setOff, add);
             Exec(add, store);
             Exec(each, "Out", publish);
-            Exec(publish, barrelGate);
+            Exec(publish, refreshGun);
+            Exec(refreshGun, barrelGate);
             Exec(barrelGate, "True", installedGate);
             Exec(installedGate, "True", installedId);
             Exec(installedId, installedText);
@@ -234,6 +236,7 @@ public sealed class WeaponSliceGraphTests
             DataWire(add, "List", store, "Value");
             DataWire(readBuilt, "Value", rows, "List");
             DataWire(rows, "Rows", publish, "Value");
+            DataWire(gun, "Item", refreshGun, "Entity");
             DataWire(gun, "Item", inGun, "Holder");
             DataWire(inGun, "Item", hasBarrel, "A");
             DataWire(hasBarrel, "Result", barrelGate, "Condition");
@@ -323,7 +326,7 @@ public sealed class WeaponSliceGraphTests
         public NodeDocument Call(string type, string name, int x, params (string Name, string Type, string? Default)[] pins)
         {
             var specs = new List<PinDocument>();
-            if (type is "Container.Insert" or "Bui.Set" or "List.Add")
+            if (type is "Container.Insert" or "Bui.Set" or "List.Add" or "System.Invoke")
             {
                 specs.Add(Exec("In", true));
                 specs.Add(Exec("Out", false));
@@ -335,7 +338,7 @@ public sealed class WeaponSliceGraphTests
                 "Container.Contents" => new[] { "Contents" },
                 "Bui.Field" => new[] { "Value" },
                 "Ui.Rows" => new[] { "Rows" },
-                "Container.Insert" or "Bui.Set" => new[] { "Success" },
+                "Container.Insert" or "Bui.Set" or "System.Invoke" => new[] { "Success" },
                 "List.Add" => new[] { "ListOut" },
                 _ => Array.Empty<string>()
             };
@@ -353,7 +356,7 @@ public sealed class WeaponSliceGraphTests
                     : Data(pin.Name, pin.Type, true, pin.Default));
             }
 
-            var execution = type is "Container.Insert" or "Bui.Set" or "List.Add";
+            var execution = type is "Container.Insert" or "Bui.Set" or "List.Add" or "System.Invoke";
             return Place(Node(name, type, null, [.. specs]), x, Y(execution ? 80 : 300));
         }
 
