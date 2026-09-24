@@ -1,6 +1,6 @@
 # Mechanic 24 — capability audit
 
-Audit of AstraGraph `main` at `9699aeac`. This pass did not add weapon code. Struct values, list mutation, and their persistence are now in the library; the Night City pin still has to move before a build sees them.
+Audit of AstraGraph `main` at `9699aeac`, plus the uncommitted library work after that commit. Struct values, list mutation, persistence, containers, BUI rows, and the first weapon graphs are in the library checkout. The Night City pin still has to move before a build sees them.
 
 Status words: Not implemented, Partial, Runtime only, Compiler only, Studio only, Working end-to-end.
 

@@ -156,7 +156,7 @@ public sealed class WeaponSliceGraphTests
         {
             var created = Data("List.Create", prefix + "Empty", x, ("List", "List<PartRow>", null));
             var clear = Assign(prefix + "Clear", "Rows", x, "List<PartRow>");
-            var contents = Call("Container.Contents", prefix + "Contents", x + 280, ("Owner", "EntityUid", null), ("Container", "string", "parts"), ("Contents", "List<EntityUid>", null));
+            var contents = Call("Container.Contents", prefix + "Contents", x + 280, ("Owner", "EntityUid", null), ("Container", "string", "storagebase"), ("Contents", "List<EntityUid>", null));
             var each = ForEach(prefix + "Each", x + 280);
             var rowComp = Component(prefix + "Row", "WeaponPart", x + 560);
             var rowGate = Branch(prefix + "Row?", x + 560);
