@@ -51,6 +51,39 @@ public sealed class UiHtmlPageTests
     }
 
     [Test]
+    public void Render_IncludesBuildTextureSprite()
+    {
+        var sprite = new UiElementNode
+        {
+            Id = "sprite",
+            ControlTypeId = "Robust.Client.UserInterface.Controls.TextureRect",
+            Properties = new Dictionary<string, object?>
+            {
+                ["Texture"] = "/Textures/Decals/derelictsign.rsi/derelict1.png",
+                ["State"] = "derelict1"
+            }
+        };
+        var root = new UiElementNode
+        {
+            Id = "root",
+            ControlTypeId = UiControlIds.BoxContainer,
+            Children = [sprite]
+        };
+        var document = new UiDocument
+        {
+            Id = GraphId.New(),
+            Name = "Sprite",
+            Root = root
+        };
+
+        var html = UiHtmlPage.Render(document);
+
+        Assert.That(html, Does.Contain("data-texture=\"/Textures/Decals/derelictsign.rsi/derelict1.png\""));
+        Assert.That(html, Does.Contain("astra-ui://texture?path="));
+        Assert.That(html, Does.Contain("derelict1"));
+    }
+
+    [Test]
     public void TryReadAction_ReadsNameAndPayload()
     {
         var ok = UiHtmlPage.TryReadAction("astra-bui://action?name=Submit&payload=%7B%22text%22%3A%22hi%22%7D", out var name, out var payload);
