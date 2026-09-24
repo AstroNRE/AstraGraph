@@ -145,7 +145,7 @@ function astraSend(name, payload) {
     window.parent.postMessage({ type: "astra-bui", url: url }, "*");
     return;
   }
-  location.href = url;
+  fetch(url, { method: "GET", cache: "no-store" }).catch(function () {});
 }
 document.addEventListener("click", (event) => {
   const opener = event.target.closest("[data-astra-open]");

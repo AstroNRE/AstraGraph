@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Background,
   ConnectionLineType,
@@ -219,7 +219,6 @@ function CanvasSurface(props: {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<AstraData, "astra">>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<FlowEdge>([]);
   const [picked, setPicked] = useState<string[]>([]);
-  const frameRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const flow = toFlow(props.document);
@@ -286,7 +285,7 @@ function CanvasSurface(props: {
   }
 
   return (
-    <div ref={frameRef} className="canvas-frame">
+    <div className="canvas-frame">
     <ReactFlow
       colorMode={colorMode}
       nodes={nodes}
@@ -323,7 +322,6 @@ function CanvasSurface(props: {
       snapToGrid
       snapGrid={[16, 16]}
       fitView
-      onMove={(_, viewport) => frameRef.current?.classList.toggle("semantic-far", viewport.zoom < 0.6)}
       onSelectionChange={({ nodes: selected }) => {
         const ids = selected.map((node) => node.id);
         setPicked((current) => current.length === ids.length && current.every((id, index) => id === ids[index]) ? current : ids);

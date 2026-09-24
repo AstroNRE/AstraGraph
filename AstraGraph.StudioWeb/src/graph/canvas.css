@@ -52,10 +52,6 @@
   color: var(--text-primary);
 }
 
-.semantic-far .astra-body {
-  display: none;
-}
-
 .astra-node {
   min-width: 210px;
   padding: 0;

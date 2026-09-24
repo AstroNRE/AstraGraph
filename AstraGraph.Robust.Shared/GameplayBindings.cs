@@ -74,7 +74,8 @@ public static class GameplayBindings
         var wrote = false;
         foreach (DictionaryEntry entry in interfaces)
         {
-            if (entry.Key is not Enum key)
+            if (entry.Key is not Enum key || entry.Value is not InterfaceData data ||
+                data.ClientType.IndexOf("AstraHtml", StringComparison.Ordinal) < 0)
             {
                 continue;
             }

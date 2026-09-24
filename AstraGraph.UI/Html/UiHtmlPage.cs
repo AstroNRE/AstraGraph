@@ -94,7 +94,7 @@ public static class UiHtmlPage
             .Append("function astraSend(name, payload) {")
             .Append("const url = \"astra-bui://action?name=\" + encodeURIComponent(name) + \"&payload=\" + encodeURIComponent(JSON.stringify(payload || {}));")
             .Append("if (window.parent && window.parent !== window) { window.parent.postMessage({ type: \"astra-bui\", url: url }, \"*\"); return; }")
-            .Append("location.href = url;")
+            .Append("fetch(url, { method: \"GET\", cache: \"no-store\" }).catch(function () {});")
             .Append('}')
             .Append("function astraSelected(node) {")
             .Append("const listId = node.getAttribute(\"data-astra-selection\");")
