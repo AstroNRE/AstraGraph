@@ -116,7 +116,10 @@ img { image-rendering: pixelated; object-fit: contain; }
 .astra-grid { display: grid; gap: 8px; width: 100%; height: auto; min-height: 48px; align-content: start; grid-auto-rows: minmax(32px, auto); box-sizing: border-box; }
 input, .astra-field { width: 100%; box-sizing: border-box; }
 button, input, progress { font: inherit; color: inherit; }
-button { background: #3d4454; color: #f2f2f2; border: 1px solid #6d7690; padding: 6px 10px; }
+button { background: #3d4454; color: #f2f2f2; border: 1px solid #6d7690; padding: 6px 10px; cursor: pointer; }
+button:hover { background: #556070; border-color: #d7deea; }
+button:active, button.is-pressed { background: #243044; border-color: #edbc63; }
+button:disabled, button:disabled:hover { background: #3d4454; border-color: #6d7690; cursor: default; }
 input { background: #0c0c0c; border: 1px solid #555; padding: 6px; }
 label.astra-label { display: block; }
 progress { width: 100%; height: 16px; }
@@ -155,6 +158,10 @@ document.addEventListener("click", (event) => {
   }
   const node = event.target.closest("[data-astra-action]");
   if (!node) return;
+  if (node.tagName === "BUTTON") {
+    node.classList.add("is-pressed");
+    window.setTimeout(function () { node.classList.remove("is-pressed"); }, 280);
+  }
   astraSend(node.getAttribute("data-astra-action"), {});
 });
 document.addEventListener("change", (event) => {
