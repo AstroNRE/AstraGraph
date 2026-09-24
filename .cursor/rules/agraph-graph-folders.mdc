@@ -1,0 +1,13 @@
+---
+description: Put each .agraph graph in a feature folder, not in Systems root
+alwaysApply: true
+---
+
+# Graph folders
+
+Each `.agraph` belongs to one mechanic and lives in that mechanic's folder.
+
+- Path: `Resources/AstraGraph/Systems/<Area>/<Feature>/<Graph>.agraph`
+- Graphs of the same mechanic share the feature folder. A new mechanic gets its own folder.
+- Do not add graphs directly under `Systems/`.
+- UI documents stay in `Resources/AstraGraph/Ui/`. The client loads them by file name.

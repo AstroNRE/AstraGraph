@@ -9,7 +9,7 @@ public sealed class WeaponSliceGraphTests
     [Test]
     public void WeaponProfile_Analyzes()
     {
-        var path = Path.Combine(NightCity(), "Resources", "AstraGraph", "Systems", "WeaponProfile.agraph");
+        var path = Path.Combine(NightCity(), "Resources", "AstraGraph", "Systems", "Weapons", "Modular", "WeaponProfile.agraph");
         if (!File.Exists(path))
         {
             Assert.Ignore("Night City checkout is not beside this library.");
@@ -33,7 +33,7 @@ public sealed class WeaponSliceGraphTests
             return;
         }
 
-        var path = Path.Combine(root, "Resources", "AstraGraph", "Systems", "WeaponBench.agraph");
+        var path = Path.Combine(root, "Resources", "AstraGraph", "Systems", "Weapons", "Modular", "WeaponBench.agraph");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, GraphSerializer.Serialize(document));
     }
