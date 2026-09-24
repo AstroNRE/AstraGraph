@@ -55,6 +55,11 @@ public sealed class UiDocument
     public string DocumentKind { get; set; } = "UI";
 
     /// <summary>
+    /// Extra CSS for the HTML page. Robust stylesheets are not applied to this page.
+    /// </summary>
+    public string? Css { get; set; }
+
+    /// <summary>
     /// Traverses all elements in the view tree recursively.
     /// </summary>
     public IEnumerable<UiElementNode> AllElements()

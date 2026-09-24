@@ -52,6 +52,7 @@ export interface UiDocumentModel {
   stateVariables?: UiStateVariableModel[];
   logic?: UiLogicStepModel[];
   components?: UiComponentModel[];
+  css?: string;
 }
 
 export interface UiLogicStepModel {

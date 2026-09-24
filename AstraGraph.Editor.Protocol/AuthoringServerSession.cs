@@ -1966,44 +1966,12 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             return new UiSaveResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Insufficient permissions to edit UI." };
         }
 
-        if (document?.Root == null || string.IsNullOrWhiteSpace(document.Name))
+        if (!UiDocumentFactory.TryCreate(document, out var built, out var error))
         {
-            return new UiSaveResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = "UI document needs a name and a root control." };
+            return new UiSaveResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = error };
         }
 
-        if (!GraphId.TryParse(document.Id, out var id) || id == GraphId.Empty)
-        {
-            id = GraphId.New();
-        }
-
-        var built = new UiDocument
-        {
-            Id = id,
-            Name = document.Name.Trim(),
-            Title = document.Name.Trim(),
-            Kind = GraphKind.UI,
-            Side = GraphSide.Client,
-            DefaultWidth = document.Width <= 0 ? 400 : document.Width,
-            DefaultHeight = document.Height <= 0 ? 300 : document.Height,
-            Root = BuildUiNode(document.Root, 0),
-            Bindings = (document.Bindings ?? []).Select(binding => new UiBindingDefinition
-            {
-                BindingId = string.IsNullOrWhiteSpace(binding.BindingId) ? Guid.NewGuid().ToString("D") : binding.BindingId,
-                ElementId = binding.ElementId,
-                TargetProperty = binding.TargetProperty,
-                StateVariable = binding.StateVariable,
-                Direction = Enum.TryParse<BindingDirection>(binding.Direction, ignoreCase: true, out var direction) ? direction : BindingDirection.OneWay
-            }).ToList(),
-            Events = (document.Events ?? []).Select(item => new UiEventSubscription
-            {
-                SubscriptionId = string.IsNullOrWhiteSpace(item.SubscriptionId) ? Guid.NewGuid().ToString("D") : item.SubscriptionId,
-                ElementId = item.ElementId,
-                EventName = item.EventName,
-                TargetAction = item.TargetAction
-            }).ToList(),
-            LocalStateDefaults = (document.LocalState ?? new Dictionary<string, string>()).ToDictionary(pair => pair.Key, pair => (object?)pair.Value)
-        };
-        _uiDocuments[id] = built;
+        _uiDocuments[built.Id] = built;
         return new UiSaveResponseMsg { Status = AuthoringStatusCode.Success, Document = ToUiDto(built) };
     }
 
@@ -2047,53 +2015,6 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
     }
 
     public IReadOnlyList<UiDocumentDto> ListUi() => _uiDocuments.Values.Select(ToUiDto).OrderBy(document => document.Name).ToArray();
-
-    private static UiElementNode BuildUiNode(UiNodeDto dto, int depth)
-    {
-        if (depth > 32)
-        {
-            throw new InvalidOperationException("UI tree is too deep.");
-        }
-
-        if (!Enum.TryParse<UiOrientation>(dto.Orientation, ignoreCase: true, out var orientation))
-        {
-            orientation = UiOrientation.Vertical;
-        }
-
-        var node = new UiElementNode
-        {
-            Id = string.IsNullOrWhiteSpace(dto.Id) ? Guid.NewGuid().ToString("D") : dto.Id,
-            Name = dto.Name,
-            Text = dto.Text,
-            Visible = dto.Visible,
-            Enabled = dto.Enabled,
-            Orientation = orientation,
-            MinWidth = dto.MinWidth,
-            MinHeight = dto.MinHeight,
-            StyleClasses = (dto.StyleClasses ?? []).Where(item => !string.IsNullOrWhiteSpace(item)).ToList(),
-            CustomProperties = new Dictionary<string, object?> { ["valueSource"] = string.IsNullOrWhiteSpace(dto.ValueSource) ? "Constant" : dto.ValueSource },
-            Children = (dto.Children ?? []).Select(child => BuildUiNode(child, depth + 1)).ToList()
-        };
-        var typeToken = string.IsNullOrWhiteSpace(dto.ControlTypeId) ? dto.ElementType : dto.ControlTypeId;
-        if (UiControlIds.TryParseLegacy(typeToken, out var elementType))
-        {
-            node.ElementType = elementType;
-        }
-        else if (!string.IsNullOrWhiteSpace(typeToken))
-        {
-            node.ControlTypeId = typeToken;
-        }
-
-        if (dto.Properties != null)
-        {
-            foreach (var pair in dto.Properties)
-            {
-                node.SetAuthoredProperty(pair.Key, pair.Value);
-            }
-        }
-
-        return node;
-    }
 
     public UiCatalogResponseMsg CatalogUi(string sessionId)
     {
@@ -2246,7 +2167,9 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         ToUiNode(document.Root),
         document.Bindings.Select(binding => new UiBindingDto(binding.BindingId, binding.ElementId, binding.TargetProperty, binding.StateVariable, binding.Direction.ToString())).ToArray(),
         document.Events.Select(item => new UiEventDto(item.SubscriptionId, item.ElementId, item.EventName, item.TargetAction)).ToArray(),
-        document.LocalStateDefaults.ToDictionary(pair => pair.Key, pair => pair.Value?.ToString() ?? ""));
+        document.LocalStateDefaults.ToDictionary(pair => pair.Key, pair => pair.Value?.ToString() ?? ""),
+        DocumentKind: document.DocumentKind,
+        Css: document.Css);
 
     private static UiNodeDto ToUiNode(UiElementNode node) => new(
         node.Id,

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { renderPage } from "./uiHtml";
 import { alignmentGuides, boxesInRect, builtinControls, canParent, findNode, findParent, insertChild, layoutTree, nodeType, remapIds, remapSubtree, removeNode, reorder, shortType, snapValue, updateNode, type UiControlInfo, type UiDocumentModel, type UiNode, type UiPropertyInfo } from "./uiTree";
 import { buildLogicGraphs } from "./uiLogic";
 
@@ -524,7 +525,8 @@ export function UiDesigner(props: {
       ) : null}
       {tab === "Styles" ? (
         <div>
-          <p className="muted">Style classes come from the consumer stylesheet.</p>
+          <p className="muted">CSS этой страницы попадает в окно как есть. Класс на контроле становится class в HTML.</p>
+          <textarea rows={8} value={draft.css ?? ""} onChange={(event) => commit({ ...draft, css: event.target.value })} />
           <div className="ui-tags">
             {(props.styles ?? ["danger", "windowTitle"]).map((name) => <button key={name} type="button" onClick={() => patch({ styleClasses: [...(current.styleClasses ?? []), name] })}>{name}</button>)}
           </div>
@@ -597,6 +599,19 @@ function DesignCanvas(props: {
   const height = Math.max(props.document.height, ...boxes.map((box) => box.y + box.h));
   const stage = useRef<HTMLDivElement>(null);
   const start = useRef<{ x: number; y: number } | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  useEffect(() => {
+    const startDrag = () => setDragOver(true);
+    const stopDrag = () => setDragOver(false);
+    window.addEventListener("dragstart", startDrag);
+    window.addEventListener("dragend", stopDrag);
+    window.addEventListener("drop", stopDrag);
+    return () => {
+      window.removeEventListener("dragstart", startDrag);
+      window.removeEventListener("dragend", stopDrag);
+      window.removeEventListener("drop", stopDrag);
+    };
+  }, []);
   function local(event: { clientX: number; clientY: number }) {
     const bounds = stage.current?.getBoundingClientRect();
     if (!bounds) return { x: 0, y: 0 };
@@ -639,33 +654,14 @@ function DesignCanvas(props: {
       onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }}
       onDrop={acceptDrop}
     >
-      {props.framePng ? <img className="xaml-frame" alt="" src={props.framePng.startsWith("data:") ? props.framePng : `data:image/png;base64,${props.framePng}`} /> : null}
-      {boxes.map((box) => {
-        const node = findNode(props.document.root, box.id);
-        if (!node) return null;
-        const type = shortType(nodeType(node));
-        const text = boundText(node, props.document.localState ?? {}, props.document.bindings);
-        const selected = props.selected.includes(box.id);
-        const container = type.endsWith("Container") || type === "Panel";
-        const color = node.properties?.FontColorOverride;
-        return (
-          <div
-            key={box.id}
-            className={`ui-node kind-${type}${selected ? " selected" : ""}${container ? " kind-container" : ""}`}
-            style={{ position: "absolute", left: box.x, top: box.y, width: box.w, height: box.h, color }}
-            onMouseDown={(event) => { event.stopPropagation(); props.onSelect([box.id]); }}
-            onDragOver={(event) => { event.preventDefault(); event.stopPropagation(); }}
-            onDrop={(event) => { event.stopPropagation(); acceptDrop(event); }}
-          >
-            {type === "Button" ? <span className="game-button">{text || node.name || "Button"}</span> : null}
-            {type === "LineEdit" ? <span className="game-line">{text || "Text"}</span> : null}
-            {type === "Label" ? <span className="game-label">{text || node.name || "Label"}</span> : null}
-            {type === "ProgressBar" ? <span className="game-progress" /> : null}
-            {container && node.id === props.document.root.id ? <span className="game-title">{props.document.name}</span> : null}
-            {selected ? <span className="figma-handles" aria-hidden="true">{["nw", "n", "ne", "e", "se", "s", "sw", "w"].map((handle) => <i key={handle} className={`h-${handle}`} />)}</span> : null}
-          </div>
-        );
-      })}
+      <iframe className="html-page" title={props.document.name} sandbox="allow-scripts" srcDoc={renderPage(props.document)} />
+      {dragOver ? (
+        <div
+          className="drop-shield"
+          onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }}
+          onDrop={acceptDrop}
+        />
+      ) : null}
       <button
         type="button"
         className="frame-resize"
@@ -673,7 +669,6 @@ function DesignCanvas(props: {
         onMouseDown={(event) => {
           event.stopPropagation();
           const origin = { x: event.clientX, y: event.clientY, width: props.document.width, height: props.document.height, baseline: props.document };
-          resizeStart.current = origin;
           const move = (ev: PointerEvent) => {
             const width = clampSize(origin.width + (ev.clientX - origin.x) / props.zoom, origin.width);
             const height = clampSize(origin.height + (ev.clientY - origin.y) / props.zoom, origin.height);
@@ -685,7 +680,6 @@ function DesignCanvas(props: {
             const width = clampSize(origin.width + (ev.clientX - origin.x) / props.zoom, origin.width);
             const height = clampSize(origin.height + (ev.clientY - origin.y) / props.zoom, origin.height);
             props.onResize(width, height, true, origin.baseline);
-            resizeStart.current = null;
           };
           window.addEventListener("pointermove", move);
           window.addEventListener("pointerup", up);
