@@ -51,7 +51,7 @@ public sealed class WeaponSliceGraphTests
         var part = graph.Call("Inventory.Find", "Part", 1260, ("Owner", "EntityUid", null), ("Prototype", "string", null), ("Item", "int64", null));
         var hasPart = graph.NotZero("HasPart", 1480);
         var partGate = graph.Branch("Part?", 1480);
-        var noPart = graph.Call("Bui.Set", "NoPart", 1680, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Choose a barrel"), ("Success", "bool", null));
+        var noPart = graph.Call("Bui.Set", "NoPart", 1680, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Select a barrel in the list"), ("Success", "bool", null));
         var gun = graph.Call("Entity.GetHeldItem", "Gun", 1900, ("Holder", "EntityUid", null), ("Container", "string", "gun"), ("Item", "int64", null));
         var hasGun = graph.NotZero("HasGun", 2120);
         var gunGate = graph.Branch("Gun?", 2120);

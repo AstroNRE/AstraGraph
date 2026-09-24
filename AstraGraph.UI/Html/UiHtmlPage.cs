@@ -103,7 +103,11 @@ public static class UiHtmlPage
             .Append("const listId = node.getAttribute(\"data-astra-selection\");")
             .Append("if (!listId) return \"\";")
             .Append("const list = document.querySelector('[data-astra-id=\"' + listId + '\"]');")
-            .Append("return list ? (list.getAttribute(\"data-selected-id\") || \"\") : \"\";")
+            .Append("if (!list) return \"\";")
+            .Append("const stored = list.getAttribute(\"data-selected-id\") || \"\";")
+            .Append("if (stored) return stored;")
+            .Append("const picked = list.querySelector(\".astra-list-row.is-selected\");")
+            .Append("return picked ? (picked.dataset.id || \"\") : \"\";")
             .Append('}')
             .Append("document.addEventListener(\"click\", (event) => {")
             .Append("const row = event.target.closest(\".astra-list-row\");")
@@ -121,6 +125,10 @@ public static class UiHtmlPage
             .Append("if (!node) return;")
             .Append("if (node.tagName === \"BUTTON\") { node.classList.add(\"is-pressed\"); window.setTimeout(function () { node.classList.remove(\"is-pressed\"); }, 280); }")
             .Append("const id = astraSelected(node);")
+            .Append("if (node.hasAttribute(\"data-astra-selection\") && !id) {")
+            .Append("const label = document.querySelector(\"label.astra-label\");")
+            .Append("if (label) label.textContent = \"Select a barrel in the list\";")
+            .Append('}')
             .Append("astraSend(node.getAttribute(\"data-astra-action\"), id ? { id: id } : {});")
             .Append("});")
             .Append("document.addEventListener(\"change\", (event) => {")
@@ -129,6 +137,7 @@ public static class UiHtmlPage
             .Append("const action = node.getAttribute(\"data-astra-action\");")
             .Append("if (action) astraSend(action, { text: node.value });")
             .Append("});")
+            .Append("if (window.__astraPending) astraApplyState(window.__astraPending);")
             .Append("</script></body></html>");
         return page.ToString();
     }
