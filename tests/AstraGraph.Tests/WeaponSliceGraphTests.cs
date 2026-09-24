@@ -44,10 +44,10 @@ public sealed class WeaponSliceGraphTests
         var open = graph.Event("Open", "BoundUIOpenedEvent", "AstraHtmlUiComponent", 40, 640);
         var message = graph.Event("Message", "AstraBuiUiMessage", "AstraHtmlUiComponent", 40, 80);
         var action = graph.Member("Action", "Action", "string", 360);
-        var isInstall = graph.Equal("IsInstall", "InstallPart", 360);
+        var isInstall = graph.Equal("IsInstall", "InstallPart", 520);
         var installGate = graph.Branch("Install?", 680);
-        var partId = graph.Call("Bui.Field", "PartId", 960, ("Payload", "string", null), ("Field", "string", "id"), ("Value", "string", null));
-        var part = graph.Call("Inventory.Find", "Part", 960, ("Owner", "EntityUid", null), ("Prototype", "string", null), ("Item", "int64", null));
+        var partId = graph.Call("Bui.Field", "PartId", 820, ("Payload", "string", null), ("Field", "string", "id"), ("Value", "string", null));
+        var part = graph.Call("Inventory.Find", "Part", 1040, ("Owner", "EntityUid", null), ("Prototype", "string", null), ("Item", "int64", null));
         var hasPart = graph.NotZero("HasPart", 1240);
         var partGate = graph.Branch("Part?", 1240);
         var gun = graph.Call("Entity.GetHeldItem", "Gun", 1520, ("Holder", "EntityUid", null), ("Container", "string", "gun"), ("Item", "int64", null));
@@ -55,8 +55,8 @@ public sealed class WeaponSliceGraphTests
         var gunGate = graph.Branch("Gun?", 1800);
         var partComp = graph.Component("PartData", "WeaponPart", 2080, "int64");
         var partDataGate = graph.Branch("PartData?", 2080);
-        var slot = graph.Field("Slot", "WeaponPart", "Slot", "string", 2360);
-        var barrel = graph.Equal("IsBarrel", "barrel", 2360);
+        var slot = graph.Field("Slot", "WeaponPart", "Slot", "string", 2220);
+        var barrel = graph.Equal("IsBarrel", "barrel", 2460);
         var slotGate = graph.Branch("Barrel?", 2640);
         var assembly = graph.Component("Assembly", "WeaponAssembly", 2920, "int64");
         var assemblyGate = graph.Branch("Assembly?", 2920);
@@ -148,58 +148,123 @@ public sealed class WeaponSliceGraphTests
         private readonly List<ConnectionDocument> _connections = [];
         private readonly Dictionary<string, NodePosition> _positions = [];
         private readonly HashSet<(int X, int Y)> _used = [];
+        private int _row;
+
+        public void UseRow(int y) => _row = y;
+
+        public NodeDocument Refresh(string prefix, int x)
+        {
+            var created = Data("List.Create", prefix + "Empty", x, ("List", "List<PartRow>", null));
+            var clear = Assign(prefix + "Clear", "Rows", x, "List<PartRow>");
+            var contents = Call("Container.Contents", prefix + "Contents", x + 280, ("Owner", "EntityUid", null), ("Container", "string", "parts"), ("Contents", "List<EntityUid>", null));
+            var each = ForEach(prefix + "Each", x + 280);
+            var rowComp = Component(prefix + "Row", "WeaponPart", x + 560);
+            var rowGate = Branch(prefix + "Row?", x + 560);
+            var made = Data("Schema.Make", prefix + "Make", x + 840, ("Value", "PartRow", null));
+            made.Properties["Schema"] = "PartRow";
+            var setId = Set(prefix + "Id", "PartRow", "Id", x + 840);
+            var rowProto = Field(prefix + "Prototype", "WeaponPart", "Prototype", "string", x + 1120);
+            var setText = Set(prefix + "Text", "PartRow", "Text", x + 1120);
+            var label = Field(prefix + "Label", "WeaponPart", "Label", "string", x + 1400);
+            var setOff = Set(prefix + "Off", "PartRow", "Disabled", x + 1400, "false");
+            var readRows = Read(prefix + "Read", "Rows", x + 1680, "List<PartRow>");
+            var add = Call("List.Add", prefix + "Add", x + 1680, ("List", "List<PartRow>", null), ("Item", "PartRow", null), ("ListOut", "List<PartRow>", null));
+            var store = Assign(prefix + "Store", "Rows", x + 1960, "List<PartRow>");
+            var readBuilt = Read(prefix + "Built", "Rows", x + 2100, "List<PartRow>");
+            var rows = Call("Ui.Rows", prefix + "Json", x + 2380, ("List", "List<PartRow>", null), ("IdField", "string", "Id"), ("TextField", "string", "Text"), ("DisabledField", "string", "Disabled"), ("Rows", "string", null));
+            var publish = Call("Bui.Set", prefix + "Publish", x + 2520, ("Owner", "EntityUid", null), ("Name", "string", "Parts"), ("Value", "string", null), ("Success", "bool", null));
+
+            Exec(clear, each);
+            Exec(each, "Body", rowGate);
+            Exec(rowGate, "True", setId);
+            Exec(setId, setText);
+            Exec(setText, setOff);
+            Exec(setOff, add);
+            Exec(add, store);
+            Exec(each, "Out", publish);
+
+            DataWire(created, "List", clear, "Value");
+            DataWire(contents, "Contents", each, "Collection");
+            DataWire(each, "Current", rowComp, "Entity");
+            DataWire(rowComp, "Found", rowGate, "Condition");
+            DataWire(rowComp, "Component", label, "Component");
+            DataWire(rowComp, "Component", rowProto, "Component");
+            DataWire(made, "Value", setId, "Target");
+            DataWire(rowProto, "Value", setId, "Value");
+            DataWire(setId, "Result", setText, "Target");
+            DataWire(label, "Value", setText, "Value");
+            DataWire(setText, "Result", setOff, "Target");
+            DataWire(readRows, "Value", add, "List");
+            DataWire(setOff, "Result", add, "Item");
+            DataWire(add, "List", store, "Value");
+            DataWire(readBuilt, "Value", rows, "List");
+            DataWire(rows, "Rows", publish, "Value");
+            _refreshes[clear] = (contents, publish);
+            return clear;
+        }
+
+        public void WireRefresh(NodeDocument clear, NodeDocument bench)
+        {
+            var (contents, publish) = _refreshes[clear];
+            DataWire(bench, "Entity", contents, "Owner");
+            DataWire(bench, "Entity", publish, "Owner");
+        }
+
+        private readonly Dictionary<NodeDocument, (NodeDocument Contents, NodeDocument Publish)> _refreshes = [];
 
         public NodeDocument Event(string name, string eventType, string component, int x, int y) =>
             Place(Node(name, "Event." + name, new Dictionary<string, string> { ["eventType"] = eventType, ["componentType"] = component },
                 Exec("Out", false), Data("Entity", "EntityUid", false), Data("Event", "object", false)), x, y);
 
         public NodeDocument Branch(string name, int x) =>
-            Place(Node(name, "Core.Branch", null, Exec("In", true), Exec("True", false), Exec("False", false), Data("Condition", "bool", true)), x, 80);
+            Place(Node(name, "Core.Branch", null, Exec("In", true), Exec("True", false), Exec("False", false), Data("Condition", "bool", true)), x, Y(80));
 
-        public NodeDocument Assign(string name, string variable, int x) =>
+        public NodeDocument Assign(string name, string variable, int x, string valueType = "object") =>
             Place(Node(name, "Core.VariableAssign", new Dictionary<string, string> { ["VariableName"] = variable },
-                Exec("In", true), Exec("Out", false), Data("Value", "object", true)), x, 80);
+                Exec("In", true), Exec("Out", false), Data("Value", valueType, true)), x, Y(80));
 
-        public NodeDocument Read(string name, string variable, int x) =>
+        public NodeDocument Read(string name, string variable, int x, string valueType = "object") =>
             Place(Node(name, "Core.VariableRead", new Dictionary<string, string> { ["VariableName"] = variable },
-                Data("Value", "object", false)), x, 300);
+                Data("Value", valueType, false)), x, Y(300));
 
         public NodeDocument ForEach(string name, int x) =>
-            Place(Node(name, "Flow.ForEach", null, Exec("In", true), Exec("Out", false), Exec("Body", false), Data("Collection", "List<EntityUid>", true), Data("Current", "EntityUid", false)), x, 80);
+            Place(Node(name, "Flow.ForEach", null, Exec("In", true), Exec("Out", false), Exec("Body", false), Data("Collection", "List<EntityUid>", true), Data("Current", "EntityUid", false)), x, Y(80));
 
-        public NodeDocument Component(string name, string type, int x) =>
+        public NodeDocument Component(string name, string type, int x, string entityType = "EntityUid") =>
             Place(Node(name, "Entity.TryGetComponent", new Dictionary<string, string> { ["ComponentType"] = type },
-                Data("Entity", "EntityUid", true), Data("Found", "bool", false), Data("Component", "component", false)), x, 300);
+                Data("Entity", entityType, true), Data("Found", "bool", false), Data("Component", "component", false)), x, Y(300));
 
         public NodeDocument Field(string name, string schema, string field, string type, int x) =>
             Place(Node(name, "Schema.GetField", new Dictionary<string, string> { ["Schema"] = schema, ["Field"] = field },
-                Data("Component", "component", true), Data("Value", type, false)), x, 300);
+                Data("Component", "component", true), Data("Value", type, false)), x, Y(300));
 
         public NodeDocument Set(string name, string schema, string field, int x, string? valueDefault = null) =>
             Place(Node(name, "Schema.SetField", new Dictionary<string, string> { ["Schema"] = schema, ["Field"] = field },
-                Exec("In", true), Exec("Out", false), Data("Target", "object", true), Data("Value", "object", true, valueDefault), Data("Result", "object", false)), x, 80);
+                Exec("In", true), Exec("Out", false), Data("Target", "object", true), Data("Value", "object", true, valueDefault), Data("Result", "object", false)), x, Y(80));
 
         public NodeDocument Member(string name, string member, string type, int x) =>
             Place(Node(name, "Native.GetMember", new Dictionary<string, string> { ["Member"] = member },
-                Data("Target", "object", true), Data("Value", type, false)), x, 300);
+                Data("Target", "object", true), Data("Value", type, false)), x, Y(300));
 
         public NodeDocument Equal(string name, string literal, int x)
         {
             var node = Node(name, "cmp.equal", null, Data("A", "string", true), Data("B", "string", true, literal), Data("Result", "bool", false));
-            return Place(node, x, 300);
+            return Place(node, x, Y(300));
         }
 
         public NodeDocument NotZero(string name, int x)
         {
             var node = Node(name, "cmp.notequal", null, Data("A", "int64", true), Data("B", "int64", true, "0"), Data("Result", "bool", false));
-            return Place(node, x, 300);
+            return Place(node, x, Y(300));
         }
 
         public NodeDocument Data(string type, string name, int x, params (string Name, string Type, string? Default)[] pins)
         {
             var specs = pins.Select(pin => Data(pin.Name, pin.Type, false, pin.Default)).ToArray();
-            return Place(Node(name, type, null, specs), x, 300);
+            return Place(Node(name, type, null, specs), x, Y(300));
         }
+
+        private int Y(int y) => y + _row;
 
         public NodeDocument Call(string type, string name, int x, params (string Name, string Type, string? Default)[] pins)
         {
@@ -234,7 +299,8 @@ public sealed class WeaponSliceGraphTests
                     : Data(pin.Name, pin.Type, true, pin.Default));
             }
 
-            return Place(Node(name, type, null, [.. specs]), x, type.StartsWith("Bui") || type.StartsWith("Container") || type.StartsWith("List") ? 80 : 300);
+            var execution = type is "Container.Insert" or "Bui.Set" or "List.Add";
+            return Place(Node(name, type, null, [.. specs]), x, Y(execution ? 80 : 300));
         }
 
         public void Exec(NodeDocument from, NodeDocument to) => Exec(from, from.Pins.First(pin => pin.Kind == PinKind.Execution && pin.Direction == PinDirection.Output).Name, to);
