@@ -1,6 +1,6 @@
 # Mechanic 24 — capability audit
 
-Audit of AstraGraph `main` at `9699aeac` (the Night City submodule). The library checkout used for edits is behind that commit until it is updated. This pass did not add weapon code.
+Audit of AstraGraph `main` at `9699aeac`. This pass did not add weapon code. Struct values, list mutation, and their persistence are now in the library; the Night City pin still has to move before a build sees them.
 
 Status words: Not implemented, Partial, Runtime only, Compiler only, Studio only, Working end-to-end.
 
@@ -14,14 +14,14 @@ A graph can subscribe to a Robust event, read a schema component, branch, loop, 
 
 | Capability | Status | Notes |
 | --- | --- | --- |
-| User-defined struct | Partial | `SchemaType` when it is not a component. No copy, compare, or nested value in the VM. |
+| User-defined struct | Partial | `Schema.Make`, `SetField`, `GetField`, and `Copy` run on `SchemaType`. Compare is still absent. |
 | User-defined component | Working end-to-end | Primitive fields. Mothroach bat. |
-| Nested struct | Partial | A field type may name another schema. Persistence and the VM do not walk it. |
-| List, Set, Dictionary | Partial | Types exist. Runtime list is immutable and read-only. Set and dictionary have no VM value. |
+| Nested struct | Partial | A field may name another schema in the same graph. The VM and the state file walk nested structs. |
+| List, Set, Dictionary | Partial | `AstraList` can add, set, remove, get, and count, including a list of structs. Set and dictionary still have no VM value. |
 | nullable | Partial | `NullableType` and `HasValue`. Not a studio field editor. |
 | enum | Studio only | Studio kind exists. Not a VM value distinct from an int. |
 | foreach | Working end-to-end | `Flow.ForEach` over a list such as hit entities. |
-| collection mutation | Not implemented | No add, remove, clear, contains, set. |
+| collection mutation | Partial | `List.Add`, `List.Set`, `List.Remove`, `List.Get`, `List.Count`. No clear or contains. |
 | functions | Partial | `CallLocal` and `FunctionType`. Not proven as a readable library of pure functions in Studio. |
 | subgraphs | Not implemented | No collapsed graph document. |
 | events | Working end-to-end | Robust events by name, directed by component. |
@@ -39,7 +39,7 @@ A graph can subscribe to a Robust event, read a schema component, branch, loop, 
 | game time | Partial | `TimeSpan` is a primitive name. No `Now` / `Since`. |
 | RNG | Not implemented | |
 | persistent primitives | Working end-to-end | Bool, int, double, entity id, vector, and a single string. |
-| persistent structs / collections / components | Not implemented | `AstraValueType.Object` is stored as one string or null. A list or struct does not round-trip. |
+| persistent structs / collections / components | Partial | State format 2 stores a struct by schema id and field id, and a list, including nested values. Format 1 still loads. One bad object becomes null and the rest of the file stays. Component instances are still not a snapshot. |
 | network replication | Partial | Field flags `Replicated` and `Predicted` exist. Not proven for structs. |
 | BUI state / actions | Partial | State is a string map. Actions are a name plus a payload. No list, selection, or disabled row. |
 | hot reload | Partial | Same event and component can publish. A new pair after the bus lock does not subscribe. Schema changes do not migrate stored values. |
@@ -51,10 +51,9 @@ The slice is: place a gun on a bench, open the Astra UI, see parts, swap a barre
 
 That fails today for four generic reasons:
 
-1. A part cannot be a struct value inside `List<WeaponPart>`. The list cannot grow, and the store would save it as nothing.
-2. There is no persistent id, so `EntityUid` after a restart is a different object.
-3. The bench cannot ask a container or inventory for the gun and the loose parts.
-4. The UI cannot show a server-owned list of parts and send `InstallPart` as an intent. It can show a static page and a button name.
+1. A part can be a struct in a list, and that list can be saved. A persistent id for the gun is still missing, so `EntityUid` after a restart is a different object.
+2. The bench cannot ask a container or inventory for the gun and the loose parts.
+3. The UI cannot show a server-owned list of parts and send `InstallPart` as an intent. It can show a static page and a button name.
 
 Heat, fouling, manufacturing lots, RNG, curves, and localization are later slices. They are absent and should stay absent until the slice above exists.
 
@@ -62,10 +61,10 @@ Heat, fouling, manufacturing lots, RNG, curves, and localization are later slice
 
 Do not add a second type system. Extend `SchemaType`, `AstraList`, and `PersistentStateStore`.
 
-1. Struct value: get field, set field, copy. Nested struct is the same walk.
-2. `List<T>` mutate: add, remove, get, set, count, foreach. `T` may be a struct.
-3. Persist those values in the existing snapshot, versioned, by schema id and field id. One bad object must not wipe the file.
-4. Persistent object id that is not `EntityUid`, usable by a gun, a car, or a tool.
+1. Struct value: get field, set field, copy. Nested struct is the same walk. Done in the VM and in Studio nodes.
+2. `List<T>` mutate: add, remove, get, set, count, foreach. `T` may be a struct. Add, remove, get, set, and count are done. Foreach already walked a list.
+3. Persist those values in the existing snapshot, versioned, by schema id and field id. One bad object must not wipe the file. Done as format 2. Format 1 still loads.
+4. Persistent object id that is not `EntityUid`, usable by a gun, a car, or a tool. Next.
 5. Generic container and inventory reads and inserts. No weapon slot node.
 6. BUI list, selection, and an action that carries an id. The server graph decides the result.
 7. Only then the first weapon graphs, laid out left to right as a chain.

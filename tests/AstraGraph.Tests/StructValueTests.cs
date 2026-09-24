@@ -336,10 +336,12 @@ public sealed class StructValueTests
         private readonly List<NodeDocument> _nodes = [];
         private readonly List<ConnectionDocument> _connections = [];
 
-        public static PinSpec ExecIn(string name) => new(name, PinDirection.Input, PinKind.Execution, "", null);
-        public static PinSpec ExecOut(string name) => new(name, PinDirection.Output, PinKind.Execution, "", null);
-        public static PinSpec DataIn(string name, string type, string? value = null) => new(name, PinDirection.Input, PinKind.Data, type, value);
-        public static PinSpec DataOut(string name, string type) => new(name, PinDirection.Output, PinKind.Data, type, null);
+#pragma warning disable CA1822
+        public PinSpec ExecIn(string name) => new(name, PinDirection.Input, PinKind.Execution, "", null);
+        public PinSpec ExecOut(string name) => new(name, PinDirection.Output, PinKind.Execution, "", null);
+        public PinSpec DataIn(string name, string type, string? value = null) => new(name, PinDirection.Input, PinKind.Data, type, value);
+        public PinSpec DataOut(string name, string type) => new(name, PinDirection.Output, PinKind.Data, type, null);
+#pragma warning restore CA1822
 
         public NodeDocument Node(string type, string name, Dictionary<string, string>? properties, params PinSpec[] pins)
         {
