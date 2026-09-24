@@ -34,6 +34,8 @@ describe("graph editing", () => {
     const identified = addNode(graph, "PersistentId.New", "Id");
     expect(identified.nodes[2].pins.map((pin) => pin.name)).toEqual(["In", "Out", "Id"]);
     expect(identified.nodes[2].properties.IsDeterministic).toBe("false");
+    const inserted = addNode(identified, "Container.Insert", "Insert");
+    expect(inserted.nodes[3].pins.map((pin) => pin.name)).toEqual(["In", "Out", "Owner", "Container", "Item", "Success"]);
   });
 
   it("keeps variable persistence across serialize and finds a reference", () => {

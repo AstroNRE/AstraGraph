@@ -332,6 +332,80 @@ const gameplayPins: Record<string, { properties?: Record<string, string>; pins: 
       { name: "Id", direction: "output", kind: "data", dataType: "PersistentObjectId" }
     ]
   },
+  "Container.Has": {
+    pins: [
+      { name: "Owner", direction: "input", kind: "data", dataType: "EntityUid" },
+      { name: "Container", direction: "input", kind: "data", dataType: "string" },
+      { name: "Found", direction: "output", kind: "data", dataType: "bool" }
+    ]
+  },
+  "Container.Insert": {
+    pins: [
+      { name: "In", direction: "input", kind: "execution" },
+      { name: "Out", direction: "output", kind: "execution" },
+      { name: "Owner", direction: "input", kind: "data", dataType: "EntityUid" },
+      { name: "Container", direction: "input", kind: "data", dataType: "string" },
+      { name: "Item", direction: "input", kind: "data", dataType: "EntityUid" },
+      { name: "Success", direction: "output", kind: "data", dataType: "bool" }
+    ]
+  },
+  "Container.Remove": {
+    pins: [
+      { name: "In", direction: "input", kind: "execution" },
+      { name: "Out", direction: "output", kind: "execution" },
+      { name: "Owner", direction: "input", kind: "data", dataType: "EntityUid" },
+      { name: "Container", direction: "input", kind: "data", dataType: "string" },
+      { name: "Item", direction: "input", kind: "data", dataType: "EntityUid" },
+      { name: "Success", direction: "output", kind: "data", dataType: "bool" }
+    ]
+  },
+  "Container.Contents": {
+    pins: [
+      { name: "Owner", direction: "input", kind: "data", dataType: "EntityUid" },
+      { name: "Container", direction: "input", kind: "data", dataType: "string" },
+      { name: "Contents", direction: "output", kind: "data", dataType: "object" }
+    ]
+  },
+  "Inventory.Find": {
+    pins: [
+      { name: "Owner", direction: "input", kind: "data", dataType: "EntityUid" },
+      { name: "Prototype", direction: "input", kind: "data", dataType: "string" },
+      { name: "Item", direction: "output", kind: "data", dataType: "EntityUid" }
+    ]
+  },
+  "Inventory.Contains": {
+    pins: [
+      { name: "Owner", direction: "input", kind: "data", dataType: "EntityUid" },
+      { name: "Item", direction: "input", kind: "data", dataType: "EntityUid" },
+      { name: "Found", direction: "output", kind: "data", dataType: "bool" }
+    ]
+  },
+  "Inventory.TryInsert": {
+    pins: [
+      { name: "In", direction: "input", kind: "execution" },
+      { name: "Out", direction: "output", kind: "execution" },
+      { name: "Owner", direction: "input", kind: "data", dataType: "EntityUid" },
+      { name: "Container", direction: "input", kind: "data", dataType: "string" },
+      { name: "Item", direction: "input", kind: "data", dataType: "EntityUid" },
+      { name: "Success", direction: "output", kind: "data", dataType: "bool" }
+    ]
+  },
+  "Inventory.TryRemove": {
+    pins: [
+      { name: "In", direction: "input", kind: "execution" },
+      { name: "Out", direction: "output", kind: "execution" },
+      { name: "Owner", direction: "input", kind: "data", dataType: "EntityUid" },
+      { name: "Item", direction: "input", kind: "data", dataType: "EntityUid" },
+      { name: "Success", direction: "output", kind: "data", dataType: "bool" }
+    ]
+  },
+  "Entity.GetHeldItem": {
+    pins: [
+      { name: "Holder", direction: "input", kind: "data", dataType: "EntityUid" },
+      { name: "Container", direction: "input", kind: "data", dataType: "string" },
+      { name: "Item", direction: "output", kind: "data", dataType: "EntityUid" }
+    ]
+  },
   "Native.GetMember": {
     properties: { Member: "" },
     pins: [

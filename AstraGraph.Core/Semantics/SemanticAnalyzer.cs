@@ -584,6 +584,11 @@ public sealed class SemanticAnalyzer
                 return new AstYieldContinuationStatement(ContinuationKind.DoAfter, [delayExpr], node.Id.Value, node.Id);
             }
 
+            if (IsMutatingContainer(nodeType))
+            {
+                return new AstVariableAssignStatement(SymbolId.Empty, ResultName(node), LowerCall(node), node.Id);
+            }
+
             if (nodeType.Equals("Native.Call", StringComparison.OrdinalIgnoreCase) ||
                 nodeType.Equals("Graph.Call", StringComparison.OrdinalIgnoreCase))
             {
@@ -696,7 +701,24 @@ public sealed class SemanticAnalyzer
             nodeType.Equals("List.Add", StringComparison.OrdinalIgnoreCase) ||
             nodeType.Equals("List.Set", StringComparison.OrdinalIgnoreCase) ||
             nodeType.Equals("List.Remove", StringComparison.OrdinalIgnoreCase) ||
-            nodeType.Equals("PersistentId.New", StringComparison.OrdinalIgnoreCase);
+            nodeType.Equals("PersistentId.New", StringComparison.OrdinalIgnoreCase) ||
+            IsMutatingContainer(nodeType);
+
+        private static bool IsMutatingContainer(string nodeType) =>
+            nodeType.Equals("Container.Insert", StringComparison.OrdinalIgnoreCase) ||
+            nodeType.Equals("Container.Remove", StringComparison.OrdinalIgnoreCase) ||
+            nodeType.Equals("Inventory.TryInsert", StringComparison.OrdinalIgnoreCase) ||
+            nodeType.Equals("Inventory.TryRemove", StringComparison.OrdinalIgnoreCase);
+
+        private static bool IsContainerQuery(string nodeType) =>
+            nodeType.Equals("Container.Has", StringComparison.OrdinalIgnoreCase) ||
+            nodeType.Equals("Container.Contents", StringComparison.OrdinalIgnoreCase) ||
+            nodeType.Equals("Inventory.Find", StringComparison.OrdinalIgnoreCase) ||
+            nodeType.Equals("Inventory.Contains", StringComparison.OrdinalIgnoreCase) ||
+            nodeType.Equals("Entity.GetHeldItem", StringComparison.OrdinalIgnoreCase);
+
+        private static bool IsGameplayContainer(string nodeType) =>
+            IsMutatingContainer(nodeType) || IsContainerQuery(nodeType);
 
         public AstExpression LowerPinExpression(PinDocument pin)
         {
@@ -726,7 +748,8 @@ public sealed class SemanticAnalyzer
                 var nodeType = node.NodeType;
 
                 if (nodeType.Equals("Native.Call", StringComparison.OrdinalIgnoreCase) ||
-                    nodeType.Equals("Graph.Call", StringComparison.OrdinalIgnoreCase))
+                    nodeType.Equals("Graph.Call", StringComparison.OrdinalIgnoreCase) ||
+                    IsContainerQuery(nodeType))
                 {
                     return LowerCall(node, pin);
                 }
@@ -972,7 +995,9 @@ public sealed class SemanticAnalyzer
             var nodeType = node.NodeType;
             var descriptor = nodeType.Equals("Graph.Call", StringComparison.OrdinalIgnoreCase)
                 ? "Graph.Call"
-                : node.Properties.GetValueOrDefault("Method", string.Empty);
+                : IsGameplayContainer(nodeType)
+                    ? nodeType
+                    : node.Properties.GetValueOrDefault("Method", string.Empty);
             var args = new List<AstExpression>();
             if (descriptor == "Graph.Call")
             {

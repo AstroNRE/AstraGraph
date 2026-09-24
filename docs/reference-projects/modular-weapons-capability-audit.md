@@ -33,7 +33,7 @@ A graph can subscribe to a Robust event, read a schema component, branch, loop, 
 | component add / remove | Runtime only | Query model can add and remove. No graph node. |
 | prototype access | Partial | A prototype id string can be passed to `Entity.SpawnAt`. No field read from a prototype. |
 | entity spawn / delete | Working end-to-end | `Entity.Spawn`, `SpawnAt`, `Delete`, `QueueDelete`, `Exists`. |
-| inventory / containers | Not implemented | Not in `GameplayBindings`. |
+| inventory / containers | Partial | Named Robust containers: has, insert, remove, contents, find by prototype, contains, held item. No weapon slot. Nested inventory and hand-specific active-item rules are still the engine's. |
 | DoAfter / Delay | Partial | Nodes and `YieldContinuation` exist. A yielded call stack is not a save. |
 | scheduled work | Not implemented | No `ScheduleAt` or `RepeatEvery`. |
 | game time | Partial | `TimeSpan` is a primitive name. No `Now` / `Since`. |
@@ -51,8 +51,7 @@ The slice is: place a gun on a bench, open the Astra UI, see parts, swap a barre
 
 That fails today for four generic reasons:
 
-1. The bench cannot ask a container or inventory for the gun and the loose parts.
-2. The UI cannot show a server-owned list of parts and send `InstallPart` as an intent. It can show a static page and a button name.
+1. The UI cannot show a server-owned list of parts and send `InstallPart` as an intent. It can show a static page and a button name.
 
 Heat, fouling, manufacturing lots, RNG, curves, and localization are later slices. They are absent and should stay absent until the slice above exists.
 
@@ -64,7 +63,7 @@ Do not add a second type system. Extend `SchemaType`, `AstraList`, and `Persiste
 2. `List<T>` mutate: add, remove, get, set, count, foreach. `T` may be a struct. Add, remove, get, set, and count are done. Foreach already walked a list.
 3. Persist those values in the existing snapshot, versioned, by schema id and field id. One bad object must not wipe the file. Done as format 2. Format 1 still loads.
 4. Persistent object id that is not `EntityUid`, usable by a gun, a car, or a tool. Done. `PersistentObjectId` is a value, stored in a struct field, and it round-trips in the state file. `PersistentId.New` is rejected on a predicted graph.
-5. Generic container and inventory reads and inserts. No weapon slot node.
+5. Generic container and inventory reads and inserts. No weapon slot node. Done. The slot name is a string. `Container.Has`, `Insert`, `Remove`, `Contents`, `Inventory.Find`, `Contains`, `TryInsert`, `TryRemove`, and `Entity.GetHeldItem`. A missing container is a failed insert, not a new slot.
 6. BUI list, selection, and an action that carries an id. The server graph decides the result.
 7. Only then the first weapon graphs, laid out left to right as a chain.
 

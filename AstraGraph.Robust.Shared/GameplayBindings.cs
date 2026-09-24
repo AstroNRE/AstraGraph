@@ -1,5 +1,6 @@
 using System.Reflection;
 using AstraGraph.Binding;
+using Robust.Shared.Containers;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Map;
 
@@ -36,7 +37,139 @@ public static class GameplayBindings
         Register(catalog, nameof(GetCoordinates), "Entity.GetCoordinates");
         Register(catalog, nameof(SpawnEntity), "Entity.SpawnAt");
         Register(catalog, nameof(QueueDeleteEntity), "Entity.QueueDelete");
+        Register(catalog, nameof(ContainerHas), "Container.Has");
+        Register(catalog, nameof(ContainerInsert), "Container.Insert");
+        Register(catalog, nameof(ContainerRemove), "Container.Remove");
+        Register(catalog, nameof(ContainerContents), "Container.Contents");
+        Register(catalog, nameof(InventoryFind), "Inventory.Find");
+        Register(catalog, nameof(InventoryContains), "Inventory.Contains");
+        Register(catalog, nameof(InventoryTryInsert), "Inventory.TryInsert");
+        Register(catalog, nameof(InventoryTryRemove), "Inventory.TryRemove");
+        Register(catalog, nameof(GetHeldItem), "Entity.GetHeldItem");
     }
+
+    public static bool ContainerHas(int owner, string containerId) =>
+        TryGetContainer(owner, containerId, out _);
+
+    public static bool ContainerInsert(int owner, string containerId, int item)
+    {
+        if (!TryGetContainer(owner, containerId, out var container))
+        {
+            return false;
+        }
+
+        return Containers.Insert(new EntityUid(item), container);
+    }
+
+    public static bool ContainerRemove(int owner, string containerId, int item)
+    {
+        if (!TryGetContainer(owner, containerId, out var container))
+        {
+            return false;
+        }
+
+        var uid = new EntityUid(item);
+        return container.Contains(uid) && Containers.Remove(uid, container);
+    }
+
+    public static int[] ContainerContents(int owner, string containerId)
+    {
+        if (!TryGetContainer(owner, containerId, out var container))
+        {
+            return [];
+        }
+
+        var contained = container.ContainedEntities;
+        var ids = new int[contained.Count];
+        for (var i = 0; i < contained.Count; i++)
+        {
+            ids[i] = (int)contained[i];
+        }
+
+        return ids;
+    }
+
+    public static int InventoryFind(int owner, string prototypeId)
+    {
+        if (!Entities.TryGetComponent(new EntityUid(owner), out ContainerManagerComponent? manager) || manager is null)
+        {
+            return 0;
+        }
+
+        foreach (var container in manager.Containers.Values)
+        {
+            foreach (var contained in container.ContainedEntities)
+            {
+                if (Entities.TryGetComponent(contained, out MetaDataComponent? metadata) &&
+                    metadata?.EntityPrototype?.ID == prototypeId)
+                {
+                    return (int)contained;
+                }
+            }
+        }
+
+        return 0;
+    }
+
+    public static bool InventoryContains(int owner, int item)
+    {
+        if (!Entities.TryGetComponent(new EntityUid(owner), out ContainerManagerComponent? manager) || manager is null)
+        {
+            return false;
+        }
+
+        var uid = new EntityUid(item);
+        foreach (var container in manager.Containers.Values)
+        {
+            if (container.Contains(uid))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static bool InventoryTryInsert(int owner, string containerId, int item) =>
+        ContainerInsert(owner, containerId, item);
+
+    public static bool InventoryTryRemove(int owner, int item)
+    {
+        if (!InventoryContains(owner, item))
+        {
+            return false;
+        }
+
+        return Containers.RemoveEntity(new EntityUid(owner), new EntityUid(item));
+    }
+
+    public static int GetHeldItem(int holder, string containerId)
+    {
+        if (!TryGetContainer(holder, containerId, out var container) || container.Count == 0)
+        {
+            return 0;
+        }
+
+        return (int)container.ContainedEntities[0];
+    }
+
+    private static bool TryGetContainer(int owner, string containerId, out BaseContainer container)
+    {
+        if (string.IsNullOrEmpty(containerId) ||
+            !Entities.EntityExists(new EntityUid(owner)) ||
+            !Containers.TryGetContainer(new EntityUid(owner), containerId, out var found) ||
+            found is null)
+        {
+            container = null!;
+            return false;
+        }
+
+        container = found;
+        return true;
+    }
+
+    private static SharedContainerSystem Containers =>
+        Entities.EntitySysManager.GetEntitySystem<SharedContainerSystem>();
 
     public static bool EntityExists(int entity) =>
         Entities.EntityExists(new EntityUid(entity));
