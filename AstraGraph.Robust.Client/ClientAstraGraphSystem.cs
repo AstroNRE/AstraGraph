@@ -19,6 +19,7 @@ public sealed class ClientAstraGraphSystem : SharedAstraGraphSystem
     private AstraLocalBridge? _localBridge;
     private AstraInGameLauncher? _launcher;
     private AstraRuntimeStatusReporter? _statusReporter;
+    private RobustUiPreviewHost? _preview;
 
     public RobustUiControlFactory ControlFactory => _controlFactory;
     public RobustUiReconciler Reconciler => _reconciler;
@@ -26,6 +27,7 @@ public sealed class ClientAstraGraphSystem : SharedAstraGraphSystem
     public AstraInGameLauncher? Launcher => _launcher;
     public AstraRuntimeStatusReporter? StatusReporter => _statusReporter;
     public string? StudioUnavailableReason { get; private set; }
+    public string PreviewMode => _preview?.Mode ?? "headless";
 
     public override void Initialize()
     {
@@ -107,6 +109,16 @@ public sealed class ClientAstraGraphSystem : SharedAstraGraphSystem
         Launcher?.OpenRuntimeError(graphId, nodeId, diagnosticCode, executionTick);
     }
 
+    /// <summary>
+    /// Previews a UI document in the live Robust window when the client is running, otherwise headless.
+    /// </summary>
+    public string PreviewUi(AstraGraph.UI.Model.UiDocument document)
+    {
+        _preview ??= new RobustUiPreviewHost(_controlFactory);
+        _preview.Update(document, out _);
+        return _preview.Mode;
+    }
+
     public override void Shutdown()
     {
         base.Shutdown();
@@ -114,5 +126,7 @@ public sealed class ClientAstraGraphSystem : SharedAstraGraphSystem
         _localBridge = null;
         _launcher = null;
         _statusReporter = null;
+        _preview?.Close();
+        _preview = null;
     }
 }

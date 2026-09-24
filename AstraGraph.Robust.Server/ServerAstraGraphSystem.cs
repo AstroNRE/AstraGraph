@@ -1,4 +1,5 @@
 using AstraGraph.Core;
+using AstraGraph.UI.Catalog;
 using AstraGraph.HotReload;
 using AstraGraph.Persistence;
 using AstraGraph.Persistence.Discovery;
@@ -121,6 +122,7 @@ public sealed class ServerAstraGraphSystem : SharedAstraGraphSystem
         _facade = AstraGraphFacade.ForServer(Host, composed);
         _storageLayout = composed.Storage;
         _hostOptions = composed;
+        UiCatalogRegistry.IndexConsumerAssemblies(composed.UiAssemblies);
         _hotReloadManager = _facade.Reloader;
         _persistentStateStore = _facade.PersistentState ?? new PersistentStateStore(_storageLayout);
         _bootstrapLoader = _facade.Discovery ?? new BootstrapLoader(_storageLayout);

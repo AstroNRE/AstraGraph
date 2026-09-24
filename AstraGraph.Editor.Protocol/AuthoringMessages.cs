@@ -286,7 +286,9 @@ public sealed record UiNodeDto(
     int? MinWidth = null,
     int? MinHeight = null,
     IReadOnlyList<string>? StyleClasses = null,
-    string ValueSource = "Constant");
+    string ValueSource = "Constant",
+    string? ControlTypeId = null,
+    IReadOnlyDictionary<string, string>? Properties = null);
 
 public sealed record UiBindingDto(
     string BindingId,
@@ -309,7 +311,38 @@ public sealed record UiDocumentDto(
     UiNodeDto Root,
     IReadOnlyList<UiBindingDto>? Bindings = null,
     IReadOnlyList<UiEventDto>? Events = null,
-    IReadOnlyDictionary<string, string>? LocalState = null);
+    IReadOnlyDictionary<string, string>? LocalState = null,
+    IReadOnlyList<UiStateVariableDto>? StateVariables = null,
+    string DocumentKind = "UI");
+
+public sealed record UiStateVariableDto(
+    string Id,
+    string Name,
+    string TypeName,
+    string? DefaultValue = null,
+    string Scope = "Local");
+
+public sealed record UiControlDescriptorDto(
+    string TypeId,
+    string DisplayName,
+    string Category,
+    bool CanHaveChildren,
+    IReadOnlyList<UiPropertyDescriptorDto> Properties,
+    IReadOnlyList<UiEventDescriptorDto> Events);
+
+public sealed record UiPropertyDescriptorDto(
+    string Name,
+    string TypeName,
+    string EditorKind,
+    bool CanWrite,
+    string? Category = null,
+    string? DefaultValue = null,
+    IReadOnlyList<string>? EnumValues = null);
+
+public sealed record UiEventDescriptorDto(
+    string Name,
+    string EventType,
+    IReadOnlyList<string> Payload);
 
 public sealed record SchemaDto(
     string Id,

@@ -65,12 +65,17 @@ public sealed record Diagnostic(
     PinId? PinId = null,
     SymbolId? SymbolId = null,
     string? SuggestedFix = null,
-    NodeId? RelatedNodeId = null)
+    NodeId? RelatedNodeId = null,
+    string? ElementId = null,
+    string? PropertyName = null,
+    string? BindingId = null)
 {
     public override string ToString()
     {
         var loc = NodeId.HasValue ? $" [Node: {NodeId.Value}]" : string.Empty;
         if (PinId.HasValue) loc += $" [Pin: {PinId.Value}]";
+        if (!string.IsNullOrEmpty(ElementId)) loc += $" [Element: {ElementId}]";
+        if (!string.IsNullOrEmpty(PropertyName)) loc += $" [Property: {PropertyName}]";
         return $"{Severity} {Code}: {Message}{loc}";
     }
 }

@@ -17,7 +17,10 @@ public enum UiElementType
     TextureRect,
     ProgressBar,
     ScrollContainer,
-    GridContainer
+    GridContainer,
+    LayoutContainer,
+    ItemList,
+    Custom
 }
 
 /// <summary>

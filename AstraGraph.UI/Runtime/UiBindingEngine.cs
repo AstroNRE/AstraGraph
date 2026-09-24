@@ -70,7 +70,7 @@ public sealed class UiBindingEngine : IDisposable
         if (_isUpdating) return;
 
         // When a control property changes (e.g. TextChanged), sync back to State for TwoWay / OneWayToSource
-        if (string.Equals(eventName, "TextChanged", StringComparison.OrdinalIgnoreCase))
+        if (IsTextEvent(eventName))
         {
             try
             {
@@ -81,7 +81,7 @@ public sealed class UiBindingEngine : IDisposable
                         string.Equals(b.TargetProperty, "Text", StringComparison.OrdinalIgnoreCase) &&
                         b.Direction is BindingDirection.TwoWay or BindingDirection.OneWayToSource)
                     {
-                        _stateManager.SetVariable(b.StateVariable, control.Text);
+                        _stateManager.SetVariable(b.StateVariable, payload ?? control.Text);
                     }
                 }
             }
@@ -91,6 +91,10 @@ public sealed class UiBindingEngine : IDisposable
             }
         }
     }
+
+    private static bool IsTextEvent(string eventName) =>
+        eventName.Equals("TextChanged", StringComparison.OrdinalIgnoreCase)
+        || eventName.Equals("OnTextChanged", StringComparison.OrdinalIgnoreCase);
 
     public void Dispose()
     {

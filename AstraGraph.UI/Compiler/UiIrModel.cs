@@ -14,7 +14,8 @@ public sealed record CreateWidgetInstruction(
     string? Name,
     int? MinWidth,
     int? MinHeight,
-    UiOrientation Orientation) : UiIrInstruction;
+    UiOrientation Orientation,
+    string ControlTypeId = "") : UiIrInstruction;
 
 public sealed record SetPropertyInstruction(
     string ElementId,

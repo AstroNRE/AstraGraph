@@ -36,6 +36,25 @@ public sealed class UiDocument
     public Dictionary<string, object?> LocalStateDefaults { get; set; } = [];
 
     /// <summary>
+    /// Typed state schema. Empty documents keep using <see cref="LocalStateDefaults"/> only.
+    /// </summary>
+    public List<UiStateVariable> StateVariables { get; set; } = [];
+
+    /// <summary>
+    /// Client or server logic steps authored from control events and BUI actions.
+    /// </summary>
+    public List<UiLogicStep> Logic { get; set; } = [];
+
+    /// <summary>
+    /// Typed BUI contract. Ordinary UI documents leave this empty.
+    /// </summary>
+    public UiBuiContractDocument? Contract { get; set; }
+
+    public List<UiComponentDefinition> Components { get; set; } = [];
+
+    public string DocumentKind { get; set; } = "UI";
+
+    /// <summary>
     /// Traverses all elements in the view tree recursively.
     /// </summary>
     public IEnumerable<UiElementNode> AllElements()

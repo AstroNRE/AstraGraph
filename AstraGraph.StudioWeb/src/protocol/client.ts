@@ -127,7 +127,12 @@ export class AuthoringClient {
     save: (document: { id: string; name: string; width: number; height: number; root: unknown }) =>
       this.roundtrip("ui.save.request", { document }, "ui.save.response"),
     compile: (document: { id: string; name: string; width: number; height: number; root: unknown }) =>
-      this.roundtrip("ui.compile.request", { document }, "ui.compile.response")
+      this.roundtrip("ui.compile.request", { document }, "ui.compile.response"),
+    catalog: () => this.roundtrip("ui.catalog.request", {}, "ui.catalog.response"),
+    preview: (document: { id: string; name: string; width: number; height: number; root: unknown }, close = false) =>
+      this.roundtrip("ui.preview.request", { document, close }, "ui.preview.response"),
+    patch: (documentId: string, operations: { kind: string; elementId: string; propertyName?: string; value?: string; parentId?: string; index?: number; fromIndex?: number; controlTypeId?: string }[], preview = true) =>
+      this.roundtrip("ui.patch.request", { documentId, operations, preview }, "ui.preview.response")
   };
 
   sandbox = {

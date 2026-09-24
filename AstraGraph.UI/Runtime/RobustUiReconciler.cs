@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using AstraGraph.UI.Catalog;
 using AstraGraph.UI.Compiler;
 
 namespace AstraGraph.UI.Runtime;
@@ -14,14 +16,20 @@ public sealed class ReconcileResult
 public sealed class RobustUiReconciler
 {
     private readonly IRobustUiControlFactory _factory;
+    private readonly Stopwatch _reconcile = new();
 
     public RobustUiReconciler(IRobustUiControlFactory factory)
     {
         _factory = factory;
     }
 
+    public long LastReconcileMicroseconds { get; private set; }
+
+    public int LastControlCount { get; private set; }
+
     public ReconcileResult Reconcile(UiIrProgram program, IRobustUiControl? existingRoot = null)
     {
+        _reconcile.Restart();
         var existingMap = new Dictionary<string, IRobustUiControl>(StringComparer.Ordinal);
         if (existingRoot != null)
         {
@@ -35,14 +43,20 @@ public sealed class RobustUiReconciler
         {
             if (inst is CreateWidgetInstruction cw)
             {
-                if (existingMap.TryGetValue(cw.ElementId, out var existing) && existing.ElementType == cw.ElementType)
+                var typeId = string.IsNullOrEmpty(cw.ControlTypeId) ? UiControlIds.FromLegacy(cw.ElementType) : cw.ControlTypeId;
+                if (existingMap.TryGetValue(cw.ElementId, out var existing) && SameType(existing, typeId))
                 {
                     existing.Name = cw.Name;
                     newControls[cw.ElementId] = existing;
                 }
                 else
                 {
-                    var created = _factory.CreateControl(cw.ElementId, cw.ElementType, cw.Name, cw.MinWidth, cw.MinHeight, cw.Orientation);
+                    if (existing != null)
+                    {
+                        existing.Parent?.RemoveChild(existing);
+                    }
+
+                    var created = _factory.CreateControl(cw.ElementId, typeId, cw.Name, cw.MinWidth, cw.MinHeight, cw.Orientation);
                     newControls[cw.ElementId] = created;
                 }
             }
@@ -60,20 +74,52 @@ public sealed class RobustUiReconciler
             }
         }
 
-        // 3. Process attachments (parent -> child)
+        foreach (var existing in existingMap.Values)
+        {
+            if (!newControls.ContainsKey(existing.Id))
+            {
+                existing.Parent?.RemoveChild(existing);
+            }
+        }
+
+        var desiredChildren = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (var inst in program.Instructions)
         {
             if (inst is AttachChildInstruction ac)
             {
-                if (newControls.TryGetValue(ac.ParentId, out var parent) &&
-                    newControls.TryGetValue(ac.ChildId, out var child))
+                if (!desiredChildren.TryGetValue(ac.ParentId, out var children))
                 {
-                    if (child.Parent != parent)
-                    {
-                        child.Parent?.RemoveChild(child);
-                        parent.AddChild(child);
-                    }
+                    children = [];
+                    desiredChildren[ac.ParentId] = children;
                 }
+
+                children.Add(ac.ChildId);
+            }
+        }
+
+        foreach (var parent in newControls.Values)
+        {
+            var desired = desiredChildren.TryGetValue(parent.Id, out var ids) ? ids : [];
+            var current = parent.Children.Select(child => child.Id).ToArray();
+            if (current.SequenceEqual(desired, StringComparer.Ordinal))
+            {
+                continue;
+            }
+
+            foreach (var child in parent.Children.ToList())
+            {
+                parent.RemoveChild(child);
+            }
+
+            foreach (var childId in desired)
+            {
+                if (!newControls.TryGetValue(childId, out var child))
+                {
+                    continue;
+                }
+
+                child.Parent?.RemoveChild(child);
+                parent.AddChild(child);
             }
         }
 
@@ -82,12 +128,20 @@ public sealed class RobustUiReconciler
             throw new InvalidOperationException($"Failed to reconcile: root element '{program.RootElementId}' was not created.");
         }
 
+        _reconcile.Stop();
+        LastReconcileMicroseconds = (long)(_reconcile.Elapsed.TotalMilliseconds * 1000);
+        LastControlCount = newControls.Count;
+
         return new ReconcileResult
         {
             RootControl = rootControl,
             ControlsById = newControls
         };
     }
+
+    private static bool SameType(IRobustUiControl control, string typeId) =>
+        string.Equals(control.ControlTypeId, typeId, StringComparison.Ordinal)
+        || (string.IsNullOrEmpty(control.ControlTypeId) && control.ElementType == UiControlIds.ToLegacy(typeId));
 
     private static void CollectExisting(IRobustUiControl control, Dictionary<string, IRobustUiControl> map)
     {

@@ -33,6 +33,7 @@ import { SchemaEditor, type SchemaDocument } from "./SchemaEditor";
 import { applyQuickFix, problemGroup, suggestedFixFor } from "./problems";
 import { rankTexts } from "../search/fuzzy";
 import { UiDesigner, type UiDocumentModel } from "./UiDesigner";
+import type { UiControlInfo } from "./uiTree";
 import { chooseRecovery, recallDraft, rememberDraft } from "../documents/recovery";
 
 const palette = [
@@ -78,6 +79,8 @@ export function App() {
   const [headRevision, setHeadRevision] = useState(emptyRevision);
   const [recoveryJson, setRecoveryJson] = useState("");
   const [uiDocuments, setUiDocuments] = useState<UiDocumentModel[]>([]);
+  const [uiCatalog, setUiCatalog] = useState<UiControlInfo[]>([]);
+  const [uiStyles, setUiStyles] = useState<string[]>([]);
   const [graphQuery, setGraphQuery] = useState("");
   const [sideFilter, setSideFilter] = useState("All");
   const [compileMs, setCompileMs] = useState(0);
@@ -332,6 +335,13 @@ export function App() {
           setGraphs(items);
           setClientCount(Number(listed.body.clientCount ?? 0));
           setMigrationSummary(String(listed.body.migrationSummary ?? "No schema migration"));
+          try {
+            const uiCatalogResponse = await authoring.ui.catalog();
+            if (!disposed && Array.isArray(uiCatalogResponse.body.controls)) setUiCatalog(uiCatalogResponse.body.controls as UiControlInfo[]);
+            if (!disposed && Array.isArray(uiCatalogResponse.body.styles)) setUiStyles(uiCatalogResponse.body.styles as string[]);
+          } catch {
+            if (!disposed) setUiCatalog([]);
+          }
           setCatalogStatus("loading");
           try {
             const catalogResponse = await authoring.catalog.query();
@@ -1037,7 +1047,7 @@ export function App() {
             />
           ) : null}
           {activity === "types" ? <SchemaEditor schemas={schemas} note={schemaNote} onSave={(schema) => void saveSchema(schema)} /> : null}
-          {activity === "design" ? <UiDesigner documents={uiDocuments} layout={uiLayout} onSave={(document) => void saveUi(document)} onDiagnose={(document) => void diagnoseUi(document)} /> : null}
+          {activity === "design" ? <UiDesigner documents={uiDocuments} catalog={uiCatalog} styles={uiStyles} layout={uiLayout} onSave={(document) => void saveUi(document)} onDiagnose={(document) => void diagnoseUi(document)} onPreview={(document) => void client?.ui.preview(document)} onPatch={(documentId, operations) => void client?.ui.patch(documentId, operations)} onOpenGraph={(graph) => { setActivity("explorer"); setStack({ past: [], present: graph, future: [] }); setSelected(""); }} /> : null}
           {activity === "runtime" ? (
             <div>
               <button type="button" onClick={() => void loadRuntime()}>Refresh runtime</button>
@@ -1421,7 +1431,7 @@ export function App() {
           <form onClick={(event) => event.stopPropagation()}>
             <input autoFocus placeholder="Add node" onKeyDown={(event) => { if (event.key === "Escape") setPaletteOpen(false); }} />
             <ul className="list">
-              {palette.map(([nodeType, name]) => (
+              {(graph.kind === "UI" ? [...palette, ["UI.OnEvent", "On UI event"], ["UI.GetProperty", "Get property"], ["UI.SetProperty", "Set property"], ["UI.Focus", "Focus"], ["UI.OnAction", "On BUI action"], ["UI.Notify", "Notify"]] as const : palette).map(([nodeType, name]) => (
                 <li key={nodeType}><button type="button" onClick={() => insert(nodeType, name)}>{name} <span className="muted">{nodeType}</span></button></li>
               ))}
             </ul>

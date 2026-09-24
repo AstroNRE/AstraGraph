@@ -14,7 +14,8 @@ public static class AstraBuiRobustAdapter
             ContractHash = contract.ContractHash,
             ClientActions = contract.ClientActions.ToList(),
             ServerNotifications = contract.ServerNotifications.ToList(),
-            Values = contract.State.ToDictionary(pair => pair.Key, pair => pair.Value?.ToString() ?? "")
+            Values = contract.State.ToDictionary(pair => pair.Key, pair => pair.Value?.ToString() ?? ""),
+            TypedValues = UiValueCodec.EncodeMap(contract.State)
         };
     }
 
@@ -26,7 +27,9 @@ public static class AstraBuiRobustAdapter
             return false;
         }
 
-        var values = astra.Values.ToDictionary(pair => pair.Key, pair => (object?)pair.Value);
+        var values = astra.TypedValues.Count > 0
+            ? UiValueCodec.DecodeMap(astra.TypedValues)
+            : astra.Values.ToDictionary(pair => pair.Key, pair => (object?)pair.Value);
         return bridge.ApplyAuthoritative(new AstraBuiContract(
             values,
             astra.ClientActions,

@@ -12,6 +12,8 @@ public sealed class AstraBuiState : BoundUserInterfaceState
 
     public Dictionary<string, string> Values { get; set; } = [];
 
+    public Dictionary<string, string> TypedValues { get; set; } = [];
+
     public List<string> ClientActions { get; set; } = [];
 
     public List<string> ServerNotifications { get; set; } = [];

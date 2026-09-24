@@ -1,3 +1,4 @@
+using AstraGraph.UI.Catalog;
 using AstraGraph.UI.Model;
 
 namespace AstraGraph.UI.Runtime;
@@ -9,6 +10,7 @@ public interface IRobustUiControl
 {
     string Id { get; }
     UiElementType ElementType { get; }
+    string ControlTypeId { get; }
     string? Name { get; set; }
     string? Text { get; set; }
     bool Visible { get; set; }
@@ -28,6 +30,9 @@ public interface IRobustUiControl
 public interface IRobustUiControlFactory
 {
     IRobustUiControl CreateControl(string id, UiElementType type, string? name, int? minWidth, int? minHeight, UiOrientation orientation);
+
+    IRobustUiControl CreateControl(string id, string controlTypeId, string? name, int? minWidth, int? minHeight, UiOrientation orientation)
+        => CreateControl(id, UiControlIds.ToLegacy(controlTypeId), name, minWidth, minHeight, orientation);
 }
 
 /// <summary>
@@ -37,7 +42,9 @@ public sealed class MockRobustUiControl : IRobustUiControl
 {
     public string Id { get; }
     public UiElementType ElementType { get; }
+    public string ControlTypeId { get; set; }
     public string? Name { get; set; }
+    public bool IsFocused { get; set; }
     public string? Text { get; set; }
     public bool Visible { get; set; } = true;
     public bool Enabled { get; set; } = true;
@@ -54,6 +61,7 @@ public sealed class MockRobustUiControl : IRobustUiControl
     {
         Id = id;
         ElementType = type;
+        ControlTypeId = UiControlIds.FromLegacy(type);
         Name = name;
     }
 
@@ -109,6 +117,30 @@ public sealed class MockRobustUiControlFactory : IRobustUiControlFactory
 {
     public IRobustUiControl CreateControl(string id, UiElementType type, string? name, int? minWidth, int? minHeight, UiOrientation orientation)
     {
-        return new MockRobustUiControl(id, type, name);
+        return CreateControl(id, UiControlIds.FromLegacy(type), name, minWidth, minHeight, orientation);
+    }
+
+    public IRobustUiControl CreateControl(string id, string controlTypeId, string? name, int? minWidth, int? minHeight, UiOrientation orientation)
+    {
+        var control = new MockRobustUiControl(id, UiControlIds.ToLegacy(controlTypeId), name)
+        {
+            ControlTypeId = controlTypeId
+        };
+        if (minWidth.HasValue)
+        {
+            control.SetProperty("MinWidth", minWidth.Value);
+        }
+
+        if (minHeight.HasValue)
+        {
+            control.SetProperty("MinHeight", minHeight.Value);
+        }
+
+        if (orientation == UiOrientation.Horizontal)
+        {
+            control.SetProperty("Orientation", orientation.ToString());
+        }
+
+        return control;
     }
 }

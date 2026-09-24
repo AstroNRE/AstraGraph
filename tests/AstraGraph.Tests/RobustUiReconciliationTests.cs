@@ -216,5 +216,27 @@ public sealed class RobustUiReconciliationTests
 
         await clientSystem.LocalBridge.StopAsync();
     }
+
+    [Test]
+    public void RobustPreview_StaysHeadlessWithoutAClientWindow()
+    {
+        var host = new RobustUiPreviewHost(new RobustUiControlFactory());
+        var document = new UiDocument
+        {
+            Id = GraphId.New(),
+            Name = "Preview",
+            Root = new UiElementNode
+            {
+                Id = "root",
+                ElementType = UiElementType.BoxContainer,
+                Children = [new UiElementNode { Id = "input", ElementType = UiElementType.LineEdit, Text = "open" }]
+            }
+        };
+
+        Assert.That(host.Update(document, out var diagnostics), Is.True, string.Join("; ", diagnostics.Select(item => item.Message)));
+        Assert.That(host.Mode, Is.EqualTo("headless"));
+        Assert.That(host.IsWindowOpen, Is.False);
+        Assert.That(host.Session!.ControlsById["input"].Text, Is.EqualTo("open"));
+    }
 #endif
 }

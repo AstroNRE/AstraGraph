@@ -11,6 +11,12 @@ public sealed class UiBindingDefinition
     public required string StateVariable { get; init; }
     public BindingDirection Direction { get; init; } = BindingDirection.OneWay;
     public string? Converter { get; init; }
+
+    /// <summary>
+    /// Optional expression over state names, for example <c>count + " left"</c>.
+    /// Bindings stay the preferred path. The expression is checked when compiling strict.
+    /// </summary>
+    public string? Expression { get; init; }
 }
 
 /// <summary>

@@ -1,5 +1,6 @@
 using AstraGraph.Core;
 using AstraGraph.Runtime.Security;
+using AstraGraph.UI.Serialization;
 
 namespace AstraGraph.Editor.Protocol;
 
@@ -507,6 +508,49 @@ public sealed class HistoryLkgResponseMsg : AuthoringMessage
     public RevisionId ActiveRevision { get; init; }
     public RevisionId ActivatedRevision { get; init; }
     public string? ErrorMessage { get; init; }
+}
+
+public sealed class UiCatalogRequestMsg : AuthoringMessage
+{
+    public override string Kind => "ui.catalog.request";
+    public string SessionId { get; init; } = string.Empty;
+}
+
+public sealed class UiCatalogResponseMsg : AuthoringMessage
+{
+    public override string Kind => "ui.catalog.response";
+    public AuthoringStatusCode Status { get; init; }
+    public IReadOnlyList<UiControlDescriptorDto> Controls { get; init; } = [];
+    public IReadOnlyList<string> Styles { get; init; } = [];
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class UiPreviewRequestMsg : AuthoringMessage
+{
+    public override string Kind => "ui.preview.request";
+    public string SessionId { get; init; } = string.Empty;
+    public UiDocumentDto? Document { get; init; }
+    public bool Close { get; init; }
+}
+
+public sealed class UiPreviewResponseMsg : AuthoringMessage
+{
+    public override string Kind => "ui.preview.response";
+    public AuthoringStatusCode Status { get; init; }
+    public bool Open { get; init; }
+    public bool Preserved { get; init; }
+    public int ElementCount { get; init; }
+    public string Mode { get; init; } = "headless";
+    public string? ErrorMessage { get; init; }
+}
+
+public sealed class UiPatchRequestMsg : AuthoringMessage
+{
+    public override string Kind => "ui.patch.request";
+    public string SessionId { get; init; } = string.Empty;
+    public string DocumentId { get; init; } = string.Empty;
+    public UiPatchOperation[] Operations { get; init; } = [];
+    public bool Preview { get; init; }
 }
 
 public sealed class UiCompileRequestMsg : AuthoringMessage

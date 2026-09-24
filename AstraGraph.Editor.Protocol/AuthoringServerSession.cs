@@ -6,9 +6,11 @@ using AstraGraph.Core;
 using AstraGraph.Editor.Core;
 using AstraGraph.Editor.Core.Search;
 using AstraGraph.HotReload;
+using AstraGraph.UI.Catalog;
 using AstraGraph.UI.Compiler;
 using AstraGraph.UI.Model;
 using AstraGraph.UI.Runtime;
+using AstraGraph.UI.Serialization;
 using AstraGraph.Persistence.Audit;
 using AstraGraph.Runtime.Debugging;
 using AstraGraph.Runtime.Profiling;
@@ -52,6 +54,7 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
     private readonly ConcurrentDictionary<RevisionId, int> _activation = new();
     private int _authoringTick;
     private readonly ConcurrentDictionary<GraphId, UiDocument> _uiDocuments = new();
+    private readonly UiPreviewSession _uiPreview = new(new MockRobustUiControlFactory());
     private NodePaletteIndexer? _palette;
 
     public AuthoringServerSession(
@@ -936,6 +939,15 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
 
             UiCompileRequestMsg req =>
                 CompileUi(req.SessionId, req.Document),
+
+            UiCatalogRequestMsg req =>
+                CatalogUi(req.SessionId),
+
+            UiPreviewRequestMsg req =>
+                PreviewUi(req.SessionId, req.Document, req.Close),
+
+            UiPatchRequestMsg req =>
+                PatchUi(req.SessionId, req.DocumentId, req.Operations, req.Preview),
 
             DraftRebaseRequestMsg req =>
                 RebaseDraft(req.SessionId, req.GraphId),
@@ -2016,7 +2028,7 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             }
 
             var stored = _uiDocuments[GraphId.FromString(saved.Document.Id)];
-            var compiled = UiCompiler.Compile(stored);
+            var compiled = UiCompiler.Compile(stored, UiCatalogRegistry.Shared, strict: true);
             var mounted = MountControls(stored.Root);
             return new UiCompileResponseMsg
             {
@@ -2043,20 +2055,14 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             throw new InvalidOperationException("UI tree is too deep.");
         }
 
-        if (!Enum.TryParse<UiElementType>(dto.ElementType, ignoreCase: true, out var elementType))
-        {
-            throw new InvalidOperationException($"Unknown UI control '{dto.ElementType}'.");
-        }
-
         if (!Enum.TryParse<UiOrientation>(dto.Orientation, ignoreCase: true, out var orientation))
         {
             orientation = UiOrientation.Vertical;
         }
 
-        return new UiElementNode
+        var node = new UiElementNode
         {
             Id = string.IsNullOrWhiteSpace(dto.Id) ? Guid.NewGuid().ToString("D") : dto.Id,
-            ElementType = elementType,
             Name = dto.Name,
             Text = dto.Text,
             Visible = dto.Visible,
@@ -2068,6 +2074,134 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             CustomProperties = new Dictionary<string, object?> { ["valueSource"] = string.IsNullOrWhiteSpace(dto.ValueSource) ? "Constant" : dto.ValueSource },
             Children = (dto.Children ?? []).Select(child => BuildUiNode(child, depth + 1)).ToList()
         };
+        var typeToken = string.IsNullOrWhiteSpace(dto.ControlTypeId) ? dto.ElementType : dto.ControlTypeId;
+        if (UiControlIds.TryParseLegacy(typeToken, out var elementType))
+        {
+            node.ElementType = elementType;
+        }
+        else if (!string.IsNullOrWhiteSpace(typeToken))
+        {
+            node.ControlTypeId = typeToken;
+        }
+
+        if (dto.Properties != null)
+        {
+            foreach (var pair in dto.Properties)
+            {
+                node.SetAuthoredProperty(pair.Key, pair.Value);
+            }
+        }
+
+        return node;
+    }
+
+    public UiCatalogResponseMsg CatalogUi(string sessionId)
+    {
+        if (!_sessions.ContainsKey(sessionId))
+        {
+            return new UiCatalogResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Invalid session." };
+        }
+
+        var controls = UiCatalogRegistry.Shared.Controls.Select(control => new UiControlDescriptorDto(
+            control.TypeId,
+            control.DisplayName,
+            control.Category,
+            control.CanHaveChildren,
+            control.Properties.Select(property => new UiPropertyDescriptorDto(
+                property.Name,
+                property.TypeName,
+                property.EditorKind.ToString(),
+                property.CanWrite,
+                property.Category,
+                property.DefaultValue,
+                property.EnumValues)).ToArray(),
+            control.Events.Select(item => new UiEventDescriptorDto(
+                item.Name,
+                item.EventType,
+                item.Payload.Select(field => field.Name + ":" + field.TypeName).ToArray())).ToArray())).ToArray();
+        return new UiCatalogResponseMsg
+        {
+            Status = AuthoringStatusCode.Success,
+            Controls = controls,
+            Styles = UiCatalogRegistry.Shared.StyleClasses.ToArray()
+        };
+    }
+
+    public UiPreviewResponseMsg PreviewUi(string sessionId, UiDocumentDto? document, bool close)
+    {
+        if (!_sessions.ContainsKey(sessionId))
+        {
+            return new UiPreviewResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Invalid session." };
+        }
+
+        if (close)
+        {
+            _uiPreview.Close();
+            return new UiPreviewResponseMsg { Status = AuthoringStatusCode.Success, Open = false, Mode = "headless" };
+        }
+
+        if (document?.Root == null)
+        {
+            return new UiPreviewResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = "UI document needs a root control." };
+        }
+
+        var saved = SaveUi(sessionId, document);
+        if (saved.Status != AuthoringStatusCode.Success || saved.Document == null)
+        {
+            return new UiPreviewResponseMsg { Status = saved.Status, ErrorMessage = saved.ErrorMessage };
+        }
+
+        var stored = _uiDocuments[GraphId.FromString(saved.Document.Id)];
+        var ok = _uiPreview.Update(stored, out var diagnostics);
+        return new UiPreviewResponseMsg
+        {
+            Status = ok ? AuthoringStatusCode.Success : AuthoringStatusCode.ValidationError,
+            Open = _uiPreview.IsOpen,
+            Preserved = _uiPreview.PreservedIds.Count > 0,
+            ElementCount = stored.AllElements().Count(),
+            Mode = "headless",
+            ErrorMessage = ok ? null : string.Join("; ", diagnostics.Select(item => item.Message))
+        };
+    }
+
+    public UiPreviewResponseMsg PatchUi(string sessionId, string documentId, IReadOnlyList<UiPatchOperation>? operations, bool preview)
+    {
+        if (!_sessions.ContainsKey(sessionId))
+        {
+            return new UiPreviewResponseMsg { Status = AuthoringStatusCode.Unauthorized, ErrorMessage = "Invalid session." };
+        }
+
+        if (!GraphId.TryParse(documentId, out var id) || !_uiDocuments.TryGetValue(id, out var document))
+        {
+            return new UiPreviewResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = "UI document was not found." };
+        }
+
+        if (!UiDocumentPatch.Apply(document, operations ?? [], out var error))
+        {
+            return new UiPreviewResponseMsg { Status = AuthoringStatusCode.ValidationError, ErrorMessage = error };
+        }
+
+        if (!preview)
+        {
+            return new UiPreviewResponseMsg
+            {
+                Status = AuthoringStatusCode.Success,
+                Open = _uiPreview.IsOpen,
+                ElementCount = document.AllElements().Count(),
+                Mode = "headless"
+            };
+        }
+
+        var ok = _uiPreview.Update(document, out var diagnostics);
+        return new UiPreviewResponseMsg
+        {
+            Status = ok ? AuthoringStatusCode.Success : AuthoringStatusCode.ValidationError,
+            Open = _uiPreview.IsOpen,
+            Preserved = _uiPreview.PreservedIds.Count > 0,
+            ElementCount = document.AllElements().Count(),
+            Mode = "headless",
+            ErrorMessage = ok ? null : string.Join("; ", diagnostics.Select(item => item.Message))
+        };
     }
 
     private static List<string> MountControls(UiElementNode node)
@@ -2076,7 +2210,7 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         var mounted = new List<string>();
         void Walk(UiElementNode current)
         {
-            var control = factory.CreateControl(current.Id, current.ElementType, current.Name, current.MinWidth, current.MinHeight, current.Orientation);
+            var control = factory.CreateControl(current.Id, current.ControlTypeId, current.Name, current.MinWidth, current.MinHeight, current.Orientation);
             var source = current.CustomProperties.TryGetValue("valueSource", out var mode) ? mode?.ToString() : "Constant";
             control.SetProperty("Text", current.Text);
             control.SetProperty("valueSource", source);
@@ -2125,7 +2259,20 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
         node.MinWidth,
         node.MinHeight,
         node.StyleClasses,
-        node.CustomProperties.TryGetValue("valueSource", out var source) ? source?.ToString() ?? "Constant" : "Constant");
+        node.CustomProperties.TryGetValue("valueSource", out var source) ? source?.ToString() ?? "Constant" : "Constant",
+        node.ElementType == UiElementType.Custom ? node.ControlTypeId : node.ControlTypeId,
+        ExtraProperties(node));
+
+    private static Dictionary<string, string> ExtraProperties(UiElementNode node)
+    {
+        var skip = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Text", "Visible", "Enabled", "Orientation", "MinWidth", "MinHeight", "valueSource"
+        };
+        return node.Properties
+            .Where(pair => !skip.Contains(pair.Key))
+            .ToDictionary(pair => pair.Key, pair => pair.Value?.ToString() ?? "", StringComparer.Ordinal);
+    }
 
     private UiSaveResponseMsg HandleUiSaveMsg(UiSaveRequestMsg req)
     {

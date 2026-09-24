@@ -28,6 +28,13 @@ public sealed record AstraServerHostOptions
     /// </summary>
     public IReadOnlyList<Assembly> EventAssemblies { get; init; } = [];
 
+    /// <summary>
+    /// Assemblies whose public <c>Control</c> subclasses are indexed into the UI catalog.
+    /// A fork passes <c>typeof(Control).Assembly</c> and its content UI assemblies.
+    /// The designer reads that surface; it does not keep its own control list.
+    /// </summary>
+    public IReadOnlyList<Assembly> UiAssemblies { get; init; } = [];
+
     public static AstraServerHostOptions CreateFallback() => new()
     {
         Storage = new StorageLayout("Resources/AstraGraph", "data/AstraGraph")

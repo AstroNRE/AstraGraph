@@ -1,4 +1,5 @@
 using System.Numerics;
+using AstraGraph.UI.Catalog;
 using AstraGraph.UI.Model;
 using AstraGraph.UI.Runtime;
 using Robust.Client.UserInterface;
@@ -21,6 +22,7 @@ public sealed class NativeRobustUiControlWrapper : IRobustUiControl
 
     public string Id { get; }
     public UiElementType ElementType { get; }
+    public string ControlTypeId { get; }
     public string? Name
     {
         get => _nativeControl.Name;
@@ -88,26 +90,14 @@ public sealed class NativeRobustUiControlWrapper : IRobustUiControl
 
     public event Action<string, object?>? OnEventTriggered;
 
-    public NativeRobustUiControlWrapper(string id, UiElementType type, Control nativeControl, string? name = null)
+    public NativeRobustUiControlWrapper(string id, UiElementType type, Control nativeControl, string? name = null, string? controlTypeId = null)
     {
         Id = id;
         ElementType = type;
+        ControlTypeId = string.IsNullOrWhiteSpace(controlTypeId) ? UiControlIds.FromLegacy(type) : controlTypeId;
         _nativeControl = nativeControl ?? throw new ArgumentNullException(nameof(nativeControl));
         Name = name;
-
-        // Wire native events to Astra UI reactive bus
-        if (_nativeControl is Button btn)
-        {
-            btn.OnPressed += _ => TriggerEvent("OnPressed");
-        }
-        else if (_nativeControl is LineEdit edit)
-        {
-            edit.OnTextChanged += args =>
-            {
-                _customProperties["Text"] = args.Text;
-                TriggerEvent("OnTextChanged", args.Text);
-            };
-        }
+        UiControlCatalog.WireEvents(_nativeControl, TriggerEvent);
     }
 
     public void AddChild(IRobustUiControl child)
@@ -142,6 +132,24 @@ public sealed class NativeRobustUiControlWrapper : IRobustUiControl
         ArgumentNullException.ThrowIfNull(propertyName);
         _customProperties[propertyName] = value;
 
+        if (propertyName.Equals("StyleClasses", StringComparison.OrdinalIgnoreCase) && value is IEnumerable<string> classes)
+        {
+            foreach (var className in classes)
+            {
+                if (!string.IsNullOrWhiteSpace(className))
+                {
+                    _nativeControl.AddStyleClass(className);
+                }
+            }
+
+            return;
+        }
+
+        if (UiCatalogRegistry.Shared.TrySetProperty(_nativeControl, propertyName, value))
+        {
+            return;
+        }
+
         if (propertyName.Equals("Text", StringComparison.OrdinalIgnoreCase))
         {
             Text = value?.ToString();
@@ -154,11 +162,24 @@ public sealed class NativeRobustUiControlWrapper : IRobustUiControl
         {
             Enabled = e;
         }
+        else if ((propertyName.Equals("MinWidth", StringComparison.OrdinalIgnoreCase) || propertyName.Equals("MinHeight", StringComparison.OrdinalIgnoreCase))
+            && float.TryParse(value?.ToString(), out var size))
+        {
+            var current = _nativeControl.MinSize;
+            _nativeControl.MinSize = propertyName.Equals("MinWidth", StringComparison.OrdinalIgnoreCase)
+                ? new Vector2(size, current.Y)
+                : new Vector2(current.X, size);
+        }
     }
 
     public object? GetProperty(string propertyName)
     {
         ArgumentNullException.ThrowIfNull(propertyName);
+        if (UiCatalogRegistry.Shared.TryGetProperty(_nativeControl, propertyName, out var value))
+        {
+            return value;
+        }
+
         if (propertyName.Equals("Text", StringComparison.OrdinalIgnoreCase)) return Text;
         if (propertyName.Equals("Visible", StringComparison.OrdinalIgnoreCase)) return Visible;
         if (propertyName.Equals("Enabled", StringComparison.OrdinalIgnoreCase)) return Enabled;
@@ -176,20 +197,49 @@ public sealed class NativeRobustUiControlWrapper : IRobustUiControl
 /// </summary>
 public sealed class RobustUiControlFactory : IRobustUiControlFactory
 {
+    public RobustUiControlFactory()
+    {
+        IndexAssembly(typeof(Control).Assembly);
+    }
+
+    public static UiControlCatalog Catalog => UiCatalogRegistry.Shared;
+
+    public static void IndexAssembly(System.Reflection.Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+        UiCatalogRegistry.IndexAssembly(assembly, typeof(Control));
+    }
+
     public IRobustUiControl CreateControl(
         string id,
         UiElementType type,
         string? name,
         int? minWidth,
         int? minHeight,
+        UiOrientation orientation) =>
+        CreateControl(id, UiControlIds.FromLegacy(type), name, minWidth, minHeight, orientation);
+
+    public IRobustUiControl CreateControl(
+        string id,
+        string controlTypeId,
+        string? name,
+        int? minWidth,
+        int? minHeight,
         UiOrientation orientation)
     {
+        var legacy = UiControlIds.ToLegacy(controlTypeId);
         if (!IsNativeUiAvailable())
         {
-            return new MockRobustUiControl(id, type, name);
+            return new MockRobustUiControl(id, legacy, name) { ControlTypeId = controlTypeId };
         }
 
-        Control control = type switch
+        Control? control = null;
+        if (Catalog.TryCreate(controlTypeId, out var created) && created is Control indexed)
+        {
+            control = indexed;
+        }
+
+        control ??= legacy switch
         {
             UiElementType.BoxContainer => new BoxContainer
             {
@@ -202,15 +252,27 @@ public sealed class RobustUiControlFactory : IRobustUiControlFactory
             UiElementType.LineEdit => new LineEdit(),
             UiElementType.TextureRect => new TextureRect(),
             UiElementType.Panel => new PanelContainer(),
+            UiElementType.GridContainer => new GridContainer(),
+            UiElementType.ScrollContainer => new ScrollContainer(),
+            UiElementType.ProgressBar => new ProgressBar(),
+            UiElementType.LayoutContainer => new LayoutContainer(),
+            UiElementType.ItemList => new ItemList(),
             _ => new BoxContainer()
         };
+
+        if (control is BoxContainer box)
+        {
+            box.Orientation = orientation == UiOrientation.Horizontal
+                ? BoxContainer.LayoutOrientation.Horizontal
+                : BoxContainer.LayoutOrientation.Vertical;
+        }
 
         if (minWidth.HasValue || minHeight.HasValue)
         {
             control.MinSize = new Vector2(minWidth ?? 0, minHeight ?? 0);
         }
 
-        return new NativeRobustUiControlWrapper(id, type, control, name);
+        return new NativeRobustUiControlWrapper(id, legacy, control, name, controlTypeId);
     }
 
     public static bool IsNativeUiAvailable()
