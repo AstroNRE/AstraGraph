@@ -241,6 +241,9 @@ public static class IrToBytecodeCompiler
                 return new BytecodeInstruction(opCode, destReg, collection, index, 0);
             }
 
+            case IrOpCode.PersistentIdNew:
+                return new BytecodeInstruction(opCode, destReg, 0, 0, 0);
+
             case IrOpCode.StructMake:
             case IrOpCode.ListMake:
             {

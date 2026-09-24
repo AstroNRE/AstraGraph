@@ -265,6 +265,9 @@ public sealed class DeltaReplicationManager
             case AstraValueType.Object:
                 writer.Write(val.AsString() ?? string.Empty);
                 break;
+            case AstraValueType.PersistentId:
+                writer.Write(val.AsPersistentId().Value.ToByteArray());
+                break;
         }
     }
 
@@ -279,6 +282,7 @@ public sealed class DeltaReplicationManager
             AstraValueType.Double => AstraValue.FromDouble(reader.ReadDouble()),
             AstraValueType.EntityUid => AstraValue.FromEntityUid(reader.ReadInt32()),
             AstraValueType.Object => AstraValue.FromString(reader.ReadString()),
+            AstraValueType.PersistentId => AstraValue.FromPersistentId(new PersistentObjectId(new Guid(reader.ReadBytes(16)))),
             _ => AstraValue.Null
         };
     }

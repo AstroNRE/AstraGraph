@@ -59,6 +59,7 @@ public sealed class TypeRegistry
         registry.RegisterAlias("byte", PrimitiveType.UInt8);
 
         // Entities
+        registry.RegisterType(PersistentIdType.Instance);
         registry.RegisterType(EntityType.EntityUid);
         registry.RegisterType(EntityType.NetEntity);
         registry.RegisterAlias("Robust.Shared.GameObjects.EntityUid", EntityType.EntityUid);

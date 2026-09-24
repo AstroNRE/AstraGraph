@@ -142,6 +142,10 @@ public sealed record AstCollectionSetExpression(
     AstraType Type,
     NodeId? SourceNodeId = null) : AstExpression(Type, SourceNodeId);
 
+public sealed record AstPersistentIdExpression(
+    AstraType Type,
+    NodeId? SourceNodeId = null) : AstExpression(Type, SourceNodeId);
+
 public sealed record AstCollectionRemoveExpression(
     AstExpression Collection,
     AstExpression Index,

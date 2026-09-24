@@ -371,6 +371,10 @@ public sealed class IrToCSharpCompiler
                 sb.AppendLine($"                r[{dest}] = AstraValues.CollectionRemove(r[{((IrRegister)instr.Operands![0]).Index}], r[{((IrRegister)instr.Operands[1]).Index}].AsInt32());");
                 break;
 
+            case IrOpCode.PersistentIdNew:
+                sb.AppendLine($"                r[{dest}] = AstraValue.FromPersistentId(PersistentObjectId.New());");
+                break;
+
             default:
                 break;
         }

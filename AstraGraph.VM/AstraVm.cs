@@ -389,6 +389,10 @@ public sealed class AstraVm
                     case IrOpCode.CollectionRemove:
                         registers[dest] = AstraValues.CollectionRemove(registers[instr.Op1], (int)registers[instr.Op2].AsInt64());
                         break;
+
+                    case IrOpCode.PersistentIdNew:
+                        registers[dest] = AstraValue.FromPersistentId(PersistentObjectId.New());
+                        break;
                 }
 
                 if (onNodeElapsed != null && timedNode.HasValue)

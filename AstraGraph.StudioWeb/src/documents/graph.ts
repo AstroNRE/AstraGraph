@@ -324,6 +324,14 @@ const gameplayPins: Record<string, { properties?: Record<string, string>; pins: 
       { name: "Count", direction: "output", kind: "data", dataType: "int32" }
     ]
   },
+  "PersistentId.New": {
+    properties: { IsDeterministic: "false" },
+    pins: [
+      { name: "In", direction: "input", kind: "execution" },
+      { name: "Out", direction: "output", kind: "execution" },
+      { name: "Id", direction: "output", kind: "data", dataType: "PersistentObjectId" }
+    ]
+  },
   "Native.GetMember": {
     properties: { Member: "" },
     pins: [

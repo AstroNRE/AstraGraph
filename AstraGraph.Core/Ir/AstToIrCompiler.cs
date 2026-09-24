@@ -486,6 +486,16 @@ public static class AstToIrCompiler
                     return reg;
                 }
 
+                case AstPersistentIdExpression created:
+                {
+                    var reg = AllocateRegister(created.Type);
+                    currentBlock.AddInstruction(new IrInstruction(
+                        IrOpCode.PersistentIdNew,
+                        reg,
+                        SourceNodeId: created.SourceNodeId));
+                    return reg;
+                }
+
                 case AstCollectionRemoveExpression remove:
                 {
                     var collection = EmitExpression(remove.Collection, currentBlock);

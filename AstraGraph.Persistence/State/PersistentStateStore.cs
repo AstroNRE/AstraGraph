@@ -216,6 +216,9 @@ public sealed class PersistentStateStore
             case AstraValueType.Object:
                 WriteObject(writer, value.AsObject());
                 break;
+            case AstraValueType.PersistentId:
+                writer.Write(value.AsPersistentId().Value.ToByteArray());
+                break;
         }
     }
 
@@ -306,6 +309,7 @@ public sealed class PersistentStateStore
             AstraValueType.EntityUid => AstraValue.FromEntityUid(reader.ReadInt32()),
             AstraValueType.Vector2 => AstraValue.FromVector2(new Vector2(reader.ReadSingle(), reader.ReadSingle())),
             AstraValueType.Object => ReadObject(reader),
+            AstraValueType.PersistentId => AstraValue.FromPersistentId(new PersistentObjectId(new Guid(reader.ReadBytes(16)))),
             _ => AstraValue.Null
         };
     }

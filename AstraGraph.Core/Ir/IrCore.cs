@@ -64,7 +64,8 @@ public enum IrOpCode
     ListMake,
     CollectionAdd,
     CollectionSet,
-    CollectionRemove
+    CollectionRemove,
+    PersistentIdNew
 }
 
 /// <summary>

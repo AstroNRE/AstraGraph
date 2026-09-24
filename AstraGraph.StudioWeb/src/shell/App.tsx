@@ -46,6 +46,7 @@ const palette = [
   ["List.Create", "Make list"],
   ["List.Add", "Add"],
   ["List.Get", "Get item"],
+  ["PersistentId.New", "New id"],
   ["Native.GetMember", "Get member"],
   ["Native.Call", "Call"],
   ["Graph.Call", "Call function"],

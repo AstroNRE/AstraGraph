@@ -12,7 +12,8 @@ public enum AstraValueType : byte
     Double = 3,
     EntityUid = 4,
     Vector2 = 5,
-    Object = 6
+    Object = 6,
+    PersistentId = 7
 }
 
 /// <summary>
@@ -90,6 +91,8 @@ public readonly struct AstraValue : IEquatable<AstraValue>
 
     public static AstraValue FromEntityUid(int entityId) => new(AstraValueType.EntityUid, entityId, null);
 
+    public static AstraValue FromPersistentId(PersistentObjectId id) => new(AstraValueType.PersistentId, 0, id);
+
     public static AstraValue FromVector2(Vector2 vector) => new(vector.X, vector.Y);
 
     public static AstraValue FromVector2(float x, float y) => new(x, y);
@@ -114,6 +117,7 @@ public readonly struct AstraValue : IEquatable<AstraValue>
             double f64 => FromDouble(f64),
             string s => FromString(s),
             Vector2 v2 => FromVector2(v2),
+            PersistentObjectId id => FromPersistentId(id),
             _ => new(AstraValueType.Object, 0, value)
         };
     }
@@ -148,6 +152,17 @@ public readonly struct AstraValue : IEquatable<AstraValue>
     {
         if (Type != AstraValueType.EntityUid && Type != AstraValueType.Int64) ThrowTypeMismatch(AstraValueType.EntityUid);
         return (int)_intPayload;
+    }
+
+    public PersistentObjectId AsPersistentId()
+    {
+        if (Type != AstraValueType.PersistentId || _objectPayload is not PersistentObjectId id)
+        {
+            ThrowTypeMismatch(AstraValueType.PersistentId);
+            return PersistentObjectId.Empty;
+        }
+
+        return id;
     }
 
     public Vector2 AsVector2()
@@ -185,6 +200,7 @@ public readonly struct AstraValue : IEquatable<AstraValue>
             AstraValueType.Double => _doublePayload.Equals(other._doublePayload),
             AstraValueType.Vector2 => _vecX.Equals(other._vecX) && _vecY.Equals(other._vecY),
             AstraValueType.Object => Equals(_objectPayload, other._objectPayload),
+            AstraValueType.PersistentId => AsPersistentId().Value == other.AsPersistentId().Value,
             _ => false
         };
     }
@@ -198,6 +214,7 @@ public readonly struct AstraValue : IEquatable<AstraValue>
         AstraValueType.Double => _doublePayload.GetHashCode(),
         AstraValueType.Vector2 => HashCode.Combine(_vecX, _vecY),
         AstraValueType.Object => _objectPayload?.GetHashCode() ?? 0,
+        AstraValueType.PersistentId => AsPersistentId().GetHashCode(),
         _ => 0
     };
 
@@ -213,6 +230,7 @@ public readonly struct AstraValue : IEquatable<AstraValue>
         AstraValueType.EntityUid => $"Entity({_intPayload})",
         AstraValueType.Vector2 => $"Vector2({_vecX}, {_vecY})",
         AstraValueType.Object => _objectPayload?.ToString() ?? "null",
+        AstraValueType.PersistentId => AsPersistentId().ToString(),
         _ => "unknown"
     };
 

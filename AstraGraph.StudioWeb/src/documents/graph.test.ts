@@ -31,6 +31,9 @@ describe("graph editing", () => {
     const graph = addNode(addNode(createGraph("Parts"), "Schema.SetField", "Set"), "List.Add", "Add");
     expect(graph.nodes[0].pins.map((pin) => pin.name)).toEqual(["In", "Out", "Target", "Value", "Result"]);
     expect(graph.nodes[1].pins.filter((pin) => pin.direction === "output").map((pin) => pin.name)).toEqual(["Out", "List"]);
+    const identified = addNode(graph, "PersistentId.New", "Id");
+    expect(identified.nodes[2].pins.map((pin) => pin.name)).toEqual(["In", "Out", "Id"]);
+    expect(identified.nodes[2].properties.IsDeterministic).toBe("false");
   });
 
   it("keeps variable persistence across serialize and finds a reference", () => {

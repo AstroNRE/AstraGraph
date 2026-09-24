@@ -198,7 +198,9 @@ public sealed class SemanticAnalyzer
                 diagnostics.ReportError(DiagnosticCodes.ServerApiCalledOnClient, $"Node '{node.Name}' requires Server side, but graph is configured for Client.", node.Id, suggestedFix: "set-side:Server");
             }
 
-            if (document.Side == GraphSide.SharedPredicted && node.Properties.TryGetValue("IsDeterministic", out var det) && det.Equals("false", StringComparison.OrdinalIgnoreCase))
+            if (document.Side == GraphSide.SharedPredicted &&
+                (node.NodeType.Equals("PersistentId.New", StringComparison.OrdinalIgnoreCase) ||
+                 (node.Properties.TryGetValue("IsDeterministic", out var det) && det.Equals("false", StringComparison.OrdinalIgnoreCase))))
             {
                 diagnostics.ReportError(DiagnosticCodes.NonDeterministicOperationInPrediction, $"Node '{node.Name}' is non-deterministic and cannot be executed in predicted context.", node.Id, suggestedFix: "set-deterministic");
             }
@@ -619,6 +621,16 @@ public sealed class SemanticAnalyzer
                 return CollectionMutation(node, static (collection, index, item, type, id) => new AstCollectionRemoveExpression(collection, index, type, id));
             }
 
+            if (nodeType.Equals("PersistentId.New", StringComparison.OrdinalIgnoreCase))
+            {
+                _typeRegistry.TryGetType(PersistentIdType.Instance.TypeName, out var idType);
+                return new AstVariableAssignStatement(
+                    SymbolId.Empty,
+                    ResultName(node),
+                    new AstPersistentIdExpression(idType ?? PersistentIdType.Instance, node.Id),
+                    node.Id);
+            }
+
             return null;
         }
 
@@ -683,7 +695,8 @@ public sealed class SemanticAnalyzer
             nodeType.Equals("Schema.SetField", StringComparison.OrdinalIgnoreCase) ||
             nodeType.Equals("List.Add", StringComparison.OrdinalIgnoreCase) ||
             nodeType.Equals("List.Set", StringComparison.OrdinalIgnoreCase) ||
-            nodeType.Equals("List.Remove", StringComparison.OrdinalIgnoreCase);
+            nodeType.Equals("List.Remove", StringComparison.OrdinalIgnoreCase) ||
+            nodeType.Equals("PersistentId.New", StringComparison.OrdinalIgnoreCase);
 
         public AstExpression LowerPinExpression(PinDocument pin)
         {

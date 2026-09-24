@@ -51,9 +51,8 @@ The slice is: place a gun on a bench, open the Astra UI, see parts, swap a barre
 
 That fails today for four generic reasons:
 
-1. A part can be a struct in a list, and that list can be saved. A persistent id for the gun is still missing, so `EntityUid` after a restart is a different object.
-2. The bench cannot ask a container or inventory for the gun and the loose parts.
-3. The UI cannot show a server-owned list of parts and send `InstallPart` as an intent. It can show a static page and a button name.
+1. The bench cannot ask a container or inventory for the gun and the loose parts.
+2. The UI cannot show a server-owned list of parts and send `InstallPart` as an intent. It can show a static page and a button name.
 
 Heat, fouling, manufacturing lots, RNG, curves, and localization are later slices. They are absent and should stay absent until the slice above exists.
 
@@ -64,7 +63,7 @@ Do not add a second type system. Extend `SchemaType`, `AstraList`, and `Persiste
 1. Struct value: get field, set field, copy. Nested struct is the same walk. Done in the VM and in Studio nodes.
 2. `List<T>` mutate: add, remove, get, set, count, foreach. `T` may be a struct. Add, remove, get, set, and count are done. Foreach already walked a list.
 3. Persist those values in the existing snapshot, versioned, by schema id and field id. One bad object must not wipe the file. Done as format 2. Format 1 still loads.
-4. Persistent object id that is not `EntityUid`, usable by a gun, a car, or a tool. Next.
+4. Persistent object id that is not `EntityUid`, usable by a gun, a car, or a tool. Done. `PersistentObjectId` is a value, stored in a struct field, and it round-trips in the state file. `PersistentId.New` is rejected on a predicted graph.
 5. Generic container and inventory reads and inserts. No weapon slot node.
 6. BUI list, selection, and an action that carries an id. The server graph decides the result.
 7. Only then the first weapon graphs, laid out left to right as a chain.
