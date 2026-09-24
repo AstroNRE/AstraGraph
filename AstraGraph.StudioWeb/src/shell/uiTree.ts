@@ -53,6 +53,23 @@ export interface UiDocumentModel {
   logic?: UiLogicStepModel[];
   components?: UiComponentModel[];
   css?: string;
+  script?: string;
+  pages?: UiPageModel[];
+  activePageId?: string;
+  tokens?: UiTokenModel[];
+}
+
+export interface UiPageModel {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  root: UiNode;
+}
+
+export interface UiTokenModel {
+  name: string;
+  value: string;
 }
 
 export interface UiLogicStepModel {

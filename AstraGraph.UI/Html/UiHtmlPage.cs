@@ -31,6 +31,8 @@ public static class UiHtmlPage
             .Append(Encode(document.Name))
             .Append("</title><style>")
             .Append("html, body { margin: 0; height: 100%; background: #10191d; color: #e7ecf5; font: 13px/1.4 \"Noto Sans\", sans-serif; }")
+            .Append(".astra-window, .astra-row, .astra-col, .astra-grid { position: relative; }")
+            .Append("img { image-rendering: pixelated; object-fit: contain; }")
             .Append(".astra-window { box-sizing: border-box; min-height: 100%; padding: 10px; display: flex; flex-direction: column; gap: 8px; }")
             .Append(".astra-row { display: flex; flex-direction: row; gap: 8px; align-items: center; }")
             .Append(".astra-col { display: flex; flex-direction: column; gap: 8px; }")
@@ -162,6 +164,20 @@ public static class UiHtmlPage
                 if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number)) number = 0;
                 body.Append("<progress data-astra-id=\"").Append(id).Append('"').Append(classAttr);
                 body.Append(" value=\"").Append(number.ToString(CultureInfo.InvariantCulture)).Append("\" max=\"100\"></progress>");
+                return;
+            case "TextureRect":
+                var texture = node.Properties.TryGetValue("Texture", out var textureValue) ? textureValue?.ToString() ?? "" : "";
+                var state = node.Properties.TryGetValue("State", out var stateValue) ? stateValue?.ToString() ?? "" : "";
+                var uploaded = node.Properties.TryGetValue("SpriteUrl", out var spriteUrl) ? spriteUrl?.ToString() ?? "" : "";
+                var src = texture.StartsWith("/Textures/", StringComparison.Ordinal)
+                    ? "astra-ui://texture?path=" + Uri.EscapeDataString(texture)
+                    : uploaded;
+                body.Append("<img data-astra-id=\"").Append(id)
+                    .Append("\" data-texture=\"").Append(Encode(texture))
+                    .Append("\" data-state=\"").Append(Encode(state))
+                    .Append("\" alt=\"").Append(Encode(state))
+                    .Append("\" src=\"").Append(Encode(src))
+                    .Append("\" style=\"image-rendering:pixelated;object-fit:contain\" />");
                 return;
             default:
                 var layout = type == "GridContainer" ? "astra-grid" : node.Orientation == UiOrientation.Horizontal ? "astra-row" : "astra-col";

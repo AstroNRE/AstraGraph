@@ -1,8 +1,9 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
+import { buildTexturesPlugin } from "./texturePlugin";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), buildTexturesPlugin()],
   server: {
     fs: { allow: [".."] },
     port: 5174,
