@@ -292,7 +292,7 @@ public static class IrToBytecodeCompiler
 
         return constant.Value switch
         {
-            bool b => pool.GetOrAddInt64(b ? 1 : 0),
+            bool b => pool.GetOrAddBool(b),
             byte u8 => pool.GetOrAddInt64(u8),
             sbyte i8 => pool.GetOrAddInt64(i8),
             short i16 => pool.GetOrAddInt64(i16),

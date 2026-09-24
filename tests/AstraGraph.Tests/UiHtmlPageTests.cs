@@ -102,6 +102,7 @@ public sealed class UiHtmlPageTests
         Assert.That(html, Does.Contain("astraFillList"));
         Assert.That(html, Does.Contain("data-selected-id"));
         Assert.That(html, Does.Contain("row.disabled"));
+        Assert.That(html.IndexOf("const disabled", StringComparison.Ordinal), Is.LessThan(html.IndexOf("button.textContent", StringComparison.Ordinal)));
     }
 
     [Test]

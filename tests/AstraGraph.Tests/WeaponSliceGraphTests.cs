@@ -187,7 +187,6 @@ public sealed class WeaponSliceGraphTests
             var barrelGate = Branch(prefix + "Installed?", x + 3180);
             var installedComp = Component(prefix + "Installed", "WeaponPart", x + 3400, "int64");
             var installedGate = Branch(prefix + "InstalledPart?", x + 3400);
-            var plainPublish = Call("Bui.Set", prefix + "Plain", x + 3620, ("Owner", "EntityUid", null), ("Name", "string", "Parts"), ("Value", "string", null), ("Success", "bool", null));
             var installedMade = Data("Schema.Make", prefix + "InstalledMake", x + 3620, ("Value", "PartRow", null));
             installedMade.Properties["Schema"] = "PartRow";
             var installedId = Set(prefix + "InstalledId", "PartRow", "Id", x + 3840);
@@ -209,10 +208,9 @@ public sealed class WeaponSliceGraphTests
             Exec(setText, setOff);
             Exec(setOff, add);
             Exec(add, store);
-            Exec(each, "Out", barrelGate);
-            Exec(barrelGate, "False", publish);
+            Exec(each, "Out", publish);
+            Exec(publish, barrelGate);
             Exec(barrelGate, "True", installedGate);
-            Exec(installedGate, "False", plainPublish);
             Exec(installedGate, "True", installedId);
             Exec(installedId, installedText);
             Exec(installedText, installedOff);
@@ -236,7 +234,6 @@ public sealed class WeaponSliceGraphTests
             DataWire(add, "List", store, "Value");
             DataWire(readBuilt, "Value", rows, "List");
             DataWire(rows, "Rows", publish, "Value");
-            DataWire(rows, "Rows", plainPublish, "Value");
             DataWire(gun, "Item", inGun, "Holder");
             DataWire(inGun, "Item", hasBarrel, "A");
             DataWire(hasBarrel, "Result", barrelGate, "Condition");
@@ -254,21 +251,20 @@ public sealed class WeaponSliceGraphTests
             DataWire(installedAdd, "List", installedStore, "Value");
             DataWire(installedBuilt, "Value", installedJson, "List");
             DataWire(installedJson, "Rows", installedPublish, "Value");
-            _refreshes[clear] = (contents, publish, gun, plainPublish, installedPublish);
+            _refreshes[clear] = (contents, publish, gun, installedPublish);
             return clear;
         }
 
         public void WireRefresh(NodeDocument clear, NodeDocument bench)
         {
-            var (contents, publish, gun, plainPublish, installedPublish) = _refreshes[clear];
+            var (contents, publish, gun, installedPublish) = _refreshes[clear];
             DataWire(bench, "Entity", contents, "Owner");
             DataWire(bench, "Entity", publish, "Owner");
             DataWire(bench, "Entity", gun, "Holder");
-            DataWire(bench, "Entity", plainPublish, "Owner");
             DataWire(bench, "Entity", installedPublish, "Owner");
         }
 
-        private readonly Dictionary<NodeDocument, (NodeDocument Contents, NodeDocument Publish, NodeDocument Gun, NodeDocument PlainPublish, NodeDocument InstalledPublish)> _refreshes = [];
+        private readonly Dictionary<NodeDocument, (NodeDocument Contents, NodeDocument Publish, NodeDocument Gun, NodeDocument InstalledPublish)> _refreshes = [];
 
         public NodeDocument Event(string name, string eventType, string component, int x, int y) =>
             Place(Node(name, "Event." + name, new Dictionary<string, string> { ["eventType"] = eventType, ["componentType"] = component },
