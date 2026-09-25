@@ -207,14 +207,20 @@ public sealed class WeaponSliceGraphTests
         var assemblyGate = graph.Branch("Assembly?", 2780);
         graph.UseRow(900);
         var installFit = graph.Fit("Install", 3000, partComp, assembly);
-        var occupied = graph.Call("Entity.GetHeldItem", "Occupied", 5200, ("Holder", "int64", null), ("Container", "string", null), ("Item", "int64", null));
-        var hasOccupied = graph.NotZero("HasOccupied", 5420);
-        var occupiedGate = graph.Branch("Occupied?", 5420);
-        var occupiedReason = graph.Call("Bui.Set", "OccupiedReason", 5640, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Remove the fitted part first"), ("Success", "bool", null));
-        var insert = graph.Call("Container.Insert", "Insert", 5860, ("Owner", "int64", null), ("Container", "string", null), ("Item", "int64", null), ("Success", "bool", null));
-        var fitted = graph.ApplyDeltas("Fit", 6080, true, partComp, assembly);
+        var fitLabel = graph.Field("FitLabel", "WeaponPart", "Label", "string", 5200);
+        var fitArrow = graph.Literal("FitArrow", "string", " -> ", 5420);
+        var fitLeft = graph.Add("FitLeft", 5640, "string");
+        var fitWhere = graph.Add("FitWhere", 5860, "string");
+        var fitting = graph.Call("Bui.Set", "Fitting", 6080, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", null), ("Success", "bool", null));
+        var pull = graph.Call("Container.Remove", "Pull", 6300, ("Owner", "EntityUid", null), ("Container", "string", "storagebase"), ("Item", "int64", null), ("Success", "bool", null));
+        var insert = graph.Call("Container.Insert", "Insert", 6520, ("Owner", "int64", null), ("Container", "string", null), ("Item", "int64", null), ("Success", "bool", null));
+        var inserted = graph.Branch("Inserted?", 6740);
+        var installedMsg = graph.Call("Bui.Set", "InstalledMsg", 6960, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Installed."), ("Success", "bool", null));
+        var rejectPrefix = graph.Literal("RejectPrefix", "string", "Did not fit into ", 6960);
+        var rejectText = graph.Add("RejectText", 7180, "string");
+        var rejected = graph.Call("Bui.Set", "Rejected", 7400, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", null), ("Success", "bool", null));
         graph.UseRow(0);
-        var afterInstall = graph.Refresh("Done", 4640);
+        var afterInstall = graph.Refresh("Done", 4640, partComp);
         graph.UseRow(560);
         var onOpen = graph.Refresh("Open", 360);
         graph.UseRow(1480);
@@ -268,11 +274,13 @@ public sealed class WeaponSliceGraphTests
         graph.Exec(gunGate, "True", partDataGate);
         graph.Exec(partDataGate, "True", assemblyGate);
         graph.Exec(assemblyGate, "True", installFit.Entry);
-        graph.Exec(installFit.Direct, occupiedGate);
-        graph.Exec(occupiedGate, "True", occupiedReason);
-        graph.Exec(occupiedGate, "False", insert);
-        graph.Exec(insert, fitted.Start);
-        graph.Exec(fitted.End, afterInstall);
+        graph.Exec(installFit.Direct, fitting);
+        graph.Exec(fitting, pull);
+        graph.Exec(pull, insert);
+        graph.Exec(insert, inserted);
+        graph.Exec(inserted, "True", installedMsg);
+        graph.Exec(installedMsg, afterInstall);
+        graph.Exec(inserted, "False", rejected);
         graph.Exec(installGate, "False", removeGate);
         graph.Exec(removeGate, "False", selectGate);
         graph.Exec(removeGate, "True", removeGunGate);
@@ -309,7 +317,10 @@ public sealed class WeaponSliceGraphTests
         graph.DataWire(message, "Entity", noPartInstalled, "Owner");
         graph.DataWire(message, "Entity", returnPart, "Owner");
         graph.DataWire(message, "Entity", removed, "Owner");
-        graph.DataWire(message, "Entity", occupiedReason, "Owner");
+        graph.DataWire(message, "Entity", fitting, "Owner");
+        graph.DataWire(message, "Entity", pull, "Owner");
+        graph.DataWire(message, "Entity", installedMsg, "Owner");
+        graph.DataWire(message, "Entity", rejected, "Owner");
         graph.DataWire(message, "Entity", selectGun, "Holder");
         graph.DataWire(message, "Entity", selectNoGun, "Owner");
         graph.DataWire(message, "Entity", selectBench, "Owner");
@@ -360,13 +371,20 @@ public sealed class WeaponSliceGraphTests
         graph.DataWire(partComp, "Component", slot, "Component");
         graph.DataWire(gun, "Item", assembly, "Entity");
         graph.DataWire(assembly, "Found", assemblyGate, "Condition");
-        graph.DataWire(gun, "Item", occupied, "Holder");
-        graph.DataWire(slot, "Value", occupied, "Container");
-        graph.DataWire(occupied, "Item", hasOccupied, "A");
-        graph.DataWire(hasOccupied, "Result", occupiedGate, "Condition");
+        graph.DataWire(partComp, "Component", fitLabel, "Component");
+        graph.DataWire(fitLabel, "Value", fitLeft, "A");
+        graph.DataWire(fitArrow, "Value", fitLeft, "B");
+        graph.DataWire(fitLeft, "Result", fitWhere, "A");
+        graph.DataWire(slot, "Value", fitWhere, "B");
+        graph.DataWire(fitWhere, "Result", fitting, "Value");
+        graph.DataWire(part, "Item", pull, "Item");
         graph.DataWire(gun, "Item", insert, "Owner");
         graph.DataWire(slot, "Value", insert, "Container");
         graph.DataWire(part, "Item", insert, "Item");
+        graph.DataWire(insert, "Success", inserted, "Condition");
+        graph.DataWire(rejectPrefix, "Value", rejectText, "A");
+        graph.DataWire(slot, "Value", rejectText, "B");
+        graph.DataWire(rejectText, "Result", rejected, "Value");
         graph.WireRefresh(afterInstall, open);
         graph.WireRefresh(onOpen, open);
         graph.WireRefresh(afterRemove, message);
@@ -407,7 +425,7 @@ public sealed class WeaponSliceGraphTests
 
         public void UseRow(int y) => _row = y;
 
-        public NodeDocument Refresh(string prefix, int x)
+        public NodeDocument Refresh(string prefix, int x, NodeDocument? deltaPart = null)
         {
             var created = Data("List.Create", prefix + "Empty", x, ("List", "List<PartRow>", null));
             var clear = Assign(prefix + "Clear", "Rows", x, "List<PartRow>");
@@ -518,11 +536,24 @@ public sealed class WeaponSliceGraphTests
 
             NodeDocument GunTail(string name, int tailX)
             {
+                (NodeDocument Start, NodeDocument End)? adjusted = deltaPart == null
+                    ? null
+                    : ApplyDeltas(name + "Delta", tailX, true, deltaPart, assembly);
+                if (adjusted != null)
+                {
+                    tailX += 1760;
+                }
+
                 var writeRate = Call("Component.SetField", name + "WriteRate", tailX, ("Entity", "int64", null), ("Component", "string", "GunComponent"), ("Field", "string", "FireRate"), ("Value", "float64", null), ("Success", "bool", null));
                 var writeModified = Call("Component.SetField", name + "WriteModified", tailX + 220, ("Entity", "int64", null), ("Component", "string", "GunComponent"), ("Field", "string", "FireRateModified"), ("Value", "float64", null), ("Success", "bool", null));
                 var rateText = Call("Text.WithNumber", name + "RateText", tailX + 440, ("Label", "string", "Fire rate"), ("Number", "float64", null), ("Text", "string", null));
                 var describe = Call("Meta.SetDescription", name + "Describe", tailX + 440, ("Entity", "int64", null), ("Text", "string", null), ("Success", "bool", null));
                 var refreshGun = Call("System.Invoke", name + "RefreshGun", tailX + 660, ("System", "string", "SharedGunSystem"), ("Method", "string", "RefreshModifiers"), ("Entity", "int64", null), ("Success", "bool", null));
+                if (adjusted != null)
+                {
+                    Exec(adjusted.Value.End, writeRate);
+                }
+
                 Exec(writeRate, writeModified);
                 Exec(writeModified, describe);
                 Exec(describe, refreshGun);
@@ -534,7 +565,7 @@ public sealed class WeaponSliceGraphTests
                 DataWire(rateText, "Text", describe, "Text");
                 DataWire(gun, "Item", describe, "Entity");
                 DataWire(gun, "Item", refreshGun, "Entity");
-                return writeRate;
+                return adjusted?.Start ?? writeRate;
             }
         }
 
