@@ -165,6 +165,14 @@ public static class SchemaYamlBinder
             return false;
         }
 
+        if (field.Type is CollectionType collection &&
+            collection.ElementType == PrimitiveType.String &&
+            collection.Kind is CollectionKind.List or CollectionKind.Set)
+        {
+            value = AstraValue.FromObject(ReadStringList(raw));
+            return true;
+        }
+
         if (field.Type is NullableType nullable)
         {
             var inner = new SchemaField(field.Id, field.Name, nullable.UnderlyingType, field.DefaultValue, field.Options);
@@ -243,7 +251,55 @@ public static class SchemaYamlBinder
             return AstraValue.FromInt64(0);
         }
 
+        if (type is CollectionType collection &&
+            collection.ElementType == PrimitiveType.String &&
+            collection.Kind is CollectionKind.List or CollectionKind.Set)
+        {
+            return AstraValue.FromObject(new AstraList());
+        }
+
         return AstraValue.Null;
+    }
+
+    public const char ListSeparator = '\u001f';
+
+    public static AstraList ReadStringList(object? raw)
+    {
+        var list = new AstraList();
+        if (raw is null)
+        {
+            return list;
+        }
+
+        if (raw is string text)
+        {
+            if (text.Length == 0)
+            {
+                return list;
+            }
+
+            foreach (var piece in text.Split(ListSeparator))
+            {
+                list.Add(AstraValue.FromString(piece));
+            }
+
+            return list;
+        }
+
+        if (raw is System.Collections.IEnumerable items)
+        {
+            foreach (var item in items)
+            {
+                if (item is null)
+                {
+                    continue;
+                }
+
+                list.Add(AstraValue.FromString(item.ToString()));
+            }
+        }
+
+        return list;
     }
 
     private static bool TryInteger(object raw, out long integer)

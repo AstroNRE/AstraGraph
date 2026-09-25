@@ -50,8 +50,23 @@ public sealed class SchemaProxyMirror : ISchemaComponentSource
             AstraValueType.Double => value.AsDouble().ToString(CultureInfo.InvariantCulture),
             AstraValueType.PersistentId => value.AsPersistentId().Value.ToString("D"),
             AstraValueType.Object when value.AsObject() is string text => text,
+            AstraValueType.Object when value.AsObject() is AstraList list => FormatList(list),
             _ => null
         };
+    }
+
+    private static string FormatList(AstraList list)
+    {
+        var parts = new List<string>(list.Count);
+        foreach (var item in list.Items)
+        {
+            if (item.AsString() is string text)
+            {
+                parts.Add(text);
+            }
+        }
+
+        return string.Join(SchemaYamlBinder.ListSeparator, parts);
     }
 
     private void Mirror(AstraEntityId entity, string schemaName, string fieldName, AstraValue value)

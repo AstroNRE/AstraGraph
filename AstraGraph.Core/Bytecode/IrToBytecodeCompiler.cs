@@ -235,10 +235,21 @@ public static class IrToBytecodeCompiler
             }
 
             case IrOpCode.CollectionGet:
+            case IrOpCode.CollectionContains:
+            case IrOpCode.CollectionIntersects:
+            case IrOpCode.CollectionContainsAll:
             {
                 var collection = (instr.Operands != null && instr.Operands.Count > 0 && instr.Operands[0] is IrRegister left) ? left.Index : 0;
                 var index = (instr.Operands != null && instr.Operands.Count > 1 && instr.Operands[1] is IrRegister right) ? right.Index : 0;
                 return new BytecodeInstruction(opCode, destReg, collection, index, 0);
+            }
+
+            case IrOpCode.Select:
+            {
+                var condition = (instr.Operands != null && instr.Operands.Count > 0 && instr.Operands[0] is IrRegister selectCondition) ? selectCondition.Index : 0;
+                var whenTrue = (instr.Operands != null && instr.Operands.Count > 1 && instr.Operands[1] is IrRegister selectTrue) ? selectTrue.Index : 0;
+                var whenFalse = (instr.Operands != null && instr.Operands.Count > 2 && instr.Operands[2] is IrRegister selectFalse) ? selectFalse.Index : 0;
+                return new BytecodeInstruction(opCode, destReg, condition, whenTrue, whenFalse);
             }
 
             case IrOpCode.PersistentIdNew:

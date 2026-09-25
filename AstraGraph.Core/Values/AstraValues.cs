@@ -73,6 +73,60 @@ public static class AstraValues
         return collection;
     }
 
+    public static bool CollectionContains(AstraValue collection, AstraValue item)
+    {
+        if (collection.AsObject() is not AstraList list)
+        {
+            return false;
+        }
+
+        foreach (var entry in list.Items)
+        {
+            if (entry.Equals(item))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static bool CollectionIntersects(AstraValue left, AstraValue right)
+    {
+        if (left.AsObject() is not AstraList list)
+        {
+            return false;
+        }
+
+        foreach (var entry in list.Items)
+        {
+            if (CollectionContains(right, entry))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static bool CollectionContainsAll(AstraValue collection, AstraValue required)
+    {
+        if (required.AsObject() is not AstraList list)
+        {
+            return false;
+        }
+
+        foreach (var entry in list.Items)
+        {
+            if (!CollectionContains(collection, entry))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public static AstraValue CollectionRemove(AstraValue collection, int index)
     {
         if (collection.AsObject() is not AstraList list)

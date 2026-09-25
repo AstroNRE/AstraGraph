@@ -367,6 +367,22 @@ public sealed class IrToCSharpCompiler
                 sb.AppendLine($"                r[{dest}] = AstraValues.CollectionSet(r[{((IrRegister)instr.Operands![0]).Index}], r[{((IrRegister)instr.Operands[1]).Index}].AsInt32(), r[{((IrRegister)instr.Operands[2]).Index}]);");
                 break;
 
+            case IrOpCode.CollectionContains:
+                sb.AppendLine($"                r[{dest}] = AstraValue.FromBool(AstraValues.CollectionContains(r[{((IrRegister)instr.Operands![0]).Index}], r[{((IrRegister)instr.Operands[1]).Index}]));");
+                break;
+
+            case IrOpCode.CollectionIntersects:
+                sb.AppendLine($"                r[{dest}] = AstraValue.FromBool(AstraValues.CollectionIntersects(r[{((IrRegister)instr.Operands![0]).Index}], r[{((IrRegister)instr.Operands[1]).Index}]));");
+                break;
+
+            case IrOpCode.CollectionContainsAll:
+                sb.AppendLine($"                r[{dest}] = AstraValue.FromBool(AstraValues.CollectionContainsAll(r[{((IrRegister)instr.Operands![0]).Index}], r[{((IrRegister)instr.Operands[1]).Index}]));");
+                break;
+
+            case IrOpCode.Select:
+                sb.AppendLine($"                r[{dest}] = r[{((IrRegister)instr.Operands![0]).Index}].AsBool() ? r[{((IrRegister)instr.Operands[1]).Index}] : r[{((IrRegister)instr.Operands[2]).Index}];");
+                break;
+
             case IrOpCode.CollectionRemove:
                 sb.AppendLine($"                r[{dest}] = AstraValues.CollectionRemove(r[{((IrRegister)instr.Operands![0]).Index}], r[{((IrRegister)instr.Operands[1]).Index}].AsInt32());");
                 break;

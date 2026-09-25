@@ -65,7 +65,13 @@ public enum IrOpCode
     CollectionAdd,
     CollectionSet,
     CollectionRemove,
-    PersistentIdNew
+    PersistentIdNew,
+
+    // Appended. Existing opcode numbers stay stable.
+    CollectionContains,
+    CollectionIntersects,
+    CollectionContainsAll,
+    Select
 }
 
 /// <summary>

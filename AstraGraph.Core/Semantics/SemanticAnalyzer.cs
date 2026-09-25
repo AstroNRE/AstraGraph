@@ -645,6 +645,12 @@ public sealed class SemanticAnalyzer
             return null;
         }
 
+        private AstExpression ListInput(NodeDocument node, string pinName)
+        {
+            var pin = node.FindPin(pinName, PinDirection.Input);
+            return pin != null ? LowerPinExpression(pin) : new AstLiteralExpression(null, PrimitiveType.Void, node.Id);
+        }
+
         private AstVariableAssignStatement CollectionMutation(
             NodeDocument node,
             Func<AstExpression, AstExpression, AstExpression, AstraType, NodeId, AstExpression> create)
@@ -916,6 +922,30 @@ public sealed class SemanticAnalyzer
                     var collectionPin = node.FindPin("List", PinDirection.Input);
                     var collection = collectionPin != null ? LowerPinExpression(collectionPin) : new AstLiteralExpression(null, PrimitiveType.Void, node.Id);
                     return new AstCollectionLengthExpression(collection, node.Id);
+                }
+
+                if (nodeType.Equals("List.Contains", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new AstCollectionContainsExpression(ListInput(node, "List"), ListInput(node, "Item"), node.Id);
+                }
+
+                if (nodeType.Equals("List.Intersects", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new AstCollectionIntersectsExpression(ListInput(node, "List"), ListInput(node, "Other"), node.Id);
+                }
+
+                if (nodeType.Equals("List.ContainsAll", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new AstCollectionContainsAllExpression(ListInput(node, "List"), ListInput(node, "Required"), node.Id);
+                }
+
+                if (nodeType.Equals("Core.Select", StringComparison.OrdinalIgnoreCase))
+                {
+                    var whenTrue = ListInput(node, "True");
+                    var whenFalse = ListInput(node, "False");
+                    var conditionPin = node.FindPin("Condition", PinDirection.Input);
+                    var condition = conditionPin != null ? LowerPinExpression(conditionPin) : new AstLiteralExpression(false, PrimitiveType.Bool, node.Id);
+                    return new AstSelectExpression(condition, whenTrue, whenFalse, whenTrue.Type, node.Id);
                 }
 
                 if (IsStoredMutation(nodeType) && pin.Direction == PinDirection.Output)

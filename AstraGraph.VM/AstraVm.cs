@@ -348,6 +348,22 @@ public sealed class AstraVm
                         registers[dest] = CollectionGet(registers[instr.Op1], (int)registers[instr.Op2].AsInt64());
                         break;
 
+                    case IrOpCode.CollectionContains:
+                        registers[dest] = AstraValue.FromBool(AstraValues.CollectionContains(registers[instr.Op1], registers[instr.Op2]));
+                        break;
+
+                    case IrOpCode.CollectionIntersects:
+                        registers[dest] = AstraValue.FromBool(AstraValues.CollectionIntersects(registers[instr.Op1], registers[instr.Op2]));
+                        break;
+
+                    case IrOpCode.CollectionContainsAll:
+                        registers[dest] = AstraValue.FromBool(AstraValues.CollectionContainsAll(registers[instr.Op1], registers[instr.Op2]));
+                        break;
+
+                    case IrOpCode.Select:
+                        registers[dest] = registers[instr.Op1].AsBool() ? registers[instr.Op2] : registers[instr.Extra];
+                        break;
+
                     case IrOpCode.HasValue:
                         registers[dest] = AstraValue.FromBool(registers[instr.Op1].Type != AstraValueType.Null);
                         break;

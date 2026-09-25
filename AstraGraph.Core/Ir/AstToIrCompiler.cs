@@ -387,6 +387,43 @@ public static class AstToIrCompiler
                     return reg;
                 }
 
+                case AstCollectionContainsExpression contains:
+                {
+                    var collection = EmitExpression(contains.Collection, currentBlock);
+                    var item = EmitExpression(contains.Item, currentBlock);
+                    var reg = AllocateRegister(PrimitiveType.Bool);
+                    currentBlock.AddInstruction(new IrInstruction(IrOpCode.CollectionContains, reg, [collection, item], SourceNodeId: contains.SourceNodeId));
+                    return reg;
+                }
+
+                case AstCollectionIntersectsExpression intersects:
+                {
+                    var left = EmitExpression(intersects.Left, currentBlock);
+                    var right = EmitExpression(intersects.Right, currentBlock);
+                    var reg = AllocateRegister(PrimitiveType.Bool);
+                    currentBlock.AddInstruction(new IrInstruction(IrOpCode.CollectionIntersects, reg, [left, right], SourceNodeId: intersects.SourceNodeId));
+                    return reg;
+                }
+
+                case AstCollectionContainsAllExpression containsAll:
+                {
+                    var collection = EmitExpression(containsAll.Collection, currentBlock);
+                    var required = EmitExpression(containsAll.Required, currentBlock);
+                    var reg = AllocateRegister(PrimitiveType.Bool);
+                    currentBlock.AddInstruction(new IrInstruction(IrOpCode.CollectionContainsAll, reg, [collection, required], SourceNodeId: containsAll.SourceNodeId));
+                    return reg;
+                }
+
+                case AstSelectExpression select:
+                {
+                    var condition = EmitExpression(select.Condition, currentBlock);
+                    var whenTrue = EmitExpression(select.WhenTrue, currentBlock);
+                    var whenFalse = EmitExpression(select.WhenFalse, currentBlock);
+                    var reg = AllocateRegister(select.Type);
+                    currentBlock.AddInstruction(new IrInstruction(IrOpCode.Select, reg, [condition, whenTrue, whenFalse], SourceNodeId: select.SourceNodeId));
+                    return reg;
+                }
+
                 case AstCollectionGetExpression element:
                 {
                     var collection = EmitExpression(element.Collection, currentBlock);

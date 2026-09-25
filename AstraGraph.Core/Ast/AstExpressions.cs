@@ -98,6 +98,28 @@ public sealed record AstCollectionLengthExpression(
     AstExpression Collection,
     NodeId? SourceNodeId = null) : AstExpression(PrimitiveType.Int32, SourceNodeId);
 
+public sealed record AstCollectionContainsExpression(
+    AstExpression Collection,
+    AstExpression Item,
+    NodeId? SourceNodeId = null) : AstExpression(PrimitiveType.Bool, SourceNodeId);
+
+public sealed record AstCollectionIntersectsExpression(
+    AstExpression Left,
+    AstExpression Right,
+    NodeId? SourceNodeId = null) : AstExpression(PrimitiveType.Bool, SourceNodeId);
+
+public sealed record AstCollectionContainsAllExpression(
+    AstExpression Collection,
+    AstExpression Required,
+    NodeId? SourceNodeId = null) : AstExpression(PrimitiveType.Bool, SourceNodeId);
+
+public sealed record AstSelectExpression(
+    AstExpression Condition,
+    AstExpression WhenTrue,
+    AstExpression WhenFalse,
+    AstraType Type,
+    NodeId? SourceNodeId = null) : AstExpression(Type, SourceNodeId);
+
 public sealed record AstCollectionGetExpression(
     AstExpression Collection,
     AstExpression Index,

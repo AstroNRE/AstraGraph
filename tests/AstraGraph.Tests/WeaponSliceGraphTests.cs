@@ -121,6 +121,45 @@ public sealed class WeaponSliceGraphTests
         Assert.That(calls, Does.Contain("System.Invoke"));
         Assert.That(calls, Does.Contain("Meta.SetDescription"));
         Assert.That(calls, Does.Contain("Text.WithNumber"));
+        var opcodes = new HashSet<IrOpCode>();
+        foreach (var function in program.EntryPoints)
+        {
+            foreach (var instruction in function.Instructions)
+            {
+                opcodes.Add(instruction.AsOpCode);
+            }
+        }
+
+        Assert.That(opcodes, Does.Contain(IrOpCode.CollectionIntersects));
+        Assert.That(opcodes, Does.Contain(IrOpCode.Select));
+    }
+
+    [Test]
+    public void ListMembership_MatchesTags()
+    {
+        var accepts = AstraValue.FromObject(new AstraList([AstraValue.FromString("pistol-barrel"), AstraValue.FromString("pistol-bolt")]));
+        var provides = AstraValue.FromObject(new AstraList([AstraValue.FromString("pistol-barrel")]));
+        var adapts = AstraValue.FromObject(new AstraList([AstraValue.FromString("pistol-muzzle")]));
+        Assert.That(AstraValues.CollectionIntersects(provides, accepts), Is.True);
+        Assert.That(AstraValues.CollectionIntersects(adapts, accepts), Is.False);
+        Assert.That(AstraValues.CollectionContainsAll(accepts, provides), Is.True);
+    }
+
+    [Test]
+    public void SchemaYaml_BindsAStringList()
+    {
+        var schema = SchemaDocuments.ToSchema(new ComponentSchemaDocument
+        {
+            Name = "WeaponAssembly",
+            Kind = "Component",
+            Fields = [new ComponentFieldDocument { Name = "Accepts", TypeName = "List<string>" }]
+        }, TypeRegistry.CreateDefault());
+        var bound = SchemaYamlBinder.Bind(schema, new Dictionary<string, object?>
+        {
+            ["Accepts"] = "pistol-barrel\u001fpistol-bolt"
+        });
+        Assert.That(bound.Success, Is.True, string.Join("; ", bound.Diagnostics));
+        Assert.That(AstraValues.CollectionContains(bound.Values[0], AstraValue.FromString("pistol-bolt")), Is.True);
     }
 
     [Test]
@@ -154,7 +193,7 @@ public sealed class WeaponSliceGraphTests
         var part = graph.Call("Inventory.Find", "Part", 1260, ("Owner", "EntityUid", null), ("Prototype", "string", null), ("Item", "int64", null));
         var hasPart = graph.NotZero("HasPart", 1480);
         var partGate = graph.Branch("Part?", 1480);
-        var noPart = graph.Call("Bui.Set", "NoPart", 1680, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Select a barrel in the list"), ("Success", "bool", null));
+        var noPart = graph.Call("Bui.Set", "NoPart", 1680, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Select a part in the list"), ("Success", "bool", null));
         var gun = graph.Call("Entity.GetHeldItem", "Gun", 1900, ("Holder", "EntityUid", null), ("Container", "string", "gun"), ("Item", "int64", null));
         var hasGun = graph.NotZero("HasGun", 2120);
         var gunGate = graph.Branch("Gun?", 2120);
@@ -162,17 +201,18 @@ public sealed class WeaponSliceGraphTests
         var partComp = graph.Component("PartData", "WeaponPart", 2400, "int64");
         var partDataGate = graph.Branch("PartData?", 2400);
         var slot = graph.Field("Slot", "WeaponPart", "Slot", "string", 2540);
-        var barrel = graph.Equal("IsBarrel", "barrel", 2780);
-        var slotGate = graph.Branch("Barrel?", 2960);
-        var assembly = graph.Component("Assembly", "WeaponAssembly", 3240, "int64");
-        var assemblyGate = graph.Branch("Assembly?", 3240);
-        var prototype = graph.Field("Prototype", "WeaponPart", "Prototype", "string", 3520);
-        var rate = graph.Field("Rate", "WeaponPart", "FireRate", "float32", 3800);
-        var speed = graph.Field("Speed", "WeaponPart", "ProjectileSpeed", "float32", 4080);
-        var setBarrel = graph.Set("SetBarrel", "WeaponAssembly", "Barrel", 3520);
-        var setRate = graph.Set("SetRate", "WeaponAssembly", "FireRate", 3800);
-        var setSpeed = graph.Set("SetSpeed", "WeaponAssembly", "ProjectileSpeed", 4080);
-        var insert = graph.Call("Container.Insert", "Insert", 4360, ("Owner", "int64", null), ("Container", "string", "barrel"), ("Item", "int64", null), ("Success", "bool", null));
+        var assembly = graph.Component("Assembly", "WeaponAssembly", 2780, "int64");
+        var assemblyGate = graph.Branch("Assembly?", 2780);
+        graph.UseRow(900);
+        var installFit = graph.Fit("Install", 3000, partComp, assembly);
+        var occupied = graph.Call("Entity.GetHeldItem", "Occupied", 5200, ("Holder", "int64", null), ("Container", "string", null), ("Item", "int64", null));
+        var hasOccupied = graph.NotZero("HasOccupied", 5420);
+        var occupiedGate = graph.Branch("Occupied?", 5420);
+        var occupiedReason = graph.Call("Bui.Set", "OccupiedReason", 5640, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Remove the fitted part first"), ("Success", "bool", null));
+        var insert = graph.Call("Container.Insert", "Insert", 5860, ("Owner", "int64", null), ("Container", "string", null), ("Item", "int64", null), ("Success", "bool", null));
+        graph.UseRow(2800);
+        var fitted = graph.Derive("Fit");
+        graph.UseRow(0);
         var afterInstall = graph.Refresh("Done", 4640);
         graph.UseRow(560);
         var onOpen = graph.Refresh("Open", 360);
@@ -183,20 +223,40 @@ public sealed class WeaponSliceGraphTests
         var hasRemoveGun = graph.NotZero("HasRemoveGun", 1340);
         var removeGunGate = graph.Branch("RemoveGun?", 1560);
         var noRemoveGun = graph.Call("Bui.Set", "NoRemoveGun", 1780, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Put the pistol in the gun slot"), ("Success", "bool", null));
-        var removeBarrel = graph.Call("Entity.GetHeldItem", "RemoveBarrel", 1780, ("Holder", "int64", null), ("Container", "string", "barrel"), ("Item", "int64", null));
-        var hasRemoveBarrel = graph.NotZero("HasRemoveBarrel", 2000);
-        var removeBarrelGate = graph.Branch("RemoveBarrel?", 2220);
-        var noBarrel = graph.Call("Bui.Set", "NoBarrel", 2440, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "No barrel installed"), ("Success", "bool", null));
-        var removeAssembly = graph.Component("RemoveAssembly", "WeaponAssembly", 2440, "int64");
-        var removeAssemblyGate = graph.Branch("RemoveAssembly?", 2660);
-        var takeBarrel = graph.Call("Container.Remove", "TakeBarrel", 2880, ("Owner", "int64", null), ("Container", "string", "barrel"), ("Item", "int64", null), ("Success", "bool", null));
-        var returnBarrel = graph.Call("Container.Insert", "ReturnBarrel", 3100, ("Owner", "EntityUid", null), ("Container", "string", "storagebase"), ("Item", "int64", null), ("Success", "bool", null));
-        var emptyBarrel = graph.Literal("EmptyBarrel", "string", "", 3100);
-        var clearBarrel = graph.Set("ClearBarrel", "WeaponAssembly", "Barrel", 3320);
-        var resetRate = graph.Set("ResetRate", "WeaponAssembly", "FireRate", 3540, "6", "float32");
-        var resetSpeed = graph.Set("ResetSpeed", "WeaponAssembly", "ProjectileSpeed", 3760, "40", "float32");
-        var removed = graph.Call("Bui.Set", "Removed", 3980, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Barrel returned to the bench"), ("Success", "bool", null));
-        var afterRemove = graph.Refresh("Off", 4200);
+        var removePart = graph.Call("Inventory.Find", "RemovePartItem", 1780, ("Owner", "int64", null), ("Prototype", "string", null), ("Item", "int64", null));
+        var hasRemovePart = graph.NotZero("HasRemovePart", 2000);
+        var removePartGate = graph.Branch("RemovePart?", 2000);
+        var noPartInstalled = graph.Call("Bui.Set", "NoPartInstalled", 2220, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Select an installed part"), ("Success", "bool", null));
+        var removeComp = graph.Component("RemovePartData", "WeaponPart", 2220, "int64");
+        var removeCompGate = graph.Branch("RemovePartData?", 2440);
+        var removeSlot = graph.Field("RemoveSlot", "WeaponPart", "Slot", "string", 2660);
+        var removeAssembly = graph.Component("RemoveAssembly", "WeaponAssembly", 2660, "int64");
+        var removeAssemblyGate = graph.Branch("RemoveAssembly?", 2880);
+        var takePart = graph.Call("Container.Remove", "TakePart", 3100, ("Owner", "int64", null), ("Container", "string", null), ("Item", "int64", null), ("Success", "bool", null));
+        var returnPart = graph.Call("Container.Insert", "ReturnPart", 3320, ("Owner", "EntityUid", null), ("Container", "string", "storagebase"), ("Item", "int64", null), ("Success", "bool", null));
+        graph.UseRow(3600);
+        var cleared = graph.Derive("Off");
+        graph.UseRow(1480);
+        var removed = graph.Call("Bui.Set", "Removed", 3540, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Part returned to the bench"), ("Success", "bool", null));
+        var afterRemove = graph.Refresh("Off", 3760);
+        graph.UseRow(2200);
+        var isSelect = graph.Equal("IsSelect", "SelectPart", 680);
+        var selectGate = graph.Branch("Select?", 900);
+        var selectGun = graph.Call("Entity.GetHeldItem", "SelectGun", 1120, ("Holder", "EntityUid", null), ("Container", "string", "gun"), ("Item", "int64", null));
+        var hasSelectGun = graph.NotZero("HasSelectGun", 1340);
+        var selectGunGate = graph.Branch("SelectGun?", 1340);
+        var selectNoGun = graph.Call("Bui.Set", "SelectNoGun", 1560, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Put the pistol in the gun slot"), ("Success", "bool", null));
+        var selectBench = graph.Call("Inventory.Find", "SelectBench", 1560, ("Owner", "EntityUid", null), ("Prototype", "string", null), ("Item", "int64", null));
+        var selectOnGun = graph.Call("Inventory.Find", "SelectOnGun", 1780, ("Owner", "int64", null), ("Prototype", "string", null), ("Item", "int64", null));
+        var selectHasBench = graph.NotZero("SelectHasBench", 2000);
+        var selectItem = graph.Select("SelectItem", 2000, "int64");
+        var selectHasItem = graph.NotZero("SelectHasItem", 2220);
+        var selectItemGate = graph.Branch("SelectItem?", 2220);
+        var selectNoPart = graph.Call("Bui.Set", "SelectNoPart", 2440, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Select a part in the list"), ("Success", "bool", null));
+        var selectComp = graph.Component("SelectPartData", "WeaponPart", 2440, "int64");
+        var selectCompGate = graph.Branch("SelectPartData?", 2660);
+        var selectAssembly = graph.Component("SelectAssembly", "WeaponAssembly", 2660, "int64");
+        var selectFit = graph.Fit("Select", 2880, selectComp, selectAssembly);
 
         graph.Exec(message, installGate);
         graph.Exec(installGate, "True", partGate);
@@ -204,26 +264,32 @@ public sealed class WeaponSliceGraphTests
         graph.Exec(partGate, "True", gunGate);
         graph.Exec(gunGate, "False", noGun);
         graph.Exec(gunGate, "True", partDataGate);
-        graph.Exec(partDataGate, "True", slotGate);
-        graph.Exec(slotGate, "True", assemblyGate);
-        graph.Exec(assemblyGate, "True", setBarrel);
-        graph.Exec(setBarrel, setRate);
-        graph.Exec(setRate, setSpeed);
-        graph.Exec(setSpeed, insert);
-        graph.Exec(insert, afterInstall);
+        graph.Exec(partDataGate, "True", assemblyGate);
+        graph.Exec(assemblyGate, "True", installFit.Entry);
+        graph.Exec(installFit.Direct, occupiedGate);
+        graph.Exec(occupiedGate, "True", occupiedReason);
+        graph.Exec(occupiedGate, "False", insert);
+        graph.Exec(insert, fitted.Start);
+        graph.Exec(fitted.End, afterInstall);
         graph.Exec(installGate, "False", removeGate);
+        graph.Exec(removeGate, "False", selectGate);
         graph.Exec(removeGate, "True", removeGunGate);
         graph.Exec(removeGunGate, "False", noRemoveGun);
-        graph.Exec(removeGunGate, "True", removeBarrelGate);
-        graph.Exec(removeBarrelGate, "False", noBarrel);
-        graph.Exec(removeBarrelGate, "True", removeAssemblyGate);
-        graph.Exec(removeAssemblyGate, "True", takeBarrel);
-        graph.Exec(takeBarrel, returnBarrel);
-        graph.Exec(returnBarrel, clearBarrel);
-        graph.Exec(clearBarrel, resetRate);
-        graph.Exec(resetRate, resetSpeed);
-        graph.Exec(resetSpeed, removed);
+        graph.Exec(removeGunGate, "True", removePartGate);
+        graph.Exec(removePartGate, "False", noPartInstalled);
+        graph.Exec(removePartGate, "True", removeCompGate);
+        graph.Exec(removeCompGate, "True", removeAssemblyGate);
+        graph.Exec(removeAssemblyGate, "True", takePart);
+        graph.Exec(takePart, returnPart);
+        graph.Exec(returnPart, cleared.Start);
+        graph.Exec(cleared.End, removed);
         graph.Exec(removed, afterRemove);
+        graph.Exec(selectGate, "True", selectGunGate);
+        graph.Exec(selectGunGate, "False", selectNoGun);
+        graph.Exec(selectGunGate, "True", selectItemGate);
+        graph.Exec(selectItemGate, "False", selectNoPart);
+        graph.Exec(selectItemGate, "True", selectCompGate);
+        graph.Exec(selectCompGate, "True", selectFit.Entry);
         graph.Exec(open, onOpen);
 
         graph.DataWire(message, "Event", action, "Target");
@@ -231,25 +297,48 @@ public sealed class WeaponSliceGraphTests
         graph.DataWire(isInstall, "Result", installGate, "Condition");
         graph.DataWire(action, "Value", isRemove, "A");
         graph.DataWire(isRemove, "Result", removeGate, "Condition");
+        graph.DataWire(action, "Value", isSelect, "A");
+        graph.DataWire(isSelect, "Result", selectGate, "Condition");
         graph.DataWire(message, "Entity", removeGun, "Holder");
         graph.DataWire(message, "Entity", noRemoveGun, "Owner");
-        graph.DataWire(message, "Entity", noBarrel, "Owner");
-        graph.DataWire(message, "Entity", returnBarrel, "Owner");
+        graph.DataWire(message, "Entity", noPartInstalled, "Owner");
+        graph.DataWire(message, "Entity", returnPart, "Owner");
         graph.DataWire(message, "Entity", removed, "Owner");
+        graph.DataWire(message, "Entity", occupiedReason, "Owner");
+        graph.DataWire(message, "Entity", selectGun, "Holder");
+        graph.DataWire(message, "Entity", selectNoGun, "Owner");
+        graph.DataWire(message, "Entity", selectBench, "Owner");
+        graph.DataWire(message, "Entity", selectNoPart, "Owner");
         graph.DataWire(removeGun, "Item", hasRemoveGun, "A");
         graph.DataWire(hasRemoveGun, "Result", removeGunGate, "Condition");
-        graph.DataWire(removeGun, "Item", removeBarrel, "Holder");
-        graph.DataWire(removeBarrel, "Item", hasRemoveBarrel, "A");
-        graph.DataWire(hasRemoveBarrel, "Result", removeBarrelGate, "Condition");
+        graph.DataWire(removeGun, "Item", removePart, "Owner");
+        graph.DataWire(partId, "Value", removePart, "Prototype");
+        graph.DataWire(removePart, "Item", hasRemovePart, "A");
+        graph.DataWire(hasRemovePart, "Result", removePartGate, "Condition");
+        graph.DataWire(removePart, "Item", removeComp, "Entity");
+        graph.DataWire(removeComp, "Found", removeCompGate, "Condition");
+        graph.DataWire(removeComp, "Component", removeSlot, "Component");
         graph.DataWire(removeGun, "Item", removeAssembly, "Entity");
         graph.DataWire(removeAssembly, "Found", removeAssemblyGate, "Condition");
-        graph.DataWire(removeAssembly, "Component", clearBarrel, "Target");
-        graph.DataWire(emptyBarrel, "Value", clearBarrel, "Value");
-        graph.DataWire(clearBarrel, "Result", resetRate, "Target");
-        graph.DataWire(resetRate, "Result", resetSpeed, "Target");
-        graph.DataWire(removeGun, "Item", takeBarrel, "Owner");
-        graph.DataWire(removeBarrel, "Item", takeBarrel, "Item");
-        graph.DataWire(removeBarrel, "Item", returnBarrel, "Item");
+        graph.DataWire(removeGun, "Item", takePart, "Owner");
+        graph.DataWire(removeSlot, "Value", takePart, "Container");
+        graph.DataWire(removePart, "Item", takePart, "Item");
+        graph.DataWire(removePart, "Item", returnPart, "Item");
+        graph.DataWire(selectGun, "Item", hasSelectGun, "A");
+        graph.DataWire(hasSelectGun, "Result", selectGunGate, "Condition");
+        graph.DataWire(selectGun, "Item", selectOnGun, "Owner");
+        graph.DataWire(selectGun, "Item", selectAssembly, "Entity");
+        graph.DataWire(partId, "Value", selectBench, "Prototype");
+        graph.DataWire(partId, "Value", selectOnGun, "Prototype");
+        graph.DataWire(selectBench, "Item", selectHasBench, "A");
+        graph.DataWire(selectHasBench, "Result", selectItem, "Condition");
+        graph.DataWire(selectBench, "Item", selectItem, "True");
+        graph.DataWire(selectOnGun, "Item", selectItem, "False");
+        graph.DataWire(selectItem, "Result", selectHasItem, "A");
+        graph.DataWire(selectHasItem, "Result", selectItemGate, "Condition");
+        graph.DataWire(selectItem, "Result", selectComp, "Entity");
+        graph.DataWire(selectComp, "Found", selectCompGate, "Condition");
+        graph.WireStatus(message);
         graph.DataWire(message, "Event", payload, "Target");
         graph.DataWire(payload, "Value", partId, "Payload");
         graph.DataWire(message, "Entity", part, "Owner");
@@ -264,21 +353,17 @@ public sealed class WeaponSliceGraphTests
         graph.DataWire(part, "Item", partComp, "Entity");
         graph.DataWire(partComp, "Found", partDataGate, "Condition");
         graph.DataWire(partComp, "Component", slot, "Component");
-        graph.DataWire(slot, "Value", barrel, "A");
-        graph.DataWire(barrel, "Result", slotGate, "Condition");
         graph.DataWire(gun, "Item", assembly, "Entity");
         graph.DataWire(assembly, "Found", assemblyGate, "Condition");
-        graph.DataWire(partComp, "Component", prototype, "Component");
-        graph.DataWire(partComp, "Component", rate, "Component");
-        graph.DataWire(partComp, "Component", speed, "Component");
-        graph.DataWire(assembly, "Component", setBarrel, "Target");
-        graph.DataWire(prototype, "Value", setBarrel, "Value");
-        graph.DataWire(setBarrel, "Result", setRate, "Target");
-        graph.DataWire(rate, "Value", setRate, "Value");
-        graph.DataWire(setRate, "Result", setSpeed, "Target");
-        graph.DataWire(speed, "Value", setSpeed, "Value");
+        graph.DataWire(gun, "Item", occupied, "Holder");
+        graph.DataWire(slot, "Value", occupied, "Container");
+        graph.DataWire(occupied, "Item", hasOccupied, "A");
+        graph.DataWire(hasOccupied, "Result", occupiedGate, "Condition");
         graph.DataWire(gun, "Item", insert, "Owner");
+        graph.DataWire(slot, "Value", insert, "Container");
         graph.DataWire(part, "Item", insert, "Item");
+        graph.WireDerive(fitted, gun, assembly);
+        graph.WireDerive(cleared, removeGun, removeAssembly);
         graph.WireRefresh(afterInstall, open);
         graph.WireRefresh(onOpen, open);
         graph.WireRefresh(afterRemove, message);
@@ -355,7 +440,9 @@ public sealed class WeaponSliceGraphTests
             var installedProto = Field(prefix + "InstalledPrototype", "WeaponPart", "Prototype", "string", x + 5380);
             var installedText = Set(prefix + "InstalledText", "PartRow", "Text", x + 5380);
             var installedLabel = Field(prefix + "InstalledLabel", "WeaponPart", "Label", "string", x + 5600);
-            var installedOff = Set(prefix + "InstalledOff", "PartRow", "Disabled", x + 5600, "true", "bool");
+            var installedMark = Add(prefix + "InstalledMark", x + 5600, "string");
+            var installedSuffix = Literal(prefix + "InstalledSuffix", "string", " · installed", x + 5600);
+            var installedOff = Set(prefix + "InstalledOff", "PartRow", "Disabled", x + 5820, "false", "bool");
             var installedRead = Read(prefix + "InstalledRead", "Rows", x + 5820, "List<PartRow>");
             var installedAdd = Call("List.Add", prefix + "InstalledAdd", x + 5820, ("List", "List<PartRow>", null), ("Item", "PartRow", null), ("ListOut", "List<PartRow>", null));
             var installedStore = Assign(prefix + "InstalledStore", "Rows", x + 6040, "List<PartRow>");
@@ -414,7 +501,9 @@ public sealed class WeaponSliceGraphTests
             DataWire(installedMade, "Value", installedId, "Target");
             DataWire(installedProto, "Value", installedId, "Value");
             DataWire(installedId, "Result", installedText, "Target");
-            DataWire(installedLabel, "Value", installedText, "Value");
+            DataWire(installedLabel, "Value", installedMark, "A");
+            DataWire(installedSuffix, "Value", installedMark, "B");
+            DataWire(installedMark, "Result", installedText, "Value");
             DataWire(installedText, "Result", installedOff, "Target");
             DataWire(installedRead, "Value", installedAdd, "List");
             DataWire(installedOff, "Result", installedAdd, "Item");
@@ -567,8 +656,13 @@ public sealed class WeaponSliceGraphTests
             Name = "WeaponBench",
             Kind = GraphKind.System,
             Side = GraphSide.Server,
-            Metadata = new GraphMetadata { Description = "Bench lists parts, installs a barrel the server accepts, and returns that barrel to storage. The client only sends the action." },
-            Variables = [new GraphVariableDocument { Name = "Rows", TypeName = "List<PartRow>" }],
+            Metadata = new GraphMetadata { Description = "Bench lists parts, shows whether a part fits the pistol, installs a direct fit, and returns that part to storage. The client only sends the action." },
+            Variables =
+            [
+                new GraphVariableDocument { Name = "Rows", TypeName = "List<PartRow>" },
+                new GraphVariableDocument { Name = "Rate", TypeName = "float32" },
+                new GraphVariableDocument { Name = "Speed", TypeName = "float32" }
+            ],
             Nodes = _nodes,
             Connections = _connections,
             EditorLayout = new EditorLayoutDocument { NodePositions = _positions },
@@ -577,19 +671,200 @@ public sealed class WeaponSliceGraphTests
                 Schema("11aa11aa-11aa-41aa-81aa-11aa11aa11aa", "WeaponAssembly", true,
                     ("11aa11aa-11aa-41aa-81aa-11aa11aa11ab", "Barrel", "string", ""),
                     ("11aa11aa-11aa-41aa-81aa-11aa11aa11ac", "FireRate", "float32", "6"),
-                    ("11aa11aa-11aa-41aa-81aa-11aa11aa11ad", "ProjectileSpeed", "float32", "40")),
+                    ("11aa11aa-11aa-41aa-81aa-11aa11aa11ad", "ProjectileSpeed", "float32", "40"),
+                    ("11aa11aa-11aa-41aa-81aa-11aa11aa11ae", "Bolt", "string", ""),
+                    ("11aa11aa-11aa-41aa-81aa-11aa11aa11af", "Magazine", "string", ""),
+                    ("11aa11aa-11aa-41aa-81aa-11aa11aa11b0", "Optic", "string", ""),
+                    ("11aa11aa-11aa-41aa-81aa-11aa11aa11b1", "Muzzle", "string", ""),
+                    ("11aa11aa-11aa-41aa-81aa-11aa11aa11b2", "Accepts", "List<string>", "")),
                 Schema("22bb22bb-22bb-42bb-82bb-22bb22bb22bb", "WeaponPart", true,
                     ("22bb22bb-22bb-42bb-82bb-22bb22bb22b1", "Prototype", "string", ""),
                     ("22bb22bb-22bb-42bb-82bb-22bb22bb22b2", "Slot", "string", "barrel"),
                     ("22bb22bb-22bb-42bb-82bb-22bb22bb22b3", "Label", "string", ""),
                     ("22bb22bb-22bb-42bb-82bb-22bb22bb22b4", "FireRate", "float32", "6"),
-                    ("22bb22bb-22bb-42bb-82bb-22bb22bb22b5", "ProjectileSpeed", "float32", "40")),
+                    ("22bb22bb-22bb-42bb-82bb-22bb22bb22b5", "ProjectileSpeed", "float32", "40"),
+                    ("22bb22bb-22bb-42bb-82bb-22bb22bb22b6", "Provides", "List<string>", ""),
+                    ("22bb22bb-22bb-42bb-82bb-22bb22bb22b7", "Adapts", "List<string>", ""),
+                    ("22bb22bb-22bb-42bb-82bb-22bb22bb22b8", "Machines", "List<string>", ""),
+                    ("22bb22bb-22bb-42bb-82bb-22bb22bb22b9", "RateDelta", "float32", "0"),
+                    ("22bb22bb-22bb-42bb-82bb-22bb22bb22ba", "SpeedDelta", "float32", "0")),
                 Schema("33cc33cc-33cc-43cc-83cc-33cc33cc33cc", "PartRow", false,
                     ("33cc33cc-33cc-43cc-83cc-33cc33cc33c1", "Id", "string", ""),
                     ("33cc33cc-33cc-43cc-83cc-33cc33cc33c2", "Text", "string", ""),
                     ("33cc33cc-33cc-43cc-83cc-33cc33cc33c3", "Disabled", "bool", "false"))
             ]
         };
+
+        private static readonly (string Container, string Field)[] Slots =
+        [
+            ("barrel", "Barrel"),
+            ("bolt", "Bolt"),
+            ("magazine", "Magazine"),
+            ("optic", "Optic"),
+            ("muzzle", "Muzzle")
+        ];
+
+        private readonly List<NodeDocument> _status = [];
+        private readonly Dictionary<NodeDocument, (List<NodeDocument> Holders, List<NodeDocument> Targets)> _derives = [];
+
+        public (NodeDocument Entry, NodeDocument Direct) Fit(string prefix, int x, NodeDocument part, NodeDocument assembly)
+        {
+            var provides = Field(prefix + "Provides", "WeaponPart", "Provides", "List<string>", x);
+            var adapts = Field(prefix + "Adapts", "WeaponPart", "Adapts", "List<string>", x + 220);
+            var machines = Field(prefix + "Machines", "WeaponPart", "Machines", "List<string>", x + 440);
+            var label = Field(prefix + "Label", "WeaponPart", "Label", "string", x + 660);
+            var accepts = Field(prefix + "Accepts", "WeaponAssembly", "Accepts", "List<string>", x + 880);
+            var directHit = Intersects(prefix + "DirectHit", x + 1100);
+            var adaptHit = Intersects(prefix + "AdaptHit", x + 1320);
+            var machineHit = Intersects(prefix + "MachineHit", x + 1540);
+            var entry = Branch(prefix + "Direct?", x + 1760);
+            var adaptGate = Branch(prefix + "Adapter?", x + 1980);
+            var machineGate = Branch(prefix + "Machining?", x + 2200);
+            var direct = Reason(prefix + "DirectReason", x + 1980, label, ": Direct fit.");
+            var adapter = Reason(prefix + "AdapterReason", x + 2200, label, ": Needs an adapter.");
+            var machine = Reason(prefix + "MachineReason", x + 2420, label, ": Needs machining.");
+            var reject = Reason(prefix + "RejectReason", x + 2640, label, ": Incompatible with this pistol.");
+            Exec(entry, "True", direct);
+            Exec(entry, "False", adaptGate);
+            Exec(adaptGate, "True", adapter);
+            Exec(adaptGate, "False", machineGate);
+            Exec(machineGate, "True", machine);
+            Exec(machineGate, "False", reject);
+            DataWire(part, "Component", provides, "Component");
+            DataWire(part, "Component", adapts, "Component");
+            DataWire(part, "Component", machines, "Component");
+            DataWire(part, "Component", label, "Component");
+            DataWire(assembly, "Component", accepts, "Component");
+            DataWire(provides, "Value", directHit, "List");
+            DataWire(accepts, "Value", directHit, "Other");
+            DataWire(adapts, "Value", adaptHit, "List");
+            DataWire(accepts, "Value", adaptHit, "Other");
+            DataWire(machines, "Value", machineHit, "List");
+            DataWire(accepts, "Value", machineHit, "Other");
+            DataWire(directHit, "Result", entry, "Condition");
+            DataWire(adaptHit, "Result", adaptGate, "Condition");
+            DataWire(machineHit, "Result", machineGate, "Condition");
+            return (entry, direct);
+        }
+
+        public (NodeDocument Start, NodeDocument End) Derive(string prefix)
+        {
+            var rateBase = Literal(prefix + "RateBase", "float32", "6", 40);
+            var speedBase = Literal(prefix + "SpeedBase", "float32", "40", 40);
+            var rate0 = Assign(prefix + "Rate0", "Rate", 40, "float32");
+            var speed0 = Assign(prefix + "Speed0", "Speed", 260, "float32");
+            Exec(rate0, speed0);
+            DataWire(rateBase, "Value", rate0, "Value");
+            DataWire(speedBase, "Value", speed0, "Value");
+            var holders = new List<NodeDocument>();
+            var targets = new List<NodeDocument>();
+            var previous = speed0;
+            var cursor = 480;
+            foreach (var slot in Slots)
+            {
+                var item = Call("Entity.GetHeldItem", prefix + slot.Field + "Item", cursor, ("Holder", "int64", null), ("Container", "string", slot.Container), ("Item", "int64", null));
+                var comp = Component(prefix + slot.Field + "Part", "WeaponPart", cursor + 220, "int64");
+                var proto = Field(prefix + slot.Field + "Proto", "WeaponPart", "Prototype", "string", cursor + 440);
+                var rateDelta = Field(prefix + slot.Field + "Rate", "WeaponPart", "RateDelta", "float32", cursor + 660);
+                var speedDelta = Field(prefix + slot.Field + "Speed", "WeaponPart", "SpeedDelta", "float32", cursor + 880);
+                var empty = Literal(prefix + slot.Field + "Empty", "string", "", cursor + 1100);
+                var zeroRate = Literal(prefix + slot.Field + "ZeroRate", "float32", "0", cursor + 1100);
+                var zeroSpeed = Literal(prefix + slot.Field + "ZeroSpeed", "float32", "0", cursor + 1100);
+                var chosenProto = Select(prefix + slot.Field + "ProtoPick", cursor + 1320, "string");
+                var chosenRate = Select(prefix + slot.Field + "RatePick", cursor + 1540, "float32");
+                var chosenSpeed = Select(prefix + slot.Field + "SpeedPick", cursor + 1760, "float32");
+                var readRate = Read(prefix + slot.Field + "ReadRate", "Rate", cursor + 1980, "float32");
+                var readSpeed = Read(prefix + slot.Field + "ReadSpeed", "Speed", cursor + 1980, "float32");
+                var sumRate = Add(prefix + slot.Field + "SumRate", cursor + 2200, "float32");
+                var sumSpeed = Add(prefix + slot.Field + "SumSpeed", cursor + 2420, "float32");
+                var storeRate = Assign(prefix + slot.Field + "StoreRate", "Rate", cursor + 2640, "float32");
+                var storeSpeed = Assign(prefix + slot.Field + "StoreSpeed", "Speed", cursor + 2860, "float32");
+                var setSlot = Set(prefix + slot.Field + "Write", "WeaponAssembly", slot.Field, cursor + 3080);
+                Exec(previous, storeRate);
+                Exec(storeRate, storeSpeed);
+                Exec(storeSpeed, setSlot);
+                DataWire(item, "Item", comp, "Entity");
+                DataWire(comp, "Component", proto, "Component");
+                DataWire(comp, "Component", rateDelta, "Component");
+                DataWire(comp, "Component", speedDelta, "Component");
+                DataWire(comp, "Found", chosenProto, "Condition");
+                DataWire(comp, "Found", chosenRate, "Condition");
+                DataWire(comp, "Found", chosenSpeed, "Condition");
+                DataWire(proto, "Value", chosenProto, "True");
+                DataWire(empty, "Value", chosenProto, "False");
+                DataWire(rateDelta, "Value", chosenRate, "True");
+                DataWire(zeroRate, "Value", chosenRate, "False");
+                DataWire(speedDelta, "Value", chosenSpeed, "True");
+                DataWire(zeroSpeed, "Value", chosenSpeed, "False");
+                DataWire(readRate, "Value", sumRate, "A");
+                DataWire(chosenRate, "Result", sumRate, "B");
+                DataWire(readSpeed, "Value", sumSpeed, "A");
+                DataWire(chosenSpeed, "Result", sumSpeed, "B");
+                DataWire(sumRate, "Result", storeRate, "Value");
+                DataWire(sumSpeed, "Result", storeSpeed, "Value");
+                DataWire(chosenProto, "Result", setSlot, "Value");
+                holders.Add(item);
+                targets.Add(setSlot);
+                previous = setSlot;
+                cursor += 3300;
+            }
+
+            var finalRate = Read(prefix + "FinalRate", "Rate", cursor, "float32");
+            var finalSpeed = Read(prefix + "FinalSpeed", "Speed", cursor, "float32");
+            var writeRate = Set(prefix + "WriteRate", "WeaponAssembly", "FireRate", cursor, null, "float32");
+            var writeSpeed = Set(prefix + "WriteSpeed", "WeaponAssembly", "ProjectileSpeed", cursor + 220, null, "float32");
+            Exec(previous, writeRate);
+            Exec(writeRate, writeSpeed);
+            DataWire(finalRate, "Value", writeRate, "Value");
+            DataWire(finalSpeed, "Value", writeSpeed, "Value");
+            targets.Add(writeRate);
+            targets.Add(writeSpeed);
+            _derives[rate0] = (holders, targets);
+            return (rate0, writeSpeed);
+        }
+
+        public void WireDerive((NodeDocument Start, NodeDocument End) derived, NodeDocument gun, NodeDocument assembly)
+        {
+            var (holders, targets) = _derives[derived.Start];
+            foreach (var holder in holders)
+            {
+                DataWire(gun, "Item", holder, "Holder");
+            }
+
+            foreach (var target in targets)
+            {
+                DataWire(assembly, "Component", target, "Target");
+            }
+        }
+
+        public void WireStatus(NodeDocument bench)
+        {
+            foreach (var set in _status)
+            {
+                DataWire(bench, "Entity", set, "Owner");
+            }
+        }
+
+        public NodeDocument Intersects(string name, int x) =>
+            Place(Node(name, "List.Intersects", null, Data("List", "List<string>", true), Data("Other", "List<string>", true), Data("Result", "bool", false)), x, Y(300));
+
+        public NodeDocument Select(string name, int x, string type) =>
+            Place(Node(name, "Core.Select", null, Data("Condition", "bool", true), Data("True", type, true), Data("False", type, true), Data("Result", type, false)), x, Y(300));
+
+        public NodeDocument Add(string name, int x, string type) =>
+            Place(Node(name, "math.add", null, Data("A", type, true), Data("B", type, true), Data("Result", type, false)), x, Y(300));
+
+        private NodeDocument Reason(string name, int x, NodeDocument label, string suffix)
+        {
+            var tail = Literal(name + "Tail", "string", suffix, x);
+            var text = Add(name + "Text", x + 220, "string");
+            var set = Call("Bui.Set", name, x + 440, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", null), ("Success", "bool", null));
+            DataWire(label, "Value", text, "A");
+            DataWire(tail, "Value", text, "B");
+            DataWire(text, "Result", set, "Value");
+            _status.Add(set);
+            return set;
+        }
 
         private NodeDocument Place(NodeDocument node, int x, int y)
         {

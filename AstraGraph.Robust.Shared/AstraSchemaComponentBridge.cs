@@ -8,6 +8,7 @@ using Robust.Shared.Serialization;
 using Robust.Shared.Serialization.Manager;
 using Robust.Shared.Serialization.Markdown;
 using Robust.Shared.Serialization.Markdown.Mapping;
+using Robust.Shared.Serialization.Markdown.Sequence;
 using Robust.Shared.Serialization.Markdown.Validation;
 using Robust.Shared.Serialization.Markdown.Value;
 using Robust.Shared.Serialization.TypeSerializers.Interfaces;
@@ -69,7 +70,12 @@ public sealed class AstraSchemaMappingReader<T> :
         ValidationNode? failure = null;
         foreach (var (key, child) in node.Children)
         {
-            var raw = child is ValueDataNode value ? value.Value : child.ToString();
+            var raw = ReadField(child);
+            if (raw == null)
+            {
+                continue;
+            }
+
             var check = AstraSchemaRuntime.Registry.ValidateValue(schema, key, raw, AstraSchemaRuntime.PrototypeName);
             if (!check.Success)
             {
@@ -116,11 +122,36 @@ public sealed class AstraSchemaMappingReader<T> :
     {
         foreach (var (key, child) in node.Children)
         {
-            if (child is ValueDataNode value)
+            var raw = ReadField(child);
+            if (raw != null)
             {
-                instance.Fields[key] = value.Value;
+                instance.Fields[key] = raw;
             }
         }
+    }
+
+    private static string? ReadField(DataNode child)
+    {
+        if (child is ValueDataNode value)
+        {
+            return value.Value;
+        }
+
+        if (child is not SequenceDataNode sequence)
+        {
+            return null;
+        }
+
+        var parts = new List<string>();
+        foreach (var item in sequence)
+        {
+            if (item is ValueDataNode entry)
+            {
+                parts.Add(entry.Value);
+            }
+        }
+
+        return string.Join(SchemaYamlBinder.ListSeparator, parts);
     }
 }
 
