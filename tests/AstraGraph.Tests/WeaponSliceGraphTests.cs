@@ -212,8 +212,11 @@ public sealed class WeaponSliceGraphTests
         var fitLeft = graph.Add("FitLeft", 5640, "string");
         var fitWhere = graph.Add("FitWhere", 5860, "string");
         var fitting = graph.Call("Bui.Set", "Fitting", 6080, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", null), ("Success", "bool", null));
-        var pull = graph.Call("Container.Remove", "Pull", 6300, ("Owner", "EntityUid", null), ("Container", "string", "storagebase"), ("Item", "int64", null), ("Success", "bool", null));
-        var insert = graph.Call("Container.Insert", "Insert", 6520, ("Owner", "int64", null), ("Container", "string", null), ("Item", "int64", null), ("Success", "bool", null));
+        var slotHeld = graph.Call("Entity.GetHeldItem", "SlotHeld", 6300, ("Holder", "int64", null), ("Container", "string", null), ("Item", "int64", null));
+        var slotFull = graph.NotZero("SlotFull", 6400);
+        var slotFullGate = graph.Branch("SlotFull?", 6400);
+        var slotFullReason = graph.Call("Bui.Set", "SlotFullReason", 6600, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Remove the fitted part first"), ("Success", "bool", null));
+        var insert = graph.Call("Container.Insert", "Insert", 6820, ("Owner", "int64", null), ("Container", "string", null), ("Item", "int64", null), ("Success", "bool", null));
         var inserted = graph.Branch("Inserted?", 6740);
         var installedMsg = graph.Call("Bui.Set", "InstalledMsg", 6960, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Installed."), ("Success", "bool", null));
         var rejectPrefix = graph.Literal("RejectPrefix", "string", "Did not fit into ", 6960);
@@ -275,8 +278,9 @@ public sealed class WeaponSliceGraphTests
         graph.Exec(partDataGate, "True", assemblyGate);
         graph.Exec(assemblyGate, "True", installFit.Entry);
         graph.Exec(installFit.Direct, fitting);
-        graph.Exec(fitting, pull);
-        graph.Exec(pull, insert);
+        graph.Exec(fitting, slotFullGate);
+        graph.Exec(slotFullGate, "True", slotFullReason);
+        graph.Exec(slotFullGate, "False", insert);
         graph.Exec(insert, inserted);
         graph.Exec(inserted, "True", installedMsg);
         graph.Exec(installedMsg, afterInstall);
@@ -318,7 +322,11 @@ public sealed class WeaponSliceGraphTests
         graph.DataWire(message, "Entity", returnPart, "Owner");
         graph.DataWire(message, "Entity", removed, "Owner");
         graph.DataWire(message, "Entity", fitting, "Owner");
-        graph.DataWire(message, "Entity", pull, "Owner");
+        graph.DataWire(message, "Entity", slotFullReason, "Owner");
+        graph.DataWire(gun, "Item", slotHeld, "Holder");
+        graph.DataWire(slot, "Value", slotHeld, "Container");
+        graph.DataWire(slotHeld, "Item", slotFull, "A");
+        graph.DataWire(slotFull, "Result", slotFullGate, "Condition");
         graph.DataWire(message, "Entity", installedMsg, "Owner");
         graph.DataWire(message, "Entity", rejected, "Owner");
         graph.DataWire(message, "Entity", selectGun, "Holder");
@@ -377,7 +385,6 @@ public sealed class WeaponSliceGraphTests
         graph.DataWire(fitLeft, "Result", fitWhere, "A");
         graph.DataWire(slot, "Value", fitWhere, "B");
         graph.DataWire(fitWhere, "Result", fitting, "Value");
-        graph.DataWire(part, "Item", pull, "Item");
         graph.DataWire(gun, "Item", insert, "Owner");
         graph.DataWire(slot, "Value", insert, "Container");
         graph.DataWire(part, "Item", insert, "Item");
@@ -450,10 +457,14 @@ public sealed class WeaponSliceGraphTests
             var assembly = Component(prefix + "Assembly", "WeaponAssembly", x + 2960, "int64");
             var assemblyGate = Branch(prefix + "Assembly?", x + 2960);
             var assemblyRate = Field(prefix + "AssemblyRate", "WeaponAssembly", "FireRate", "float32", x + 3180);
-            var inGun = Call("Entity.GetHeldItem", prefix + "InGun", x + 3400, ("Holder", "int64", null), ("Container", "string", "barrel"), ("Item", "int64", null));
-            var hasBarrel = NotZero(prefix + "HasBarrel", x + 4500);
-            var barrelGate = Branch(prefix + "Installed?", x + 4500);
-            var installedComp = Component(prefix + "Installed", "WeaponPart", x + 4720, "int64");
+            var slotList = Data("List.Create", prefix + "SlotList", x + 3400, ("List", "List<EntityUid>", null));
+            var addBarrel = Held("barrel", x + 3620);
+            var addBolt = Held("bolt", x + 3840);
+            var addMagazine = Held("magazine", x + 4060);
+            var addOptic = Held("optic", x + 4280);
+            var addMuzzle = Held("muzzle", x + 4500);
+            var slotEach = ForEach(prefix + "SlotEach", x + 4720);
+            var installedComp = Component(prefix + "Installed", "WeaponPart", x + 4940);
             var installedGate = Branch(prefix + "InstalledPart?", x + 4720);
             var installedMade = Data("Schema.Make", prefix + "InstalledMake", x + 4940, ("Value", "PartRow", null));
             installedMade.Properties["Schema"] = "PartRow";
@@ -470,8 +481,7 @@ public sealed class WeaponSliceGraphTests
             var installedBuilt = Read(prefix + "InstalledBuilt", "Rows", x + 6260, "List<PartRow>");
             var installedJson = Call("Ui.Rows", prefix + "InstalledJson", x + 6480, ("List", "List<PartRow>", null), ("IdField", "string", "Id"), ("TextField", "string", "Text"), ("DisabledField", "string", "Disabled"), ("Rows", "string", null));
             var installedPublish = Call("Bui.Set", prefix + "InstalledPublish", x + 6700, ("Owner", "EntityUid", null), ("Name", "string", "Parts"), ("Value", "string", null), ("Success", "bool", null));
-            var fit = GunTail(prefix + "Fit", x + 6920);
-            var bare = GunTail(prefix + "Bare", x + 6920);
+            var fitted = GunTail(prefix + "Fit", x + 7140);
 
             Exec(clear, each);
             Exec(each, "Body", rowGate);
@@ -482,16 +492,20 @@ public sealed class WeaponSliceGraphTests
             Exec(add, store);
             Exec(each, "Out", publish);
             Exec(publish, assemblyGate);
-            Exec(assemblyGate, "True", barrelGate);
-            Exec(barrelGate, "False", bare);
-            Exec(barrelGate, "True", installedGate);
+            Exec(assemblyGate, "True", addBarrel.Add);
+            Exec(addBarrel.Add, addBolt.Add);
+            Exec(addBolt.Add, addMagazine.Add);
+            Exec(addMagazine.Add, addOptic.Add);
+            Exec(addOptic.Add, addMuzzle.Add);
+            Exec(addMuzzle.Add, slotEach);
+            Exec(slotEach, "Body", installedGate);
             Exec(installedGate, "True", installedId);
             Exec(installedId, installedText);
             Exec(installedText, installedOff);
             Exec(installedOff, installedAdd);
             Exec(installedAdd, installedStore);
-            Exec(installedStore, installedPublish);
-            Exec(installedPublish, fit);
+            Exec(slotEach, "Out", installedPublish);
+            Exec(installedPublish, fitted);
 
             DataWire(created, "List", clear, "Value");
             DataWire(contents, "Contents", each, "Collection");
@@ -512,10 +526,23 @@ public sealed class WeaponSliceGraphTests
             DataWire(gun, "Item", assembly, "Entity");
             DataWire(assembly, "Found", assemblyGate, "Condition");
             DataWire(assembly, "Component", assemblyRate, "Component");
-            DataWire(gun, "Item", inGun, "Holder");
-            DataWire(inGun, "Item", hasBarrel, "A");
-            DataWire(hasBarrel, "Result", barrelGate, "Condition");
-            DataWire(inGun, "Item", installedComp, "Entity");
+            DataWire(gun, "Item", addBarrel.Held, "Holder");
+            DataWire(gun, "Item", addBolt.Held, "Holder");
+            DataWire(gun, "Item", addMagazine.Held, "Holder");
+            DataWire(gun, "Item", addOptic.Held, "Holder");
+            DataWire(gun, "Item", addMuzzle.Held, "Holder");
+            DataWire(slotList, "List", addBarrel.Add, "List");
+            DataWire(addBarrel.Held, "Item", addBarrel.Add, "Item");
+            DataWire(addBarrel.Add, "List", addBolt.Add, "List");
+            DataWire(addBolt.Held, "Item", addBolt.Add, "Item");
+            DataWire(addBolt.Add, "List", addMagazine.Add, "List");
+            DataWire(addMagazine.Held, "Item", addMagazine.Add, "Item");
+            DataWire(addMagazine.Add, "List", addOptic.Add, "List");
+            DataWire(addOptic.Held, "Item", addOptic.Add, "Item");
+            DataWire(addOptic.Add, "List", addMuzzle.Add, "List");
+            DataWire(addMuzzle.Held, "Item", addMuzzle.Add, "Item");
+            DataWire(addMuzzle.Add, "List", slotEach, "Collection");
+            DataWire(slotEach, "Current", installedComp, "Entity");
             DataWire(installedComp, "Found", installedGate, "Condition");
             DataWire(installedComp, "Component", installedProto, "Component");
             DataWire(installedComp, "Component", installedLabel, "Component");
@@ -566,6 +593,13 @@ public sealed class WeaponSliceGraphTests
                 DataWire(gun, "Item", describe, "Entity");
                 DataWire(gun, "Item", refreshGun, "Entity");
                 return adjusted?.Start ?? writeRate;
+            }
+
+            (NodeDocument Held, NodeDocument Add) Held(string container, int at)
+            {
+                var held = Call("Entity.GetHeldItem", prefix + container + "Held", at, ("Holder", "int64", null), ("Container", "string", container), ("Item", "EntityUid", null));
+                var add = Call("List.Add", prefix + container + "Add", at, ("List", "List<EntityUid>", null), ("Item", "EntityUid", null), ("ListOut", "List<EntityUid>", null));
+                return (held, add);
             }
         }
 
