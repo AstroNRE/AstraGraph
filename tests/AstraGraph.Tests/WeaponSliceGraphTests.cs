@@ -130,8 +130,10 @@ public sealed class WeaponSliceGraphTests
             }
         }
 
-        Assert.That(opcodes, Does.Contain(IrOpCode.CollectionIntersects));
-        Assert.That(opcodes, Does.Contain(IrOpCode.Select));
+        Assert.That(opcodes, Does.Not.Contain(IrOpCode.CollectionIntersects));
+        Assert.That(opcodes, Does.Not.Contain(IrOpCode.Select));
+        Assert.That(opcodes, Does.Contain(IrOpCode.Or));
+        Assert.That(opcodes, Does.Contain(IrOpCode.And));
     }
 
     [Test]
@@ -210,8 +212,7 @@ public sealed class WeaponSliceGraphTests
         var occupiedGate = graph.Branch("Occupied?", 5420);
         var occupiedReason = graph.Call("Bui.Set", "OccupiedReason", 5640, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Remove the fitted part first"), ("Success", "bool", null));
         var insert = graph.Call("Container.Insert", "Insert", 5860, ("Owner", "int64", null), ("Container", "string", null), ("Item", "int64", null), ("Success", "bool", null));
-        graph.UseRow(2800);
-        var fitted = graph.Derive("Fit");
+        var fitted = graph.ApplyDeltas("Fit", 6080, true, partComp, assembly);
         graph.UseRow(0);
         var afterInstall = graph.Refresh("Done", 4640);
         graph.UseRow(560);
@@ -234,9 +235,7 @@ public sealed class WeaponSliceGraphTests
         var removeAssemblyGate = graph.Branch("RemoveAssembly?", 2880);
         var takePart = graph.Call("Container.Remove", "TakePart", 3100, ("Owner", "int64", null), ("Container", "string", null), ("Item", "int64", null), ("Success", "bool", null));
         var returnPart = graph.Call("Container.Insert", "ReturnPart", 3320, ("Owner", "EntityUid", null), ("Container", "string", "storagebase"), ("Item", "int64", null), ("Success", "bool", null));
-        graph.UseRow(3600);
-        var cleared = graph.Derive("Off");
-        graph.UseRow(1480);
+        var cleared = graph.ApplyDeltas("Off", 3540, false, removeComp, removeAssembly);
         var removed = graph.Call("Bui.Set", "Removed", 3540, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Part returned to the bench"), ("Success", "bool", null));
         var afterRemove = graph.Refresh("Off", 3760);
         graph.UseRow(2200);
@@ -249,14 +248,17 @@ public sealed class WeaponSliceGraphTests
         var selectBench = graph.Call("Inventory.Find", "SelectBench", 1560, ("Owner", "EntityUid", null), ("Prototype", "string", null), ("Item", "int64", null));
         var selectOnGun = graph.Call("Inventory.Find", "SelectOnGun", 1780, ("Owner", "int64", null), ("Prototype", "string", null), ("Item", "int64", null));
         var selectHasBench = graph.NotZero("SelectHasBench", 2000);
-        var selectItem = graph.Select("SelectItem", 2000, "int64");
-        var selectHasItem = graph.NotZero("SelectHasItem", 2220);
-        var selectItemGate = graph.Branch("SelectItem?", 2220);
+        var selectBenchGate = graph.Branch("SelectBench?", 2000);
+        var selectHasGunItem = graph.NotZero("SelectHasGunItem", 2220);
+        var selectGunItemGate = graph.Branch("SelectGunItem?", 2220);
         var selectNoPart = graph.Call("Bui.Set", "SelectNoPart", 2440, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Select a part in the list"), ("Success", "bool", null));
         var selectComp = graph.Component("SelectPartData", "WeaponPart", 2440, "int64");
         var selectCompGate = graph.Branch("SelectPartData?", 2660);
         var selectAssembly = graph.Component("SelectAssembly", "WeaponAssembly", 2660, "int64");
         var selectFit = graph.Fit("Select", 2880, selectComp, selectAssembly);
+        var selectGunComp = graph.Component("SelectGunPart", "WeaponPart", 2440, "int64");
+        var selectGunCompGate = graph.Branch("SelectGunPart?", 2660);
+        var selectGunFit = graph.Fit("SelectGun", 2880, selectGunComp, selectAssembly);
 
         graph.Exec(message, installGate);
         graph.Exec(installGate, "True", partGate);
@@ -286,10 +288,13 @@ public sealed class WeaponSliceGraphTests
         graph.Exec(removed, afterRemove);
         graph.Exec(selectGate, "True", selectGunGate);
         graph.Exec(selectGunGate, "False", selectNoGun);
-        graph.Exec(selectGunGate, "True", selectItemGate);
-        graph.Exec(selectItemGate, "False", selectNoPart);
-        graph.Exec(selectItemGate, "True", selectCompGate);
+        graph.Exec(selectGunGate, "True", selectBenchGate);
+        graph.Exec(selectBenchGate, "True", selectCompGate);
         graph.Exec(selectCompGate, "True", selectFit.Entry);
+        graph.Exec(selectBenchGate, "False", selectGunItemGate);
+        graph.Exec(selectGunItemGate, "False", selectNoPart);
+        graph.Exec(selectGunItemGate, "True", selectGunCompGate);
+        graph.Exec(selectGunCompGate, "True", selectGunFit.Entry);
         graph.Exec(open, onOpen);
 
         graph.DataWire(message, "Event", action, "Target");
@@ -331,13 +336,13 @@ public sealed class WeaponSliceGraphTests
         graph.DataWire(partId, "Value", selectBench, "Prototype");
         graph.DataWire(partId, "Value", selectOnGun, "Prototype");
         graph.DataWire(selectBench, "Item", selectHasBench, "A");
-        graph.DataWire(selectHasBench, "Result", selectItem, "Condition");
-        graph.DataWire(selectBench, "Item", selectItem, "True");
-        graph.DataWire(selectOnGun, "Item", selectItem, "False");
-        graph.DataWire(selectItem, "Result", selectHasItem, "A");
-        graph.DataWire(selectHasItem, "Result", selectItemGate, "Condition");
-        graph.DataWire(selectItem, "Result", selectComp, "Entity");
+        graph.DataWire(selectHasBench, "Result", selectBenchGate, "Condition");
+        graph.DataWire(selectBench, "Item", selectComp, "Entity");
         graph.DataWire(selectComp, "Found", selectCompGate, "Condition");
+        graph.DataWire(selectOnGun, "Item", selectHasGunItem, "A");
+        graph.DataWire(selectHasGunItem, "Result", selectGunItemGate, "Condition");
+        graph.DataWire(selectOnGun, "Item", selectGunComp, "Entity");
+        graph.DataWire(selectGunComp, "Found", selectGunCompGate, "Condition");
         graph.WireStatus(message);
         graph.DataWire(message, "Event", payload, "Target");
         graph.DataWire(payload, "Value", partId, "Payload");
@@ -362,8 +367,6 @@ public sealed class WeaponSliceGraphTests
         graph.DataWire(gun, "Item", insert, "Owner");
         graph.DataWire(slot, "Value", insert, "Container");
         graph.DataWire(part, "Item", insert, "Item");
-        graph.WireDerive(fitted, gun, assembly);
-        graph.WireDerive(cleared, removeGun, removeAssembly);
         graph.WireRefresh(afterInstall, open);
         graph.WireRefresh(onOpen, open);
         graph.WireRefresh(afterRemove, message);
@@ -676,18 +679,21 @@ public sealed class WeaponSliceGraphTests
                     ("11aa11aa-11aa-41aa-81aa-11aa11aa11af", "Magazine", "string", ""),
                     ("11aa11aa-11aa-41aa-81aa-11aa11aa11b0", "Optic", "string", ""),
                     ("11aa11aa-11aa-41aa-81aa-11aa11aa11b1", "Muzzle", "string", ""),
-                    ("11aa11aa-11aa-41aa-81aa-11aa11aa11b2", "Accepts", "List<string>", "")),
+                    ("11aa11aa-11aa-41aa-81aa-11aa11aa11b3", "BarrelAccepts", "string", ""),
+                    ("11aa11aa-11aa-41aa-81aa-11aa11aa11b4", "BoltAccepts", "string", ""),
+                    ("11aa11aa-11aa-41aa-81aa-11aa11aa11b5", "FeedAccepts", "string", ""),
+                    ("11aa11aa-11aa-41aa-81aa-11aa11aa11b6", "OpticAccepts", "string", ""),
+                    ("11aa11aa-11aa-41aa-81aa-11aa11aa11b7", "MuzzleAccepts", "string", "")),
                 Schema("22bb22bb-22bb-42bb-82bb-22bb22bb22bb", "WeaponPart", true,
                     ("22bb22bb-22bb-42bb-82bb-22bb22bb22b1", "Prototype", "string", ""),
                     ("22bb22bb-22bb-42bb-82bb-22bb22bb22b2", "Slot", "string", "barrel"),
                     ("22bb22bb-22bb-42bb-82bb-22bb22bb22b3", "Label", "string", ""),
                     ("22bb22bb-22bb-42bb-82bb-22bb22bb22b4", "FireRate", "float32", "6"),
                     ("22bb22bb-22bb-42bb-82bb-22bb22bb22b5", "ProjectileSpeed", "float32", "40"),
-                    ("22bb22bb-22bb-42bb-82bb-22bb22bb22b6", "Provides", "List<string>", ""),
-                    ("22bb22bb-22bb-42bb-82bb-22bb22bb22b7", "Adapts", "List<string>", ""),
-                    ("22bb22bb-22bb-42bb-82bb-22bb22bb22b8", "Machines", "List<string>", ""),
                     ("22bb22bb-22bb-42bb-82bb-22bb22bb22b9", "RateDelta", "float32", "0"),
-                    ("22bb22bb-22bb-42bb-82bb-22bb22bb22ba", "SpeedDelta", "float32", "0")),
+                    ("22bb22bb-22bb-42bb-82bb-22bb22bb22ba", "SpeedDelta", "float32", "0"),
+                    ("22bb22bb-22bb-42bb-82bb-22bb22bb22bd", "Interface", "string", ""),
+                    ("22bb22bb-22bb-42bb-82bb-22bb22bb22be", "Offer", "string", "direct")),
                 Schema("33cc33cc-33cc-43cc-83cc-33cc33cc33cc", "PartRow", false,
                     ("33cc33cc-33cc-43cc-83cc-33cc33cc33c1", "Id", "string", ""),
                     ("33cc33cc-33cc-43cc-83cc-33cc33cc33c2", "Text", "string", ""),
@@ -709,42 +715,96 @@ public sealed class WeaponSliceGraphTests
 
         public (NodeDocument Entry, NodeDocument Direct) Fit(string prefix, int x, NodeDocument part, NodeDocument assembly)
         {
-            var provides = Field(prefix + "Provides", "WeaponPart", "Provides", "List<string>", x);
-            var adapts = Field(prefix + "Adapts", "WeaponPart", "Adapts", "List<string>", x + 220);
-            var machines = Field(prefix + "Machines", "WeaponPart", "Machines", "List<string>", x + 440);
-            var label = Field(prefix + "Label", "WeaponPart", "Label", "string", x + 660);
-            var accepts = Field(prefix + "Accepts", "WeaponAssembly", "Accepts", "List<string>", x + 880);
-            var directHit = Intersects(prefix + "DirectHit", x + 1100);
-            var adaptHit = Intersects(prefix + "AdaptHit", x + 1320);
-            var machineHit = Intersects(prefix + "MachineHit", x + 1540);
-            var entry = Branch(prefix + "Direct?", x + 1760);
-            var adaptGate = Branch(prefix + "Adapter?", x + 1980);
-            var machineGate = Branch(prefix + "Machining?", x + 2200);
-            var direct = Reason(prefix + "DirectReason", x + 1980, label, ": Direct fit.");
-            var adapter = Reason(prefix + "AdapterReason", x + 2200, label, ": Needs an adapter.");
-            var machine = Reason(prefix + "MachineReason", x + 2420, label, ": Needs machining.");
-            var reject = Reason(prefix + "RejectReason", x + 2640, label, ": Incompatible with this pistol.");
+            var iface = Field(prefix + "Interface", "WeaponPart", "Interface", "string", x);
+            var offer = Field(prefix + "Offer", "WeaponPart", "Offer", "string", x + 220);
+            var label = Field(prefix + "Label", "WeaponPart", "Label", "string", x + 440);
+            DataWire(part, "Component", iface, "Component");
+            DataWire(part, "Component", offer, "Component");
+            DataWire(part, "Component", label, "Component");
+            NodeDocument? any = null;
+            var cursor = x + 660;
+            foreach (var name in new[] { "BarrelAccepts", "BoltAccepts", "FeedAccepts", "OpticAccepts", "MuzzleAccepts" })
+            {
+                var field = Field(prefix + name, "WeaponAssembly", name, "string", cursor);
+                var eq = Compare(prefix + name + "Eq", cursor);
+                DataWire(assembly, "Component", field, "Component");
+                DataWire(iface, "Value", eq, "A");
+                DataWire(field, "Value", eq, "B");
+                if (any == null)
+                {
+                    any = eq;
+                }
+                else
+                {
+                    var or = Logic("logic.or", prefix + name + "Or", cursor);
+                    DataWire(any, "Result", or, "A");
+                    DataWire(eq, "Result", or, "B");
+                    any = or;
+                }
+
+                cursor += 220;
+            }
+
+            var directOffer = Equal(prefix + "OfferDirect", "direct", cursor);
+            var adapterOffer = Equal(prefix + "OfferAdapter", "adapter", cursor + 220);
+            var machineOffer = Equal(prefix + "OfferMachine", "machining", cursor + 440);
+            var directHit = Logic("logic.and", prefix + "DirectHit", cursor + 660);
+            var adaptHit = Logic("logic.and", prefix + "AdaptHit", cursor + 880);
+            var machineHit = Logic("logic.and", prefix + "MachineHit", cursor + 1100);
+            DataWire(offer, "Value", directOffer, "A");
+            DataWire(offer, "Value", adapterOffer, "A");
+            DataWire(offer, "Value", machineOffer, "A");
+            var hit = any ?? throw new InvalidOperationException("Fit has no interface.");
+            DataWire(directOffer, "Result", directHit, "A");
+            DataWire(hit, "Result", directHit, "B");
+            DataWire(adapterOffer, "Result", adaptHit, "A");
+            DataWire(hit, "Result", adaptHit, "B");
+            DataWire(machineOffer, "Result", machineHit, "A");
+            DataWire(hit, "Result", machineHit, "B");
+            var entry = Branch(prefix + "Direct?", cursor + 1320);
+            var adaptGate = Branch(prefix + "Adapter?", cursor + 1540);
+            var machineGate = Branch(prefix + "Machining?", cursor + 1760);
+            var direct = Reason(prefix + "DirectReason", cursor + 1540, label, ": Direct fit.");
+            var adapter = Reason(prefix + "AdapterReason", cursor + 1760, label, ": Needs an adapter.");
+            var machine = Reason(prefix + "MachineReason", cursor + 1980, label, ": Needs machining.");
+            var reject = Reason(prefix + "RejectReason", cursor + 2200, label, ": Incompatible with this pistol.");
             Exec(entry, "True", direct);
             Exec(entry, "False", adaptGate);
             Exec(adaptGate, "True", adapter);
             Exec(adaptGate, "False", machineGate);
             Exec(machineGate, "True", machine);
             Exec(machineGate, "False", reject);
-            DataWire(part, "Component", provides, "Component");
-            DataWire(part, "Component", adapts, "Component");
-            DataWire(part, "Component", machines, "Component");
-            DataWire(part, "Component", label, "Component");
-            DataWire(assembly, "Component", accepts, "Component");
-            DataWire(provides, "Value", directHit, "List");
-            DataWire(accepts, "Value", directHit, "Other");
-            DataWire(adapts, "Value", adaptHit, "List");
-            DataWire(accepts, "Value", adaptHit, "Other");
-            DataWire(machines, "Value", machineHit, "List");
-            DataWire(accepts, "Value", machineHit, "Other");
             DataWire(directHit, "Result", entry, "Condition");
             DataWire(adaptHit, "Result", adaptGate, "Condition");
             DataWire(machineHit, "Result", machineGate, "Condition");
             return (entry, direct);
+        }
+
+        public (NodeDocument Start, NodeDocument End) ApplyDeltas(string prefix, int x, bool add, NodeDocument part, NodeDocument assembly)
+        {
+            var asmRate = Field(prefix + "AsmRate", "WeaponAssembly", "FireRate", "float32", x);
+            var asmSpeed = Field(prefix + "AsmSpeed", "WeaponAssembly", "ProjectileSpeed", "float32", x + 220);
+            var rateDelta = Field(prefix + "RateDelta", "WeaponPart", "RateDelta", "float32", x + 440);
+            var speedDelta = Field(prefix + "SpeedDelta", "WeaponPart", "SpeedDelta", "float32", x + 660);
+            var op = add ? "math.add" : "math.subtract";
+            var rateMath = Logic(op, prefix + "RateMath", x + 880, "float32");
+            var speedMath = Logic(op, prefix + "SpeedMath", x + 1100, "float32");
+            var setRate = Set(prefix + "SetRate", "WeaponAssembly", "FireRate", x + 1320, null, "float32");
+            var setSpeed = Set(prefix + "SetSpeed", "WeaponAssembly", "ProjectileSpeed", x + 1540, null, "float32");
+            Exec(setRate, setSpeed);
+            DataWire(assembly, "Component", asmRate, "Component");
+            DataWire(assembly, "Component", asmSpeed, "Component");
+            DataWire(part, "Component", rateDelta, "Component");
+            DataWire(part, "Component", speedDelta, "Component");
+            DataWire(asmRate, "Value", rateMath, "A");
+            DataWire(rateDelta, "Value", rateMath, "B");
+            DataWire(asmSpeed, "Value", speedMath, "A");
+            DataWire(speedDelta, "Value", speedMath, "B");
+            DataWire(rateMath, "Result", setRate, "Value");
+            DataWire(assembly, "Component", setRate, "Target");
+            DataWire(setRate, "Result", setSpeed, "Target");
+            DataWire(speedMath, "Result", setSpeed, "Value");
+            return (setRate, setSpeed);
         }
 
         public (NodeDocument Start, NodeDocument End) Derive(string prefix)
@@ -844,6 +904,12 @@ public sealed class WeaponSliceGraphTests
                 DataWire(bench, "Entity", set, "Owner");
             }
         }
+
+        public NodeDocument Compare(string name, int x) =>
+            Place(Node(name, "cmp.equal", null, Data("A", "string", true), Data("B", "string", true), Data("Result", "bool", false)), x, Y(300));
+
+        public NodeDocument Logic(string type, string name, int x, string valueType = "bool") =>
+            Place(Node(name, type, null, Data("A", valueType, true), Data("B", valueType, true), Data("Result", valueType, false)), x, Y(300));
 
         public NodeDocument Intersects(string name, int x) =>
             Place(Node(name, "List.Intersects", null, Data("List", "List<string>", true), Data("Other", "List<string>", true), Data("Result", "bool", false)), x, Y(300));
