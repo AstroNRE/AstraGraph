@@ -438,21 +438,22 @@ public sealed class HotReloadManager
             entityValue = AstraValue.Null;
         }
 
+        _host.HostServices.PushVariables();
         _host.HostServices.ClearVariables();
         var context = new AstraEventInvocationContext(entityValue, component ?? entity, eventObject);
         _host.HostServices.PushEventContext(context);
         try
         {
             _host.Vm.Execute(program, entry, hostServices: _host.HostServices, debugHook: _host.Debugger);
+            if (eventObject != null)
+            {
+                CopyVariablesToEvent(eventObject);
+            }
         }
         finally
         {
             _host.HostServices.PopEventContext();
-        }
-
-        if (eventObject != null)
-        {
-            CopyVariablesToEvent(eventObject);
+            _host.HostServices.PopVariables();
         }
 
         _host.NoteEntryExecuted();

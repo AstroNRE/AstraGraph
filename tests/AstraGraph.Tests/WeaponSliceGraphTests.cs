@@ -80,6 +80,20 @@ public sealed class WeaponSliceGraphTests
     private readonly record struct ProfileRateEvent(float FireRate, float ProjectileSpeed);
 
     [Test]
+    public void HostVariables_NestedClearRestoresTheCaller()
+    {
+        var services = new DefaultVmHostServices();
+        services.SetVariable(SymbolId.Empty, "Rows", AstraValue.FromString("barrels"));
+        services.PushVariables();
+        services.ClearVariables();
+        services.SetVariable(SymbolId.Empty, "FireRate", AstraValue.FromDouble(2));
+        Assert.That(services.GetVariable(SymbolId.Empty, "Rows").Type, Is.EqualTo(AstraValueType.Null));
+        services.PopVariables();
+        Assert.That(services.GetVariable(SymbolId.Empty, "Rows").AsString(), Is.EqualTo("barrels"));
+        Assert.That(services.GetVariable(SymbolId.Empty, "FireRate").Type, Is.EqualTo(AstraValueType.Null));
+    }
+
+    [Test]
     public void WeaponBench_EmitsTheGunRateWrite()
     {
         var document = WeaponBench();
@@ -330,12 +344,7 @@ public sealed class WeaponSliceGraphTests
             var assembly = Component(prefix + "Assembly", "WeaponAssembly", x + 2960, "int64");
             var assemblyGate = Branch(prefix + "Assembly?", x + 2960);
             var assemblyRate = Field(prefix + "AssemblyRate", "WeaponAssembly", "FireRate", "float32", x + 3180);
-            var writeRate = Call("Component.SetField", prefix + "WriteRate", x + 3400, ("Entity", "int64", null), ("Component", "string", "GunComponent"), ("Field", "string", "FireRate"), ("Value", "float64", null), ("Success", "bool", null));
-            var writeModified = Call("Component.SetField", prefix + "WriteModified", x + 3620, ("Entity", "int64", null), ("Component", "string", "GunComponent"), ("Field", "string", "FireRateModified"), ("Value", "float64", null), ("Success", "bool", null));
-            var rateText = Call("Text.WithNumber", prefix + "RateText", x + 3840, ("Label", "string", "Fire rate"), ("Number", "float64", null), ("Text", "string", null));
-            var describe = Call("Meta.SetDescription", prefix + "Describe", x + 3840, ("Entity", "int64", null), ("Text", "string", null), ("Success", "bool", null));
-            var refreshGun = Call("System.Invoke", prefix + "RefreshGun", x + 4060, ("System", "string", "SharedGunSystem"), ("Method", "string", "RefreshModifiers"), ("Entity", "int64", null), ("Success", "bool", null));
-            var inGun = Call("Entity.GetHeldItem", prefix + "InGun", x + 4280, ("Holder", "int64", null), ("Container", "string", "barrel"), ("Item", "int64", null));
+            var inGun = Call("Entity.GetHeldItem", prefix + "InGun", x + 3400, ("Holder", "int64", null), ("Container", "string", "barrel"), ("Item", "int64", null));
             var hasBarrel = NotZero(prefix + "HasBarrel", x + 4500);
             var barrelGate = Branch(prefix + "Installed?", x + 4500);
             var installedComp = Component(prefix + "Installed", "WeaponPart", x + 4720, "int64");
@@ -353,6 +362,8 @@ public sealed class WeaponSliceGraphTests
             var installedBuilt = Read(prefix + "InstalledBuilt", "Rows", x + 6260, "List<PartRow>");
             var installedJson = Call("Ui.Rows", prefix + "InstalledJson", x + 6480, ("List", "List<PartRow>", null), ("IdField", "string", "Id"), ("TextField", "string", "Text"), ("DisabledField", "string", "Disabled"), ("Rows", "string", null));
             var installedPublish = Call("Bui.Set", prefix + "InstalledPublish", x + 6700, ("Owner", "EntityUid", null), ("Name", "string", "Parts"), ("Value", "string", null), ("Success", "bool", null));
+            var fit = GunTail(prefix + "Fit", x + 6920);
+            var bare = GunTail(prefix + "Bare", x + 6920);
 
             Exec(clear, each);
             Exec(each, "Body", rowGate);
@@ -363,8 +374,8 @@ public sealed class WeaponSliceGraphTests
             Exec(add, store);
             Exec(each, "Out", publish);
             Exec(publish, assemblyGate);
-            Exec(assemblyGate, "True", refreshGun);
-            Exec(refreshGun, barrelGate);
+            Exec(assemblyGate, "True", barrelGate);
+            Exec(barrelGate, "False", bare);
             Exec(barrelGate, "True", installedGate);
             Exec(installedGate, "True", installedId);
             Exec(installedId, installedText);
@@ -372,9 +383,7 @@ public sealed class WeaponSliceGraphTests
             Exec(installedOff, installedAdd);
             Exec(installedAdd, installedStore);
             Exec(installedStore, installedPublish);
-            Exec(installedPublish, writeRate);
-            Exec(writeRate, writeModified);
-            Exec(writeModified, describe);
+            Exec(installedPublish, fit);
 
             DataWire(created, "List", clear, "Value");
             DataWire(contents, "Contents", each, "Collection");
@@ -395,14 +404,6 @@ public sealed class WeaponSliceGraphTests
             DataWire(gun, "Item", assembly, "Entity");
             DataWire(assembly, "Found", assemblyGate, "Condition");
             DataWire(assembly, "Component", assemblyRate, "Component");
-            DataWire(gun, "Item", writeRate, "Entity");
-            DataWire(assemblyRate, "Value", writeRate, "Value");
-            DataWire(gun, "Item", writeModified, "Entity");
-            DataWire(assemblyRate, "Value", writeModified, "Value");
-            DataWire(assemblyRate, "Value", rateText, "Number");
-            DataWire(rateText, "Text", describe, "Text");
-            DataWire(gun, "Item", describe, "Entity");
-            DataWire(gun, "Item", refreshGun, "Entity");
             DataWire(gun, "Item", inGun, "Holder");
             DataWire(inGun, "Item", hasBarrel, "A");
             DataWire(hasBarrel, "Result", barrelGate, "Condition");
@@ -422,6 +423,27 @@ public sealed class WeaponSliceGraphTests
             DataWire(installedJson, "Rows", installedPublish, "Value");
             _refreshes[clear] = (contents, publish, gun, installedPublish);
             return clear;
+
+            NodeDocument GunTail(string name, int tailX)
+            {
+                var writeRate = Call("Component.SetField", name + "WriteRate", tailX, ("Entity", "int64", null), ("Component", "string", "GunComponent"), ("Field", "string", "FireRate"), ("Value", "float64", null), ("Success", "bool", null));
+                var writeModified = Call("Component.SetField", name + "WriteModified", tailX + 220, ("Entity", "int64", null), ("Component", "string", "GunComponent"), ("Field", "string", "FireRateModified"), ("Value", "float64", null), ("Success", "bool", null));
+                var rateText = Call("Text.WithNumber", name + "RateText", tailX + 440, ("Label", "string", "Fire rate"), ("Number", "float64", null), ("Text", "string", null));
+                var describe = Call("Meta.SetDescription", name + "Describe", tailX + 440, ("Entity", "int64", null), ("Text", "string", null), ("Success", "bool", null));
+                var refreshGun = Call("System.Invoke", name + "RefreshGun", tailX + 660, ("System", "string", "SharedGunSystem"), ("Method", "string", "RefreshModifiers"), ("Entity", "int64", null), ("Success", "bool", null));
+                Exec(writeRate, writeModified);
+                Exec(writeModified, describe);
+                Exec(describe, refreshGun);
+                DataWire(gun, "Item", writeRate, "Entity");
+                DataWire(assemblyRate, "Value", writeRate, "Value");
+                DataWire(gun, "Item", writeModified, "Entity");
+                DataWire(assemblyRate, "Value", writeModified, "Value");
+                DataWire(assemblyRate, "Value", rateText, "Number");
+                DataWire(rateText, "Text", describe, "Text");
+                DataWire(gun, "Item", describe, "Entity");
+                DataWire(gun, "Item", refreshGun, "Entity");
+                return writeRate;
+            }
         }
 
         public void WireRefresh(NodeDocument clear, NodeDocument bench)

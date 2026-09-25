@@ -43,6 +43,20 @@ public interface IVmHostServices
     void ClearVariables()
     {
     }
+
+    /// <summary>
+    /// Remembers the caller's variables. A nested event can then clear its own names and restore the caller afterwards.
+    /// </summary>
+    void PushVariables()
+    {
+    }
+
+    /// <summary>
+    /// Puts back the variables saved by <see cref="PushVariables"/>.
+    /// </summary>
+    void PopVariables()
+    {
+    }
 }
 
 /// <summary>
@@ -51,6 +65,7 @@ public interface IVmHostServices
 public sealed class DefaultVmHostServices : IVmHostServices
 {
     private readonly Dictionary<string, AstraValue> _variables = new(StringComparer.Ordinal);
+    private readonly Stack<Dictionary<string, AstraValue>> _savedVariables = [];
     private readonly Dictionary<string, Func<IReadOnlyList<AstraValue>, AstraValue>> _nativeHandlers = new(StringComparer.Ordinal);
     private readonly Dictionary<(AstraEntityId Entity, string Comp), AstraValue> _components = [];
     private readonly Stack<AstraEventInvocationContext> _events = [];
@@ -84,6 +99,23 @@ public sealed class DefaultVmHostServices : IVmHostServices
     }
 
     public void ClearVariables() => _variables.Clear();
+
+    public void PushVariables() =>
+        _savedVariables.Push(new Dictionary<string, AstraValue>(_variables, StringComparer.Ordinal));
+
+    public void PopVariables()
+    {
+        _variables.Clear();
+        if (_savedVariables.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var pair in _savedVariables.Pop())
+        {
+            _variables[pair.Key] = pair.Value;
+        }
+    }
 
     public void SetVariableDirect(string name, AstraValue value) => _variables[name] = value;
 
