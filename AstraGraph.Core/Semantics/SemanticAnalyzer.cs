@@ -202,6 +202,8 @@ public sealed class SemanticAnalyzer
                 (node.NodeType.Equals("PersistentId.New", StringComparison.OrdinalIgnoreCase) ||
                  node.NodeType.Equals("Bui.Set", StringComparison.OrdinalIgnoreCase) ||
                  node.NodeType.Equals("System.Invoke", StringComparison.OrdinalIgnoreCase) ||
+                 node.NodeType.Equals("Component.SetField", StringComparison.OrdinalIgnoreCase) ||
+                 node.NodeType.Equals("Meta.SetDescription", StringComparison.OrdinalIgnoreCase) ||
                  (node.Properties.TryGetValue("IsDeterministic", out var det) && det.Equals("false", StringComparison.OrdinalIgnoreCase))))
             {
                 diagnostics.ReportError(DiagnosticCodes.NonDeterministicOperationInPrediction, $"Node '{node.Name}' is non-deterministic and cannot be executed in predicted context.", node.Id, suggestedFix: "set-deterministic");
@@ -220,7 +222,9 @@ public sealed class SemanticAnalyzer
         // Find entry point nodes
         var entryNodes = document.Nodes.Where(n =>
             n.NodeType.StartsWith("Event.", StringComparison.OrdinalIgnoreCase) ||
-            n.NodeType.StartsWith("System.", StringComparison.OrdinalIgnoreCase) ||
+            n.NodeType.Equals("System.Initialize", StringComparison.OrdinalIgnoreCase) ||
+            n.NodeType.Equals("System.Update", StringComparison.OrdinalIgnoreCase) ||
+            n.NodeType.Equals("System.Shutdown", StringComparison.OrdinalIgnoreCase) ||
             n.NodeType.Equals("EntryPoint", StringComparison.OrdinalIgnoreCase) ||
             (n.Pins.Any(p => p.Kind == PinKind.Execution && p.Direction == PinDirection.Output) &&
              !n.Pins.Any(p => p.Kind == PinKind.Execution && p.Direction == PinDirection.Input))).ToList();
@@ -725,7 +729,9 @@ public sealed class SemanticAnalyzer
             nodeType.Equals("Bui.Set", StringComparison.OrdinalIgnoreCase);
 
         private static bool IsSystemCall(string nodeType) =>
-            nodeType.Equals("System.Invoke", StringComparison.OrdinalIgnoreCase);
+            nodeType.Equals("System.Invoke", StringComparison.OrdinalIgnoreCase) ||
+            nodeType.Equals("Component.SetField", StringComparison.OrdinalIgnoreCase) ||
+            nodeType.Equals("Meta.SetDescription", StringComparison.OrdinalIgnoreCase);
 
         private static bool IsBuiQuery(string nodeType) =>
             nodeType.Equals("Ui.Rows", StringComparison.OrdinalIgnoreCase) ||

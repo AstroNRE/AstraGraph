@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Globalization;
 using System.Reflection;
 using Robust.Shared.Log;
 using AstraGraph.Binding;
@@ -55,6 +56,53 @@ public static class GameplayBindings
         Register(catalog, nameof(BuiField), "Bui.Field");
         Register(catalog, nameof(BuiSet), "Bui.Set", deterministic: false);
         Register(catalog, nameof(Invoke), "System.Invoke", deterministic: false);
+        Register(catalog, nameof(SetComponentField), "Component.SetField", deterministic: false);
+        Register(catalog, nameof(SetDescription), "Meta.SetDescription", deterministic: false);
+        Register(catalog, nameof(WithNumber), "Text.WithNumber");
+    }
+
+    public static string WithNumber(string? label, double number) =>
+        string.Create(CultureInfo.InvariantCulture, $"{label}: {number:0.0}");
+
+    public static bool SetDescription(int entity, string? text)
+    {
+        var uid = new EntityUid(entity);
+        if (!Entities.EntityExists(uid))
+        {
+            return false;
+        }
+
+        Entities.EntitySysManager.GetEntitySystem<MetaDataSystem>().SetEntityDescription(uid, text ?? "");
+        return true;
+    }
+
+    public static bool SetComponentField(int entity, string? componentName, string? fieldName, double value)
+    {
+        if (string.IsNullOrWhiteSpace(componentName) || string.IsNullOrWhiteSpace(fieldName))
+        {
+            return false;
+        }
+
+        var uid = new EntityUid(entity);
+        var componentType = ResolveComponentType(componentName);
+        if (componentType == null || !Entities.EntityExists(uid) || !Entities.TryGetComponent(uid, componentType, out var component) || component == null)
+        {
+            return false;
+        }
+
+        var field = componentType.GetField(fieldName, BindingFlags.Instance | BindingFlags.Public);
+        if (field == null)
+        {
+            return false;
+        }
+
+        field.SetValue(component, Convert.ChangeType(value, field.FieldType, CultureInfo.InvariantCulture));
+        if (component is IComponentDelta delta)
+        {
+            Entities.DirtyField(uid, delta, fieldName);
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -312,6 +360,41 @@ public static class GameplayBindings
 
     public static void QueueDeleteEntity(int entity) =>
         Entities.QueueDeleteEntity(new EntityUid(entity));
+
+    private static Type? ResolveComponentType(string name)
+    {
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            if (assembly.IsDynamic)
+            {
+                continue;
+            }
+
+            Type[] types;
+            try
+            {
+                types = assembly.GetExportedTypes();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                types = ex.Types.Where(type => type != null).Cast<Type>().ToArray();
+            }
+            catch (Exception)
+            {
+                continue;
+            }
+
+            foreach (var type in types)
+            {
+                if (type.Name == name && typeof(IComponent).IsAssignableFrom(type) && !type.IsAbstract)
+                {
+                    return type;
+                }
+            }
+        }
+
+        return null;
+    }
 
     private static object? FindLiveSystem(string name)
     {

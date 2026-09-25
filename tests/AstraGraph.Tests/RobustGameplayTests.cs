@@ -95,6 +95,10 @@ public sealed class RobustGameplayTests
         Assert.That(Call(catalog, "System.Invoke", "SharedTransformSystem", "GetWorldPosition", spawned).AsBool(), Is.True);
         Assert.That(Call(catalog, "System.Invoke", "MissingSystem", "GetWorldPosition", spawned).AsBool(), Is.False);
         Assert.That(Call(catalog, "System.Invoke", "SharedTransformSystem", "MissingMethod", spawned).AsBool(), Is.False);
+        Assert.That(Call(catalog, "Text.WithNumber", "Fire rate", 2d).AsString(), Is.EqualTo("Fire rate: 2.0"));
+        Assert.That(Call(catalog, "Meta.SetDescription", spawned, "Fire rate: 2.0").AsBool(), Is.True);
+        Assert.That(entities.GetComponent<MetaDataComponent>(new EntityUid(spawned)).EntityDescription, Is.EqualTo("Fire rate: 2.0"));
+        Assert.That(Call(catalog, "Component.SetField", spawned, "MissingComponent", "FireRate", 2d).AsBool(), Is.False);
     }
 
     private static AstraValue Call(BindingCatalog catalog, string name, params object[] args)
@@ -102,6 +106,7 @@ public sealed class RobustGameplayTests
         var values = args.Select(arg => arg switch
         {
             int number => AstraValue.FromInt32(number),
+            double number => AstraValue.FromDouble(number),
             string text => AstraValue.FromString(text),
             _ => throw new InvalidOperationException("Unsupported test argument.")
         }).ToArray();

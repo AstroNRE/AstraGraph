@@ -1,4 +1,7 @@
+using System.Reflection;
 using AstraGraph.Core;
+using AstraGraph.State;
+using AstraGraph.VM;
 using NUnit.Framework;
 
 namespace AstraGraph.Tests;
@@ -19,6 +22,62 @@ public sealed class WeaponSliceGraphTests
         var analyzed = new SemanticAnalyzer(TypeRegistry.CreateDefault()).Analyze(document);
         Assert.That(analyzed.Success, Is.True, analyzed.Diagnostics.ToString());
     }
+
+    [Test]
+    public void WeaponProfile_CopiesAssemblyRateOntoTheRefreshEvent()
+    {
+        var path = Path.Combine(NightCity(), "Resources", "AstraGraph", "Systems", "Weapons", "Modular", "WeaponProfile.agraph");
+        if (!File.Exists(path))
+        {
+            Assert.Ignore("Night City checkout is not beside this library.");
+        }
+
+        var document = GraphSerializer.Deserialize(File.ReadAllText(path));
+        var registry = TypeRegistry.CreateDefault();
+        var analyzed = new SemanticAnalyzer(registry).Analyze(document);
+        Assert.That(analyzed.Success, Is.True, analyzed.Diagnostics.ToString());
+        var program = IrToBytecodeCompiler.Compile(AstToIrCompiler.Compile(analyzed.Program!), RevisionId.New(), "profile");
+        var schema = SchemaDocuments.ToSchema(document.Schemas.Single(item => item.Name == "WeaponAssembly"), registry);
+        var schemas = new AstraSchemaRegistry();
+        schemas.RegisterSchema(schema);
+        var source = new SchemaComponentSource(new DynamicComponentStore(), schemas);
+        Assert.That(source.ApplyInitial(4, schema, new Dictionary<string, string>
+        {
+            ["Barrel"] = "WeaponBarrelHeavy",
+            ["FireRate"] = "2",
+            ["ProjectileSpeed"] = "55"
+        }, "WeaponAstraPistol", out _), Is.True);
+
+        var services = new DefaultVmHostServices();
+        services.UseSchemaComponents(source);
+        var ev = new ProfileRateEvent(6f, 40f);
+        object box = ev;
+        services.ClearVariables();
+        services.PushEventContext(new AstraEventInvocationContext(AstraValue.FromEntityUid(4), null, box));
+        var result = new AstraVm().Execute(program, program.FindEntryPoint("Refresh")!, hostServices: services);
+        services.PopEventContext();
+        Assert.That(result.Status, Is.EqualTo(VmExecutionStatus.Completed), result.Exception?.ToString());
+
+        foreach (var property in box.GetType().GetProperties())
+        {
+            if (property.GetIndexParameters().Length != 0 || !property.CanRead)
+            {
+                continue;
+            }
+
+            var value = services.GetVariable(SymbolId.Empty, property.Name);
+            if (value.Type != AstraValueType.Null)
+            {
+                AstraValueBox.WriteMember(box, property.Name, value);
+            }
+        }
+
+        ev = (ProfileRateEvent)box;
+        Assert.That(ev.FireRate, Is.EqualTo(2f));
+        Assert.That(ev.ProjectileSpeed, Is.EqualTo(55f));
+    }
+
+    private readonly record struct ProfileRateEvent(float FireRate, float ProjectileSpeed);
 
     [Test]
     public void WeaponBench_AnalyzesAndIsStoredLeftToRight()
@@ -181,26 +240,33 @@ public sealed class WeaponSliceGraphTests
             var readBuilt = Read(prefix + "Built", "Rows", x + 2100, "List<PartRow>");
             var rows = Call("Ui.Rows", prefix + "Json", x + 2380, ("List", "List<PartRow>", null), ("IdField", "string", "Id"), ("TextField", "string", "Text"), ("DisabledField", "string", "Disabled"), ("Rows", "string", null));
             var publish = Call("Bui.Set", prefix + "Publish", x + 2520, ("Owner", "EntityUid", null), ("Name", "string", "Parts"), ("Value", "string", null), ("Success", "bool", null));
-            var refreshGun = Call("System.Invoke", prefix + "RefreshGun", x + 2740, ("System", "string", "SharedGunSystem"), ("Method", "string", "RefreshModifiers"), ("Entity", "int64", null), ("Success", "bool", null));
             var gun = Call("Entity.GetHeldItem", prefix + "Gun", x + 2740, ("Holder", "EntityUid", null), ("Container", "string", "gun"), ("Item", "int64", null));
-            var inGun = Call("Entity.GetHeldItem", prefix + "InGun", x + 2960, ("Holder", "int64", null), ("Container", "string", "barrel"), ("Item", "int64", null));
-            var hasBarrel = NotZero(prefix + "HasBarrel", x + 3180);
-            var barrelGate = Branch(prefix + "Installed?", x + 3180);
-            var installedComp = Component(prefix + "Installed", "WeaponPart", x + 3400, "int64");
-            var installedGate = Branch(prefix + "InstalledPart?", x + 3400);
-            var installedMade = Data("Schema.Make", prefix + "InstalledMake", x + 3620, ("Value", "PartRow", null));
+            var assembly = Component(prefix + "Assembly", "WeaponAssembly", x + 2960, "int64");
+            var assemblyGate = Branch(prefix + "Assembly?", x + 2960);
+            var assemblyRate = Field(prefix + "AssemblyRate", "WeaponAssembly", "FireRate", "float32", x + 3180);
+            var writeRate = Call("Component.SetField", prefix + "WriteRate", x + 3400, ("Entity", "int64", null), ("Component", "string", "GunComponent"), ("Field", "string", "FireRate"), ("Value", "float64", null), ("Success", "bool", null));
+            var writeModified = Call("Component.SetField", prefix + "WriteModified", x + 3620, ("Entity", "int64", null), ("Component", "string", "GunComponent"), ("Field", "string", "FireRateModified"), ("Value", "float64", null), ("Success", "bool", null));
+            var rateText = Call("Text.WithNumber", prefix + "RateText", x + 3840, ("Label", "string", "Fire rate"), ("Number", "float64", null), ("Text", "string", null));
+            var describe = Call("Meta.SetDescription", prefix + "Describe", x + 3840, ("Entity", "int64", null), ("Text", "string", null), ("Success", "bool", null));
+            var refreshGun = Call("System.Invoke", prefix + "RefreshGun", x + 4060, ("System", "string", "SharedGunSystem"), ("Method", "string", "RefreshModifiers"), ("Entity", "int64", null), ("Success", "bool", null));
+            var inGun = Call("Entity.GetHeldItem", prefix + "InGun", x + 4280, ("Holder", "int64", null), ("Container", "string", "barrel"), ("Item", "int64", null));
+            var hasBarrel = NotZero(prefix + "HasBarrel", x + 4500);
+            var barrelGate = Branch(prefix + "Installed?", x + 4500);
+            var installedComp = Component(prefix + "Installed", "WeaponPart", x + 4720, "int64");
+            var installedGate = Branch(prefix + "InstalledPart?", x + 4720);
+            var installedMade = Data("Schema.Make", prefix + "InstalledMake", x + 4940, ("Value", "PartRow", null));
             installedMade.Properties["Schema"] = "PartRow";
-            var installedId = Set(prefix + "InstalledId", "PartRow", "Id", x + 3840);
-            var installedProto = Field(prefix + "InstalledPrototype", "WeaponPart", "Prototype", "string", x + 4060);
-            var installedText = Set(prefix + "InstalledText", "PartRow", "Text", x + 4060);
-            var installedLabel = Field(prefix + "InstalledLabel", "WeaponPart", "Label", "string", x + 4280);
-            var installedOff = Set(prefix + "InstalledOff", "PartRow", "Disabled", x + 4280, "true", "bool");
-            var installedRead = Read(prefix + "InstalledRead", "Rows", x + 4500, "List<PartRow>");
-            var installedAdd = Call("List.Add", prefix + "InstalledAdd", x + 4500, ("List", "List<PartRow>", null), ("Item", "PartRow", null), ("ListOut", "List<PartRow>", null));
-            var installedStore = Assign(prefix + "InstalledStore", "Rows", x + 4720, "List<PartRow>");
-            var installedBuilt = Read(prefix + "InstalledBuilt", "Rows", x + 4940, "List<PartRow>");
-            var installedJson = Call("Ui.Rows", prefix + "InstalledJson", x + 5160, ("List", "List<PartRow>", null), ("IdField", "string", "Id"), ("TextField", "string", "Text"), ("DisabledField", "string", "Disabled"), ("Rows", "string", null));
-            var installedPublish = Call("Bui.Set", prefix + "InstalledPublish", x + 5380, ("Owner", "EntityUid", null), ("Name", "string", "Parts"), ("Value", "string", null), ("Success", "bool", null));
+            var installedId = Set(prefix + "InstalledId", "PartRow", "Id", x + 5160);
+            var installedProto = Field(prefix + "InstalledPrototype", "WeaponPart", "Prototype", "string", x + 5380);
+            var installedText = Set(prefix + "InstalledText", "PartRow", "Text", x + 5380);
+            var installedLabel = Field(prefix + "InstalledLabel", "WeaponPart", "Label", "string", x + 5600);
+            var installedOff = Set(prefix + "InstalledOff", "PartRow", "Disabled", x + 5600, "true", "bool");
+            var installedRead = Read(prefix + "InstalledRead", "Rows", x + 5820, "List<PartRow>");
+            var installedAdd = Call("List.Add", prefix + "InstalledAdd", x + 5820, ("List", "List<PartRow>", null), ("Item", "PartRow", null), ("ListOut", "List<PartRow>", null));
+            var installedStore = Assign(prefix + "InstalledStore", "Rows", x + 6040, "List<PartRow>");
+            var installedBuilt = Read(prefix + "InstalledBuilt", "Rows", x + 6260, "List<PartRow>");
+            var installedJson = Call("Ui.Rows", prefix + "InstalledJson", x + 6480, ("List", "List<PartRow>", null), ("IdField", "string", "Id"), ("TextField", "string", "Text"), ("DisabledField", "string", "Disabled"), ("Rows", "string", null));
+            var installedPublish = Call("Bui.Set", prefix + "InstalledPublish", x + 6700, ("Owner", "EntityUid", null), ("Name", "string", "Parts"), ("Value", "string", null), ("Success", "bool", null));
 
             Exec(clear, each);
             Exec(each, "Body", rowGate);
@@ -210,7 +276,8 @@ public sealed class WeaponSliceGraphTests
             Exec(setOff, add);
             Exec(add, store);
             Exec(each, "Out", publish);
-            Exec(publish, refreshGun);
+            Exec(publish, assemblyGate);
+            Exec(assemblyGate, "True", refreshGun);
             Exec(refreshGun, barrelGate);
             Exec(barrelGate, "True", installedGate);
             Exec(installedGate, "True", installedId);
@@ -219,6 +286,9 @@ public sealed class WeaponSliceGraphTests
             Exec(installedOff, installedAdd);
             Exec(installedAdd, installedStore);
             Exec(installedStore, installedPublish);
+            Exec(installedPublish, writeRate);
+            Exec(writeRate, writeModified);
+            Exec(writeModified, describe);
 
             DataWire(created, "List", clear, "Value");
             DataWire(contents, "Contents", each, "Collection");
@@ -236,6 +306,16 @@ public sealed class WeaponSliceGraphTests
             DataWire(add, "List", store, "Value");
             DataWire(readBuilt, "Value", rows, "List");
             DataWire(rows, "Rows", publish, "Value");
+            DataWire(gun, "Item", assembly, "Entity");
+            DataWire(assembly, "Found", assemblyGate, "Condition");
+            DataWire(assembly, "Component", assemblyRate, "Component");
+            DataWire(gun, "Item", writeRate, "Entity");
+            DataWire(assemblyRate, "Value", writeRate, "Value");
+            DataWire(gun, "Item", writeModified, "Entity");
+            DataWire(assemblyRate, "Value", writeModified, "Value");
+            DataWire(assemblyRate, "Value", rateText, "Number");
+            DataWire(rateText, "Text", describe, "Text");
+            DataWire(gun, "Item", describe, "Entity");
             DataWire(gun, "Item", refreshGun, "Entity");
             DataWire(gun, "Item", inGun, "Holder");
             DataWire(inGun, "Item", hasBarrel, "A");
@@ -326,7 +406,7 @@ public sealed class WeaponSliceGraphTests
         public NodeDocument Call(string type, string name, int x, params (string Name, string Type, string? Default)[] pins)
         {
             var specs = new List<PinDocument>();
-            if (type is "Container.Insert" or "Bui.Set" or "List.Add" or "System.Invoke")
+            if (type is "Container.Insert" or "Bui.Set" or "List.Add" or "System.Invoke" or "Component.SetField" or "Meta.SetDescription")
             {
                 specs.Add(Exec("In", true));
                 specs.Add(Exec("Out", false));
@@ -338,7 +418,8 @@ public sealed class WeaponSliceGraphTests
                 "Container.Contents" => new[] { "Contents" },
                 "Bui.Field" => new[] { "Value" },
                 "Ui.Rows" => new[] { "Rows" },
-                "Container.Insert" or "Bui.Set" or "System.Invoke" => new[] { "Success" },
+                "Container.Insert" or "Bui.Set" or "System.Invoke" or "Component.SetField" or "Meta.SetDescription" => new[] { "Success" },
+                "Text.WithNumber" => new[] { "Text" },
                 "List.Add" => new[] { "ListOut" },
                 _ => Array.Empty<string>()
             };
@@ -356,7 +437,7 @@ public sealed class WeaponSliceGraphTests
                     : Data(pin.Name, pin.Type, true, pin.Default));
             }
 
-            var execution = type is "Container.Insert" or "Bui.Set" or "List.Add" or "System.Invoke";
+            var execution = type is "Container.Insert" or "Bui.Set" or "List.Add" or "System.Invoke" or "Component.SetField" or "Meta.SetDescription";
             return Place(Node(name, type, null, [.. specs]), x, Y(execution ? 80 : 300));
         }
 
