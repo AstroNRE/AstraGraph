@@ -590,7 +590,7 @@ public sealed class SemanticAnalyzer
                 return new AstYieldContinuationStatement(ContinuationKind.DoAfter, [delayExpr], node.Id.Value, node.Id);
             }
 
-            if (IsMutatingContainer(nodeType) || IsBuiMutation(nodeType))
+            if (IsMutatingContainer(nodeType) || IsBuiMutation(nodeType) || IsSystemCall(nodeType))
             {
                 return new AstVariableAssignStatement(SymbolId.Empty, ResultName(node), LowerCall(node), node.Id);
             }
@@ -741,7 +741,10 @@ public sealed class SemanticAnalyzer
             IsMutatingContainer(nodeType) || IsContainerQuery(nodeType);
 
         private static bool IsDirectNative(string nodeType) =>
-            IsGameplayContainer(nodeType) || IsBuiMutation(nodeType) || IsBuiQuery(nodeType) || IsSystemCall(nodeType);
+            IsGameplayContainer(nodeType) || IsBuiMutation(nodeType) || IsBuiQuery(nodeType) || IsSystemCall(nodeType) || IsPureBinding(nodeType);
+
+        private static bool IsPureBinding(string nodeType) =>
+            nodeType.Equals("Text.WithNumber", StringComparison.OrdinalIgnoreCase);
 
         public AstExpression LowerPinExpression(PinDocument pin)
         {
@@ -773,7 +776,8 @@ public sealed class SemanticAnalyzer
                 if (nodeType.Equals("Native.Call", StringComparison.OrdinalIgnoreCase) ||
                     nodeType.Equals("Graph.Call", StringComparison.OrdinalIgnoreCase) ||
                     IsContainerQuery(nodeType) ||
-                    IsBuiQuery(nodeType))
+                    IsBuiQuery(nodeType) ||
+                    IsPureBinding(nodeType))
                 {
                     return LowerCall(node, pin);
                 }

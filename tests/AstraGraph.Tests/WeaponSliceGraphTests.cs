@@ -80,6 +80,36 @@ public sealed class WeaponSliceGraphTests
     private readonly record struct ProfileRateEvent(float FireRate, float ProjectileSpeed);
 
     [Test]
+    public void WeaponBench_EmitsTheGunRateWrite()
+    {
+        var document = WeaponBench();
+        var analyzed = new SemanticAnalyzer(TypeRegistry.CreateDefault()).Analyze(document);
+        Assert.That(analyzed.Success, Is.True, analyzed.Diagnostics.ToString());
+        var program = IrToBytecodeCompiler.Compile(AstToIrCompiler.Compile(analyzed.Program!), RevisionId.New(), "bench");
+        var calls = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var function in program.EntryPoints)
+        {
+            foreach (var instruction in function.Instructions)
+            {
+                if (instruction.AsOpCode != IrOpCode.CallNative)
+                {
+                    continue;
+                }
+
+                if (program.Constants[instruction.Op1].Value is string name)
+                {
+                    calls.Add(name);
+                }
+            }
+        }
+
+        Assert.That(calls, Does.Contain("Component.SetField"));
+        Assert.That(calls, Does.Contain("System.Invoke"));
+        Assert.That(calls, Does.Contain("Meta.SetDescription"));
+        Assert.That(calls, Does.Contain("Text.WithNumber"));
+    }
+
+    [Test]
     public void WeaponBench_AnalyzesAndIsStoredLeftToRight()
     {
         var document = WeaponBench();
