@@ -162,6 +162,27 @@ public sealed class WeaponSliceGraphTests
         var afterInstall = graph.Refresh("Done", 4640);
         graph.UseRow(560);
         var onOpen = graph.Refresh("Open", 360);
+        graph.UseRow(1480);
+        var isRemove = graph.Equal("IsRemove", "RemovePart", 680);
+        var removeGate = graph.Branch("Remove?", 900);
+        var removeGun = graph.Call("Entity.GetHeldItem", "RemoveGun", 1120, ("Holder", "EntityUid", null), ("Container", "string", "gun"), ("Item", "int64", null));
+        var hasRemoveGun = graph.NotZero("HasRemoveGun", 1340);
+        var removeGunGate = graph.Branch("RemoveGun?", 1560);
+        var noRemoveGun = graph.Call("Bui.Set", "NoRemoveGun", 1780, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Put the pistol in the gun slot"), ("Success", "bool", null));
+        var removeBarrel = graph.Call("Entity.GetHeldItem", "RemoveBarrel", 1780, ("Holder", "int64", null), ("Container", "string", "barrel"), ("Item", "int64", null));
+        var hasRemoveBarrel = graph.NotZero("HasRemoveBarrel", 2000);
+        var removeBarrelGate = graph.Branch("RemoveBarrel?", 2220);
+        var noBarrel = graph.Call("Bui.Set", "NoBarrel", 2440, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "No barrel installed"), ("Success", "bool", null));
+        var removeAssembly = graph.Component("RemoveAssembly", "WeaponAssembly", 2440, "int64");
+        var removeAssemblyGate = graph.Branch("RemoveAssembly?", 2660);
+        var takeBarrel = graph.Call("Container.Remove", "TakeBarrel", 2880, ("Owner", "int64", null), ("Container", "string", "barrel"), ("Item", "int64", null), ("Success", "bool", null));
+        var returnBarrel = graph.Call("Container.Insert", "ReturnBarrel", 3100, ("Owner", "EntityUid", null), ("Container", "string", "storagebase"), ("Item", "int64", null), ("Success", "bool", null));
+        var emptyBarrel = graph.Literal("EmptyBarrel", "string", "", 3100);
+        var clearBarrel = graph.Set("ClearBarrel", "WeaponAssembly", "Barrel", 3320);
+        var resetRate = graph.Set("ResetRate", "WeaponAssembly", "FireRate", 3540, "6", "float32");
+        var resetSpeed = graph.Set("ResetSpeed", "WeaponAssembly", "ProjectileSpeed", 3760, "40", "float32");
+        var removed = graph.Call("Bui.Set", "Removed", 3980, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Barrel returned to the bench"), ("Success", "bool", null));
+        var afterRemove = graph.Refresh("Off", 4200);
 
         graph.Exec(message, installGate);
         graph.Exec(installGate, "True", partGate);
@@ -176,11 +197,45 @@ public sealed class WeaponSliceGraphTests
         graph.Exec(setRate, setSpeed);
         graph.Exec(setSpeed, insert);
         graph.Exec(insert, afterInstall);
+        graph.Exec(installGate, "False", removeGate);
+        graph.Exec(removeGate, "True", removeGunGate);
+        graph.Exec(removeGunGate, "False", noRemoveGun);
+        graph.Exec(removeGunGate, "True", removeBarrelGate);
+        graph.Exec(removeBarrelGate, "False", noBarrel);
+        graph.Exec(removeBarrelGate, "True", removeAssemblyGate);
+        graph.Exec(removeAssemblyGate, "True", takeBarrel);
+        graph.Exec(takeBarrel, returnBarrel);
+        graph.Exec(returnBarrel, clearBarrel);
+        graph.Exec(clearBarrel, resetRate);
+        graph.Exec(resetRate, resetSpeed);
+        graph.Exec(resetSpeed, removed);
+        graph.Exec(removed, afterRemove);
         graph.Exec(open, onOpen);
 
         graph.DataWire(message, "Event", action, "Target");
         graph.DataWire(action, "Value", isInstall, "A");
         graph.DataWire(isInstall, "Result", installGate, "Condition");
+        graph.DataWire(action, "Value", isRemove, "A");
+        graph.DataWire(isRemove, "Result", removeGate, "Condition");
+        graph.DataWire(message, "Entity", removeGun, "Holder");
+        graph.DataWire(message, "Entity", noRemoveGun, "Owner");
+        graph.DataWire(message, "Entity", noBarrel, "Owner");
+        graph.DataWire(message, "Entity", returnBarrel, "Owner");
+        graph.DataWire(message, "Entity", removed, "Owner");
+        graph.DataWire(removeGun, "Item", hasRemoveGun, "A");
+        graph.DataWire(hasRemoveGun, "Result", removeGunGate, "Condition");
+        graph.DataWire(removeGun, "Item", removeBarrel, "Holder");
+        graph.DataWire(removeBarrel, "Item", hasRemoveBarrel, "A");
+        graph.DataWire(hasRemoveBarrel, "Result", removeBarrelGate, "Condition");
+        graph.DataWire(removeGun, "Item", removeAssembly, "Entity");
+        graph.DataWire(removeAssembly, "Found", removeAssemblyGate, "Condition");
+        graph.DataWire(removeAssembly, "Component", clearBarrel, "Target");
+        graph.DataWire(emptyBarrel, "Value", clearBarrel, "Value");
+        graph.DataWire(clearBarrel, "Result", resetRate, "Target");
+        graph.DataWire(resetRate, "Result", resetSpeed, "Target");
+        graph.DataWire(removeGun, "Item", takeBarrel, "Owner");
+        graph.DataWire(removeBarrel, "Item", takeBarrel, "Item");
+        graph.DataWire(removeBarrel, "Item", returnBarrel, "Item");
         graph.DataWire(message, "Event", payload, "Target");
         graph.DataWire(payload, "Value", partId, "Payload");
         graph.DataWire(message, "Entity", part, "Owner");
@@ -212,6 +267,7 @@ public sealed class WeaponSliceGraphTests
         graph.DataWire(part, "Item", insert, "Item");
         graph.WireRefresh(afterInstall, open);
         graph.WireRefresh(onOpen, open);
+        graph.WireRefresh(afterRemove, message);
 
         return graph.Document();
     }
@@ -413,6 +469,10 @@ public sealed class WeaponSliceGraphTests
             Place(Node(name, "Native.GetMember", new Dictionary<string, string> { ["Member"] = member },
                 Data("Target", "object", true), Data("Value", type, false)), x, Y(300));
 
+        public NodeDocument Literal(string name, string type, string value, int x) =>
+            Place(Node(name, "Core.Literal", new Dictionary<string, string> { ["Value"] = value, ["Type"] = type },
+                Data("Value", type, false)), x, Y(300));
+
         public NodeDocument Equal(string name, string literal, int x)
         {
             var node = Node(name, "cmp.equal", null, Data("A", "string", true), Data("B", "string", true, literal), Data("Result", "bool", false));
@@ -436,7 +496,7 @@ public sealed class WeaponSliceGraphTests
         public NodeDocument Call(string type, string name, int x, params (string Name, string Type, string? Default)[] pins)
         {
             var specs = new List<PinDocument>();
-            if (type is "Container.Insert" or "Bui.Set" or "List.Add" or "System.Invoke" or "Component.SetField" or "Meta.SetDescription")
+            if (type is "Container.Insert" or "Container.Remove" or "Bui.Set" or "List.Add" or "System.Invoke" or "Component.SetField" or "Meta.SetDescription")
             {
                 specs.Add(Exec("In", true));
                 specs.Add(Exec("Out", false));
@@ -448,7 +508,7 @@ public sealed class WeaponSliceGraphTests
                 "Container.Contents" => new[] { "Contents" },
                 "Bui.Field" => new[] { "Value" },
                 "Ui.Rows" => new[] { "Rows" },
-                "Container.Insert" or "Bui.Set" or "System.Invoke" or "Component.SetField" or "Meta.SetDescription" => new[] { "Success" },
+                "Container.Insert" or "Container.Remove" or "Bui.Set" or "System.Invoke" or "Component.SetField" or "Meta.SetDescription" => new[] { "Success" },
                 "Text.WithNumber" => new[] { "Text" },
                 "List.Add" => new[] { "ListOut" },
                 _ => Array.Empty<string>()
@@ -467,7 +527,7 @@ public sealed class WeaponSliceGraphTests
                     : Data(pin.Name, pin.Type, true, pin.Default));
             }
 
-            var execution = type is "Container.Insert" or "Bui.Set" or "List.Add" or "System.Invoke" or "Component.SetField" or "Meta.SetDescription";
+            var execution = type is "Container.Insert" or "Container.Remove" or "Bui.Set" or "List.Add" or "System.Invoke" or "Component.SetField" or "Meta.SetDescription";
             return Place(Node(name, type, null, [.. specs]), x, Y(execution ? 80 : 300));
         }
 
@@ -485,7 +545,7 @@ public sealed class WeaponSliceGraphTests
             Name = "WeaponBench",
             Kind = GraphKind.System,
             Side = GraphSide.Server,
-            Metadata = new GraphMetadata { Description = "Bench lists parts and installs a barrel the server accepts. The client only sends the part id." },
+            Metadata = new GraphMetadata { Description = "Bench lists parts, installs a barrel the server accepts, and returns that barrel to storage. The client only sends the action." },
             Variables = [new GraphVariableDocument { Name = "Rows", TypeName = "List<PartRow>" }],
             Nodes = _nodes,
             Connections = _connections,
