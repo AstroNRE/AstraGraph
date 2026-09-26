@@ -582,6 +582,8 @@ public sealed class WeaponSliceGraphTests
         Assert.That(calls, Does.Contain("System.Invoke"));
         Assert.That(calls, Does.Contain("Meta.SetDescription"));
         Assert.That(calls, Does.Contain("Text.WithNumber"));
+        Assert.That(calls, Does.Contain("Entity.SpawnAt"));
+        Assert.That(calls, Does.Contain("Entity.QueueDelete"));
         var opcodes = new HashSet<IrOpCode>();
         foreach (var function in program.EntryPoints)
         {
@@ -779,7 +781,9 @@ public sealed class WeaponSliceGraphTests
         graph.Exec(removeGate, "False", cleanGate);
         graph.Exec(cleanGate, "False", calibrateGate);
         graph.Exec(calibrateGate, "False", clearGate);
-        graph.Exec(clearGate, "False", selectGate);
+        var makeGate = graph.Make("Make", 9800, action, message);
+        graph.Exec(clearGate, "False", makeGate);
+        graph.Exec(makeGate, "False", selectGate);
         graph.Exec(selectGate, "True", selectGunGate);
         graph.Exec(selectGunGate, "False", selectNoGun);
         graph.Exec(selectGunGate, "True", selectBenchGate);
@@ -1190,7 +1194,7 @@ public sealed class WeaponSliceGraphTests
         public NodeDocument Call(string type, string name, int x, params (string Name, string Type, string? Default)[] pins)
         {
             var specs = new List<PinDocument>();
-            if (type is "Container.Insert" or "Container.Remove" or "Bui.Set" or "List.Add" or "System.Invoke" or "Component.SetField" or "Meta.SetDescription")
+            if (type is "Container.Insert" or "Container.Remove" or "Bui.Set" or "List.Add" or "System.Invoke" or "Component.SetField" or "Meta.SetDescription" or "Entity.SpawnAt" or "Entity.QueueDelete")
             {
                 specs.Add(Exec("In", true));
                 specs.Add(Exec("Out", false));
@@ -1198,11 +1202,12 @@ public sealed class WeaponSliceGraphTests
 
             var outputs = type switch
             {
-                "Inventory.Find" or "Entity.GetHeldItem" => new[] { "Item" },
+                "Inventory.Find" or "Entity.GetHeldItem" or "Entity.SpawnAt" => new[] { "Item", "Entity" },
+                "Entity.GetCoordinates" => new[] { "Coordinates" },
                 "Container.Contents" => new[] { "Contents" },
                 "Bui.Field" => new[] { "Value" },
                 "Ui.Rows" => new[] { "Rows" },
-                "Container.Insert" or "Container.Remove" or "Bui.Set" or "System.Invoke" or "Component.SetField" or "Meta.SetDescription" => new[] { "Success" },
+                "Container.Insert" or "Container.Remove" or "Bui.Set" or "System.Invoke" or "Component.SetField" or "Meta.SetDescription" or "Entity.QueueDelete" => new[] { "Success" },
                 "Text.WithNumber" => new[] { "Text" },
                 "List.Add" => new[] { "ListOut" },
                 _ => Array.Empty<string>()
@@ -1221,7 +1226,7 @@ public sealed class WeaponSliceGraphTests
                     : Data(pin.Name, pin.Type, true, pin.Default));
             }
 
-            var execution = type is "Container.Insert" or "Container.Remove" or "Bui.Set" or "List.Add" or "System.Invoke" or "Component.SetField" or "Meta.SetDescription";
+            var execution = type is "Container.Insert" or "Container.Remove" or "Bui.Set" or "List.Add" or "System.Invoke" or "Component.SetField" or "Meta.SetDescription" or "Entity.SpawnAt" or "Entity.QueueDelete";
             return Place(Node(name, type, null, [.. specs]), x, Y(execution ? 80 : 300));
         }
 
@@ -1284,7 +1289,20 @@ public sealed class WeaponSliceGraphTests
                     ("22bb22bb-22bb-42bb-82bb-22bb22bb22b9", "RateDelta", "float32", "0"),
                     ("22bb22bb-22bb-42bb-82bb-22bb22bb22ba", "SpeedDelta", "float32", "0"),
                     ("22bb22bb-22bb-42bb-82bb-22bb22bb22bd", "Interface", "string", ""),
-                    ("22bb22bb-22bb-42bb-82bb-22bb22bb22be", "Offer", "string", "direct")),
+                    ("22bb22bb-22bb-42bb-82bb-22bb22bb22be", "Offer", "string", "direct"),
+                    ("22bb22bb-22bb-42bb-82bb-22bb22bb22bf", "Quality", "float32", "1"),
+                    ("22bb22bb-22bb-42bb-82bb-22bb22bb22c0", "Lot", "string", "")),
+                Schema("44aa44aa-44aa-44aa-84aa-44aa44aa44aa", "WeaponBlueprint", true,
+                    ("44aa44aa-44aa-44aa-84aa-44aa44aa44a1", "Output", "string", ""),
+                    ("44aa44aa-44aa-44aa-84aa-44aa44aa44a2", "Label", "string", "")),
+                Schema("55aa55aa-55aa-45aa-85aa-55aa55aa55aa", "WeaponMaterial", true,
+                    ("55aa55aa-55aa-45aa-85aa-55aa55aa55a1", "Grade", "float32", "1"),
+                    ("55aa55aa-55aa-45aa-85aa-55aa55aa55a2", "Label", "string", "")),
+                Schema("66aa66aa-66aa-46aa-86aa-66aa66aa66aa", "WeaponMachine", true,
+                    ("66aa66aa-66aa-46aa-86aa-66aa66aa66a1", "Passed", "float32", "0"),
+                    ("66aa66aa-66aa-46aa-86aa-66aa66aa66a2", "Rejected", "float32", "0"),
+                    ("66aa66aa-66aa-46aa-86aa-66aa66aa66a3", "NextLot", "float32", "1"),
+                    ("66aa66aa-66aa-46aa-86aa-66aa66aa66a4", "Calibration", "float32", "1")),
                 Schema("33cc33cc-33cc-43cc-83cc-33cc33cc33cc", "PartRow", false,
                     ("33cc33cc-33cc-43cc-83cc-33cc33cc33c1", "Id", "string", ""),
                     ("33cc33cc-33cc-43cc-83cc-33cc33cc33c2", "Text", "string", ""),
@@ -1561,6 +1579,156 @@ public sealed class WeaponSliceGraphTests
             DataWire(labeled, "Result", joined, "B");
             DataWire(assembly, "Component", value, "Component");
             return joined;
+        }
+
+        public NodeDocument Make(string name, int row, NodeDocument actionNode, NodeDocument owner)
+        {
+            UseRow(row);
+            var isAction = Equal("Is" + name, name, 680);
+            var gate = Branch(name + "?", 900);
+            var blueprint = Call("Inventory.Find", name + "Blueprint", 1120, ("Owner", "EntityUid", null), ("Prototype", "string", "WeaponBlueprintLightBarrel"), ("Item", "int64", null));
+            var hasBlueprint = NotZero(name + "HasBlueprint", 1340);
+            var blueprintGate = Branch(name + "Blueprint?", 1560);
+            var noBlueprint = Call("Bui.Set", name + "NoBlueprint", 1780, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Put the light barrel blueprint on the bench"), ("Success", "bool", null));
+            var machine = Component(name + "Machine", "WeaponMachine", 1780, "EntityUid");
+            var hasMachine = Branch(name + "Machine?", 2000);
+            var noMachine = Call("Bui.Set", name + "NoMachine", 2220, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "This bench cannot machine"), ("Success", "bool", null));
+            var steel = Call("Inventory.Find", name + "Steel", 2220, ("Owner", "EntityUid", null), ("Prototype", "string", "WeaponStockSteel"), ("Item", "int64", null));
+            var hasSteel = NotZero(name + "HasSteel", 2440);
+            var steelGate = Branch(name + "Steel?", 2660);
+            var scrap = Call("Inventory.Find", name + "Scrap", 2880, ("Owner", "EntityUid", null), ("Prototype", "string", "WeaponStockScrap"), ("Item", "int64", null));
+            var hasScrap = NotZero(name + "HasScrap", 3100);
+            var scrapGate = Branch(name + "Scrap?", 3320);
+            var noStock = Call("Bui.Set", name + "NoStock", 3540, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Put a steel blank or scrap in the bench"), ("Success", "bool", null));
+            var steelRun = Produce(name + "Steel", row + 800, owner, steel, blueprint, machine);
+            var scrapRun = Produce(name + "Scrap", row + 2200, owner, scrap, blueprint, machine);
+            Exec(gate, "True", blueprintGate);
+            Exec(blueprintGate, "False", noBlueprint);
+            Exec(blueprintGate, "True", hasMachine);
+            Exec(hasMachine, "False", noMachine);
+            Exec(hasMachine, "True", steelGate);
+            Exec(steelGate, "True", steelRun);
+            Exec(steelGate, "False", scrapGate);
+            Exec(scrapGate, "True", scrapRun);
+            Exec(scrapGate, "False", noStock);
+            DataWire(actionNode, "Value", isAction, "A");
+            DataWire(isAction, "Result", gate, "Condition");
+            DataWire(blueprint, "Item", hasBlueprint, "A");
+            DataWire(hasBlueprint, "Result", blueprintGate, "Condition");
+            DataWire(owner, "Entity", blueprint, "Owner");
+            DataWire(owner, "Entity", noBlueprint, "Owner");
+            DataWire(owner, "Entity", machine, "Entity");
+            DataWire(machine, "Found", hasMachine, "Condition");
+            DataWire(owner, "Entity", noMachine, "Owner");
+            DataWire(owner, "Entity", steel, "Owner");
+            DataWire(owner, "Entity", scrap, "Owner");
+            DataWire(owner, "Entity", noStock, "Owner");
+            DataWire(steel, "Item", hasSteel, "A");
+            DataWire(hasSteel, "Result", steelGate, "Condition");
+            DataWire(scrap, "Item", hasScrap, "A");
+            DataWire(hasScrap, "Result", scrapGate, "Condition");
+            return gate;
+        }
+
+        private NodeDocument Produce(string name, int row, NodeDocument owner, NodeDocument material, NodeDocument blueprint, NodeDocument machine)
+        {
+            UseRow(row);
+            var wait = Call("Bui.Set", name + "Wait", 680, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Machining the part."), ("Success", "bool", null));
+            var after = DoAfter(name + "After", 900, "4");
+            var materialData = Component(name + "Material", "WeaponMaterial", 1120, "int64");
+            var grade = Field(name + "Grade", "WeaponMaterial", "Grade", "float32", 1340);
+            var calibration = Field(name + "Calibration", "WeaponMachine", "Calibration", "float32", 1560);
+            var quality = Mul(name + "Quality", 1780);
+            var limit = Literal(name + "Limit", "float32", "0.6", 2000);
+            var poor = Less(name + "Poor", 2220);
+            var qc = Branch(name + "Qc?", 2440);
+            var rejectItem = Call("Entity.QueueDelete", name + "RejectItem", 2660, ("Entity", "int64", null));
+            var rejected = Field(name + "Rejected", "WeaponMachine", "Rejected", "float32", 2880);
+            var one = Literal(name + "One", "float32", "1", 3100);
+            var rejectedSum = Add(name + "RejectedSum", 3320, "float32");
+            var setRejected = Set(name + "SetRejected", "WeaponMachine", "Rejected", 3540, null, "float32");
+            var rejectLine = Call("Text.WithNumber", name + "RejectLine", 3760, ("Label", "string", "QC rejected. Quality"), ("Number", "float64", null), ("Text", "string", null));
+            var rejectedMsg = Call("Bui.Set", name + "Rejected", 3980, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", null), ("Success", "bool", null));
+            var plan = Component(name + "Plan", "WeaponBlueprint", 2660, "int64");
+            var output = Field(name + "Output", "WeaponBlueprint", "Output", "string", 2880);
+            var place = Call("Entity.GetCoordinates", name + "Place", 3100, ("Entity", "EntityUid", null), ("Coordinates", "object", null));
+            var spawn = Call("Entity.SpawnAt", name + "Spawn", 3320, ("Prototype", "string", null), ("Coordinates", "object", null), ("Entity", "int64", null));
+            var part = Component(name + "Part", "WeaponPart", 3540, "int64");
+            var setQuality = Set(name + "SetQuality", "WeaponPart", "Quality", 3760, null, "float32");
+            var lotNumber = Field(name + "LotNumber", "WeaponMachine", "NextLot", "float32", 3980);
+            var lotText = Call("Text.WithNumber", name + "LotText", 4200, ("Label", "string", "Lot"), ("Number", "float64", null), ("Text", "string", null));
+            var setLot = Set(name + "SetLot", "WeaponPart", "Lot", 4420, null, "string");
+            var store = Call("Container.Insert", name + "Store", 4640, ("Owner", "EntityUid", null), ("Container", "string", "storagebase"), ("Item", "int64", null), ("Success", "bool", null));
+            var consume = Call("Entity.QueueDelete", name + "Consume", 4860, ("Entity", "int64", null));
+            var passed = Field(name + "Passed", "WeaponMachine", "Passed", "float32", 5080);
+            var passedSum = Add(name + "PassedSum", 5300, "float32");
+            var setPassed = Set(name + "SetPassed", "WeaponMachine", "Passed", 5520, null, "float32");
+            var nextSum = Add(name + "NextSum", 5740, "float32");
+            var setNext = Set(name + "SetNext", "WeaponMachine", "NextLot", 5960, null, "float32");
+            var passLine = Call("Text.WithNumber", name + "PassLine", 6180, ("Label", "string", "QC passed. Quality"), ("Number", "float64", null), ("Text", "string", null));
+            var passedMsg = Call("Bui.Set", name + "Passed", 6400, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", null), ("Success", "bool", null));
+            var refresh = Refresh(name, 6620);
+            Exec(wait, after);
+            Exec(after, qc);
+            Exec(qc, "True", rejectItem);
+            Exec(rejectItem, setRejected);
+            Exec(setRejected, rejectedMsg);
+            Exec(qc, "False", spawn);
+            Exec(spawn, setQuality);
+            Exec(setQuality, setLot);
+            Exec(setLot, store);
+            Exec(store, consume);
+            Exec(consume, setPassed);
+            Exec(setPassed, setNext);
+            Exec(setNext, passedMsg);
+            Exec(passedMsg, refresh);
+            DataWire(owner, "Entity", wait, "Owner");
+            DataWire(owner, "Entity", rejectedMsg, "Owner");
+            DataWire(owner, "Entity", passedMsg, "Owner");
+            DataWire(material, "Item", materialData, "Entity");
+            DataWire(materialData, "Component", grade, "Component");
+            DataWire(machine, "Component", calibration, "Component");
+            DataWire(grade, "Value", quality, "A");
+            DataWire(calibration, "Value", quality, "B");
+            DataWire(quality, "Result", poor, "A");
+            DataWire(limit, "Value", poor, "B");
+            DataWire(poor, "Result", qc, "Condition");
+            DataWire(material, "Item", rejectItem, "Entity");
+            DataWire(machine, "Component", rejected, "Component");
+            DataWire(rejected, "Value", rejectedSum, "A");
+            DataWire(one, "Value", rejectedSum, "B");
+            DataWire(rejectedSum, "Result", setRejected, "Value");
+            DataWire(machine, "Component", setRejected, "Target");
+            DataWire(quality, "Result", rejectLine, "Number");
+            DataWire(rejectLine, "Text", rejectedMsg, "Value");
+            DataWire(blueprint, "Item", plan, "Entity");
+            DataWire(plan, "Component", output, "Component");
+            DataWire(owner, "Entity", place, "Entity");
+            DataWire(output, "Value", spawn, "Prototype");
+            DataWire(place, "Coordinates", spawn, "Coordinates");
+            DataWire(spawn, "Entity", part, "Entity");
+            DataWire(part, "Component", setQuality, "Target");
+            DataWire(quality, "Result", setQuality, "Value");
+            DataWire(setQuality, "Result", setLot, "Target");
+            DataWire(machine, "Component", lotNumber, "Component");
+            DataWire(lotNumber, "Value", lotText, "Number");
+            DataWire(lotText, "Text", setLot, "Value");
+            DataWire(owner, "Entity", store, "Owner");
+            DataWire(spawn, "Entity", store, "Item");
+            DataWire(material, "Item", consume, "Entity");
+            DataWire(machine, "Component", passed, "Component");
+            DataWire(passed, "Value", passedSum, "A");
+            DataWire(one, "Value", passedSum, "B");
+            DataWire(passedSum, "Result", setPassed, "Value");
+            DataWire(machine, "Component", setPassed, "Target");
+            DataWire(lotNumber, "Value", nextSum, "A");
+            DataWire(one, "Value", nextSum, "B");
+            DataWire(nextSum, "Result", setNext, "Value");
+            DataWire(machine, "Component", setNext, "Target");
+            DataWire(quality, "Result", passLine, "Number");
+            DataWire(passLine, "Text", passedMsg, "Value");
+            WireRefresh(refresh, owner);
+            return wait;
         }
 
         public NodeDocument Tune(string name, string action, string field, string value, string message, int row, NodeDocument actionNode, NodeDocument owner, string valueType = "float32", string seconds = "2", string working = "Working.")

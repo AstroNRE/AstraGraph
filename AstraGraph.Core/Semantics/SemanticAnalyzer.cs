@@ -738,7 +738,12 @@ public sealed class SemanticAnalyzer
             nodeType.Equals("System.Invoke", StringComparison.OrdinalIgnoreCase) ||
             nodeType.Equals("Component.SetField", StringComparison.OrdinalIgnoreCase) ||
             nodeType.Equals("Meta.SetDescription", StringComparison.OrdinalIgnoreCase) ||
-            nodeType.Equals("Popup.Entity", StringComparison.OrdinalIgnoreCase);
+            nodeType.Equals("Popup.Entity", StringComparison.OrdinalIgnoreCase) ||
+            nodeType.Equals("Entity.SpawnAt", StringComparison.OrdinalIgnoreCase) ||
+            nodeType.Equals("Entity.QueueDelete", StringComparison.OrdinalIgnoreCase);
+
+        private static bool IsEntityQuery(string nodeType) =>
+            nodeType.Equals("Entity.GetCoordinates", StringComparison.OrdinalIgnoreCase);
 
         private static bool IsBuiQuery(string nodeType) =>
             nodeType.Equals("Ui.Rows", StringComparison.OrdinalIgnoreCase) ||
@@ -748,7 +753,7 @@ public sealed class SemanticAnalyzer
             IsMutatingContainer(nodeType) || IsContainerQuery(nodeType);
 
         private static bool IsDirectNative(string nodeType) =>
-            IsGameplayContainer(nodeType) || IsBuiMutation(nodeType) || IsBuiQuery(nodeType) || IsSystemCall(nodeType) || IsPureBinding(nodeType);
+            IsGameplayContainer(nodeType) || IsBuiMutation(nodeType) || IsBuiQuery(nodeType) || IsEntityQuery(nodeType) || IsSystemCall(nodeType) || IsPureBinding(nodeType);
 
         private static bool IsPureBinding(string nodeType) =>
             nodeType.Equals("Text.WithNumber", StringComparison.OrdinalIgnoreCase);
@@ -784,6 +789,7 @@ public sealed class SemanticAnalyzer
                     nodeType.Equals("Graph.Call", StringComparison.OrdinalIgnoreCase) ||
                     IsContainerQuery(nodeType) ||
                     IsBuiQuery(nodeType) ||
+                    IsEntityQuery(nodeType) ||
                     IsPureBinding(nodeType))
                 {
                     return LowerCall(node, pin);
