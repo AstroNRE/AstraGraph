@@ -12,8 +12,8 @@ public sealed class WeaponSliceGraphTests
     [Test]
     public void WeaponProfile_Analyzes()
     {
-        var path = Path.Combine(NightCity(), "Resources", "AstraGraph", "Systems", "Weapons", "Modular", "WeaponProfile.agraph");
-        if (!File.Exists(path))
+        var path = WriteProfile();
+        if (path == null)
         {
             Assert.Ignore("Night City checkout is not beside this library.");
         }
@@ -26,8 +26,8 @@ public sealed class WeaponSliceGraphTests
     [Test]
     public void WeaponProfile_CopiesAssemblyRateOntoTheRefreshEvent()
     {
-        var path = Path.Combine(NightCity(), "Resources", "AstraGraph", "Systems", "Weapons", "Modular", "WeaponProfile.agraph");
-        if (!File.Exists(path))
+        var path = WriteProfile();
+        if (path == null)
         {
             Assert.Ignore("Night City checkout is not beside this library.");
         }
@@ -78,6 +78,209 @@ public sealed class WeaponSliceGraphTests
     }
 
     private readonly record struct ProfileRateEvent(float FireRate, float ProjectileSpeed);
+
+    [Test]
+    public void WeaponCondition_ShotAddsHeatFoulingAndWear()
+    {
+        var path = WriteCondition();
+        if (path == null)
+        {
+            Assert.Ignore("Night City checkout is not beside this library.");
+        }
+
+        var document = GraphSerializer.Deserialize(File.ReadAllText(path));
+        var registry = TypeRegistry.CreateDefault();
+        var analyzed = new SemanticAnalyzer(registry).Analyze(document);
+        Assert.That(analyzed.Success, Is.True, analyzed.Diagnostics.ToString());
+        var program = IrToBytecodeCompiler.Compile(AstToIrCompiler.Compile(analyzed.Program!), RevisionId.New(), "condition");
+        var schema = SchemaDocuments.ToSchema(document.Schemas.Single(item => item.Name == "WeaponAssembly"), registry);
+        var schemas = new AstraSchemaRegistry();
+        schemas.RegisterSchema(schema);
+        var source = new SchemaComponentSource(new DynamicComponentStore(), schemas);
+        Assert.That(source.ApplyInitial(4, schema, new Dictionary<string, string>
+        {
+            ["FireRate"] = "6",
+            ["ProjectileSpeed"] = "40"
+        }, "WeaponAstraPistol", out _), Is.True);
+        var services = new DefaultVmHostServices();
+        services.UseSchemaComponents(source);
+        services.PushEventContext(new AstraEventInvocationContext(AstraValue.FromEntityUid(4), null, new object()));
+        var result = new AstraVm().Execute(program, program.FindEntryPoint("Shot")!, hostServices: services);
+        services.PopEventContext();
+        var stored = source.TryGet(4, "WeaponAssembly");
+        Assert.That(stored.Read("Heat").AsDouble(), Is.EqualTo(4));
+        Assert.That(stored.Read("Fouling").AsDouble(), Is.EqualTo(1));
+        Assert.That(stored.Read("Wear").AsDouble(), Is.EqualTo(0.2).Within(0.0001));
+        Assert.That(result.Status, Is.EqualTo(VmExecutionStatus.Faulted));
+    }
+
+    private static string? WriteProfile()
+    {
+        var root = NightCity();
+        if (!Directory.Exists(root))
+        {
+            return null;
+        }
+
+        var graph = new BenchGraph();
+        var refresh = graph.Event("Refresh", "GunRefreshModifiersEvent", "GunComponent", 40, 80);
+        var assembly = graph.Component("Assembly", "WeaponAssembly", 360);
+        var gate = graph.Branch("HasAssembly", 680);
+        var rate = graph.Field("ReadRate", "WeaponAssembly", "FireRate", "float32", 1000);
+        var heat = graph.Field("ReadHeat", "WeaponAssembly", "Heat", "float32", 1220);
+        var factor = graph.Literal("HeatFactor", "float32", "0.05", 1440);
+        var penalty = graph.Mul("Penalty", 1660);
+        var slowed = graph.Sub("Slowed", 1880);
+        var one = graph.Literal("Minimum", "float32", "1", 2100);
+        var below = graph.Less("BelowMin", 2320);
+        var floorGate = graph.Branch("Floor?", 2540);
+        var useOne = graph.Assign("UseOne", "FireRate", 2760, "float32");
+        var useSlow = graph.Assign("UseSlow", "FireRate", 2760, "float32");
+        var speed = graph.Field("ReadSpeed", "WeaponAssembly", "ProjectileSpeed", "float32", 2980);
+        var writeHot = graph.Assign("WriteSpeedHot", "ProjectileSpeed", 3200, "float32");
+        var writeCool = graph.Assign("WriteSpeed", "ProjectileSpeed", 3200, "float32");
+        graph.Exec(refresh, gate);
+        graph.Exec(gate, "True", floorGate);
+        graph.Exec(floorGate, "True", useOne);
+        graph.Exec(useOne, writeHot);
+        graph.Exec(floorGate, "False", useSlow);
+        graph.Exec(useSlow, writeCool);
+        graph.DataWire(refresh, "Entity", assembly, "Entity");
+        graph.DataWire(assembly, "Found", gate, "Condition");
+        graph.DataWire(assembly, "Component", rate, "Component");
+        graph.DataWire(assembly, "Component", heat, "Component");
+        graph.DataWire(assembly, "Component", speed, "Component");
+        graph.DataWire(heat, "Value", penalty, "A");
+        graph.DataWire(factor, "Value", penalty, "B");
+        graph.DataWire(rate, "Value", slowed, "A");
+        graph.DataWire(penalty, "Result", slowed, "B");
+        graph.DataWire(slowed, "Result", below, "A");
+        graph.DataWire(one, "Value", below, "B");
+        graph.DataWire(below, "Result", floorGate, "Condition");
+        graph.DataWire(one, "Value", useOne, "Value");
+        graph.DataWire(slowed, "Result", useSlow, "Value");
+        graph.DataWire(speed, "Value", writeHot, "Value");
+        graph.DataWire(speed, "Value", writeCool, "Value");
+        return WriteGraph(graph.Document(
+            "a1000000-0000-4000-8000-0000000000a1",
+            "WeaponProfile",
+            "When a gun refreshes, copy the assembly profile onto the shot and slow the cycle as heat rises.",
+            [
+                new GraphVariableDocument { Name = "FireRate", TypeName = "float32" },
+                new GraphVariableDocument { Name = "ProjectileSpeed", TypeName = "float32" }
+            ]), "WeaponProfile.agraph");
+    }
+
+    private static string? WriteCondition()
+    {
+        var root = NightCity();
+        if (!Directory.Exists(root))
+        {
+            return null;
+        }
+
+        var graph = new BenchGraph();
+        // GunComponent + GunShotEvent is already taken by the city perception system.
+        // Robust allows one handler per component and event, so the shot is heard on the chamber the pistol already has.
+        var shot = graph.Event("Shot", "GunShotEvent", "ChamberMagazineAmmoProviderComponent", 40, 80);
+        var assembly = graph.Component("Assembly", "WeaponAssembly", 360);
+        var gate = graph.Branch("Assembly?", 680);
+        var heat = graph.Field("Heat", "WeaponAssembly", "Heat", "float32", 1000);
+        var heatStep = graph.Literal("HeatStep", "float32", "4", 1220);
+        var heatSum = graph.Add("HeatSum", 1440, "float32");
+        var storeHeat = graph.Assign("StoreHeat", "HeatNow", 1660, "float32");
+        var storedHeat = graph.Read("StoredHeat", "HeatNow", 1880, "float32");
+        var setHeat = graph.Set("SetHeat", "WeaponAssembly", "Heat", 2100, null, "float32");
+        var fouling = graph.Field("Fouling", "WeaponAssembly", "Fouling", "float32", 1880);
+        var foulingStep = graph.Literal("FoulingStep", "float32", "1", 2100);
+        var foulingSum = graph.Add("FoulingSum", 2320, "float32");
+        var setFouling = graph.Set("SetFouling", "WeaponAssembly", "Fouling", 2540, null, "float32");
+        var wear = graph.Field("Wear", "WeaponAssembly", "Wear", "float32", 2760);
+        var wearStep = graph.Literal("WearStep", "float32", "0.2", 2980);
+        var wearSum = graph.Add("WearSum", 3200, "float32");
+        var setWear = graph.Set("SetWear", "WeaponAssembly", "Wear", 3420, null, "float32");
+        var rate = graph.Field("Rate", "WeaponAssembly", "FireRate", "float32", 3640);
+        var factor = graph.Literal("HeatFactor", "float32", "0.05", 3860);
+        var penalty = graph.Mul("Penalty", 4080);
+        var slowed = graph.Sub("Slowed", 4300);
+        var one = graph.Literal("Minimum", "float32", "1", 4520);
+        var below = graph.Less("BelowMin", 4740);
+        var floorGate = graph.Branch("Floor?", 4960);
+        NodeDocument Tail(string name, NodeDocument chosen, string pin)
+        {
+            var writeRate = graph.Call("Component.SetField", name + "WriteRate", 5180, ("Entity", "EntityUid", null), ("Component", "string", "GunComponent"), ("Field", "string", "FireRate"), ("Value", "float64", null), ("Success", "bool", null));
+            var writeModified = graph.Call("Component.SetField", name + "WriteModified", 5400, ("Entity", "EntityUid", null), ("Component", "string", "GunComponent"), ("Field", "string", "FireRateModified"), ("Value", "float64", null), ("Success", "bool", null));
+            var rateText = graph.Call("Text.WithNumber", name + "RateText", 5620, ("Label", "string", "Fire rate"), ("Number", "float64", null), ("Text", "string", null));
+            var heatText = graph.JoinStat(name + "Heat", 5840, rateText, "Text", assembly, "Heat", "Heat");
+            var foulingText = graph.JoinStat(name + "Fouling", 6840, heatText, "Result", assembly, "Fouling", "Fouling");
+            var wearText = graph.JoinStat(name + "Wear", 7840, foulingText, "Result", assembly, "Wear", "Wear");
+            var calibrationText = graph.JoinStat(name + "Calibration", 8840, wearText, "Result", assembly, "Calibration", "Calibration");
+            var describe = graph.Call("Meta.SetDescription", name + "Describe", 9840, ("Entity", "EntityUid", null), ("Text", "string", null), ("Success", "bool", null));
+            var refreshGun = graph.Call("System.Invoke", name + "Refresh", 10060, ("System", "string", "SharedGunSystem"), ("Method", "string", "RefreshModifiers"), ("Entity", "EntityUid", null), ("Success", "bool", null));
+            graph.Exec(writeRate, writeModified);
+            graph.Exec(writeModified, describe);
+            graph.Exec(describe, refreshGun);
+            graph.DataWire(shot, "Entity", writeRate, "Entity");
+            graph.DataWire(chosen, pin, writeRate, "Value");
+            graph.DataWire(shot, "Entity", writeModified, "Entity");
+            graph.DataWire(chosen, pin, writeModified, "Value");
+            graph.DataWire(chosen, pin, rateText, "Number");
+            graph.DataWire(calibrationText, "Result", describe, "Text");
+            graph.DataWire(shot, "Entity", describe, "Entity");
+            graph.DataWire(shot, "Entity", refreshGun, "Entity");
+            return writeRate;
+        }
+
+        var hot = Tail("Hot", one, "Value");
+        var cool = Tail("Cool", slowed, "Result");
+        graph.Exec(shot, gate);
+        graph.Exec(gate, "True", storeHeat);
+        graph.Exec(storeHeat, setHeat);
+        graph.Exec(setHeat, setFouling);
+        graph.Exec(setFouling, setWear);
+        graph.Exec(setWear, floorGate);
+        graph.Exec(floorGate, "True", hot);
+        graph.Exec(floorGate, "False", cool);
+        graph.DataWire(shot, "Entity", assembly, "Entity");
+        graph.DataWire(assembly, "Found", gate, "Condition");
+        graph.DataWire(assembly, "Component", heat, "Component");
+        graph.DataWire(assembly, "Component", fouling, "Component");
+        graph.DataWire(assembly, "Component", wear, "Component");
+        graph.DataWire(assembly, "Component", rate, "Component");
+        graph.DataWire(assembly, "Component", setHeat, "Target");
+        graph.DataWire(heat, "Value", heatSum, "A");
+        graph.DataWire(heatStep, "Value", heatSum, "B");
+        graph.DataWire(heatSum, "Result", storeHeat, "Value");
+        graph.DataWire(storedHeat, "Value", setHeat, "Value");
+        graph.DataWire(setHeat, "Result", setFouling, "Target");
+        graph.DataWire(fouling, "Value", foulingSum, "A");
+        graph.DataWire(foulingStep, "Value", foulingSum, "B");
+        graph.DataWire(foulingSum, "Result", setFouling, "Value");
+        graph.DataWire(setFouling, "Result", setWear, "Target");
+        graph.DataWire(wear, "Value", wearSum, "A");
+        graph.DataWire(wearStep, "Value", wearSum, "B");
+        graph.DataWire(wearSum, "Result", setWear, "Value");
+        graph.DataWire(storedHeat, "Value", penalty, "A");
+        graph.DataWire(factor, "Value", penalty, "B");
+        graph.DataWire(rate, "Value", slowed, "A");
+        graph.DataWire(penalty, "Result", slowed, "B");
+        graph.DataWire(slowed, "Result", below, "A");
+        graph.DataWire(one, "Value", below, "B");
+        graph.DataWire(below, "Result", floorGate, "Condition");
+        return WriteGraph(graph.Document(
+            "e1000000-0000-4000-8000-0000000000e1",
+            "WeaponCondition",
+            "Each shot adds heat, fouling, and wear, then the next cycle uses the hotter profile.",
+            [new GraphVariableDocument { Name = "HeatNow", TypeName = "float32" }]), "WeaponCondition.agraph");
+    }
+
+    private static string WriteGraph(GraphDocument document, string fileName)
+    {
+        var path = Path.Combine(NightCity(), "Resources", "AstraGraph", "Systems", "Weapons", "Modular", fileName);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, GraphSerializer.Serialize(document));
+        return path;
+    }
 
     [Test]
     public void HostVariables_NestedClearRestoresTheCaller()
@@ -219,6 +422,7 @@ public sealed class WeaponSliceGraphTests
         var insert = graph.Call("Container.Insert", "Insert", 6820, ("Owner", "int64", null), ("Container", "string", null), ("Item", "int64", null), ("Success", "bool", null));
         var inserted = graph.Branch("Inserted?", 6740);
         var installedMsg = graph.Call("Bui.Set", "InstalledMsg", 6960, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Installed."), ("Success", "bool", null));
+        var unsetCal = graph.Set("UnsetCal", "WeaponAssembly", "Calibration", 7180, "0", "float32");
         var rejectPrefix = graph.Literal("RejectPrefix", "string", "Did not fit into ", 6960);
         var rejectText = graph.Add("RejectText", 7180, "string");
         var rejected = graph.Call("Bui.Set", "Rejected", 7400, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", null), ("Success", "bool", null));
@@ -244,7 +448,8 @@ public sealed class WeaponSliceGraphTests
         var removeAssemblyGate = graph.Branch("RemoveAssembly?", 2880);
         var takePart = graph.Call("Container.Remove", "TakePart", 3100, ("Owner", "int64", null), ("Container", "string", null), ("Item", "int64", null), ("Success", "bool", null));
         var returnPart = graph.Call("Container.Insert", "ReturnPart", 3320, ("Owner", "EntityUid", null), ("Container", "string", "storagebase"), ("Item", "int64", null), ("Success", "bool", null));
-        var removed = graph.Call("Bui.Set", "Removed", 3540, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Part returned to the bench"), ("Success", "bool", null));
+        var unsetCalRemove = graph.Set("UnsetCalRemove", "WeaponAssembly", "Calibration", 3540, "0", "float32");
+        var removed = graph.Call("Bui.Set", "Removed", 3760, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Part returned to the bench"), ("Success", "bool", null));
         var afterRemove = graph.Refresh("Off", 3760);
         graph.UseRow(2200);
         var isSelect = graph.Equal("IsSelect", "SelectPart", 680);
@@ -283,9 +488,9 @@ public sealed class WeaponSliceGraphTests
         graph.Exec(insert, inserted);
         graph.Exec(inserted, "True", installedMsg);
         graph.Exec(installedMsg, afterInstall);
+        graph.Exec(graph.TailEnd(afterInstall), unsetCal);
         graph.Exec(inserted, "False", rejected);
         graph.Exec(installGate, "False", removeGate);
-        graph.Exec(removeGate, "False", selectGate);
         graph.Exec(removeGate, "True", removeGunGate);
         graph.Exec(removeGunGate, "False", noRemoveGun);
         graph.Exec(removeGunGate, "True", removePartGate);
@@ -296,6 +501,12 @@ public sealed class WeaponSliceGraphTests
         graph.Exec(takePart, returnPart);
         graph.Exec(returnPart, removed);
         graph.Exec(removed, afterRemove);
+        graph.Exec(graph.TailEnd(afterRemove), unsetCalRemove);
+        var cleanGate = graph.Tune("Clean", "Clean", "Fouling", "0", "Fouling cleared.", 3600, action, message);
+        var calibrateGate = graph.Tune("Calibrate", "Calibrate", "Calibration", "1", "Calibrated.", 5200, action, message);
+        graph.Exec(removeGate, "False", cleanGate);
+        graph.Exec(cleanGate, "False", calibrateGate);
+        graph.Exec(calibrateGate, "False", selectGate);
         graph.Exec(selectGate, "True", selectGunGate);
         graph.Exec(selectGunGate, "False", selectNoGun);
         graph.Exec(selectGunGate, "True", selectBenchGate);
@@ -326,6 +537,8 @@ public sealed class WeaponSliceGraphTests
         graph.DataWire(slotHeld, "Item", slotFull, "A");
         graph.DataWire(slotFull, "Result", slotFullGate, "Condition");
         graph.DataWire(message, "Entity", installedMsg, "Owner");
+        graph.DataWire(assembly, "Component", unsetCal, "Target");
+        graph.DataWire(removeAssembly, "Component", unsetCalRemove, "Target");
         graph.DataWire(message, "Entity", rejected, "Owner");
         graph.DataWire(message, "Entity", selectGun, "Holder");
         graph.DataWire(message, "Entity", selectNoGun, "Owner");
@@ -592,13 +805,17 @@ public sealed class WeaponSliceGraphTests
                 var writeRate = Call("Component.SetField", name + "WriteRate", tailX + 440, ("Entity", "int64", null), ("Component", "string", "GunComponent"), ("Field", "string", "FireRate"), ("Value", "float64", null), ("Success", "bool", null));
                 var writeModified = Call("Component.SetField", name + "WriteModified", tailX + 660, ("Entity", "int64", null), ("Component", "string", "GunComponent"), ("Field", "string", "FireRateModified"), ("Value", "float64", null), ("Success", "bool", null));
                 var rateText = Call("Text.WithNumber", name + "RateText", tailX + 880, ("Label", "string", "Fire rate"), ("Number", "float64", null), ("Text", "string", null));
-                var describe = Call("Meta.SetDescription", name + "Describe", tailX + 880, ("Entity", "int64", null), ("Text", "string", null), ("Success", "bool", null));
-                var refreshGun = Call("System.Invoke", name + "RefreshGun", tailX + 1100, ("System", "string", "SharedGunSystem"), ("Method", "string", "RefreshModifiers"), ("Entity", "int64", null), ("Success", "bool", null));
+                var heatText = JoinStat(name + "Heat", tailX + 1100, rateText, "Text", assembly, "Heat", "Heat");
+                var foulingText = JoinStat(name + "Fouling", tailX + 2100, heatText, "Result", assembly, "Fouling", "Fouling");
+                var wearText = JoinStat(name + "Wear", tailX + 3100, foulingText, "Result", assembly, "Wear", "Wear");
+                var calibrationText = JoinStat(name + "Calibration", tailX + 4100, wearText, "Result", assembly, "Calibration", "Calibration");
+                var describe = Call("Meta.SetDescription", name + "Describe", tailX + 5100, ("Entity", "int64", null), ("Text", "string", null), ("Success", "bool", null));
+                var refreshGun = Call("System.Invoke", name + "RefreshGun", tailX + 5320, ("System", "string", "SharedGunSystem"), ("Method", "string", "RefreshModifiers"), ("Entity", "int64", null), ("Success", "bool", null));
                 Exec(writeAsmRate, writeAsmSpeed);
                 Exec(writeAsmSpeed, writeRate);
                 Exec(writeRate, writeModified);
-                Exec(writeModified, describe);
-                Exec(describe, refreshGun);
+                Exec(writeModified, refreshGun);
+                Exec(refreshGun, describe);
                 DataWire(assembly, "Component", writeAsmRate, "Target");
                 DataWire(totalRate, "Value", writeAsmRate, "Value");
                 DataWire(writeAsmRate, "Result", writeAsmSpeed, "Target");
@@ -608,9 +825,10 @@ public sealed class WeaponSliceGraphTests
                 DataWire(gun, "Item", writeModified, "Entity");
                 DataWire(totalRate, "Value", writeModified, "Value");
                 DataWire(totalRate, "Value", rateText, "Number");
-                DataWire(rateText, "Text", describe, "Text");
+                DataWire(calibrationText, "Result", describe, "Text");
                 DataWire(gun, "Item", describe, "Entity");
                 DataWire(gun, "Item", refreshGun, "Entity");
+                _tails[clear] = describe;
                 return writeAsmRate;
             }
 
@@ -622,6 +840,8 @@ public sealed class WeaponSliceGraphTests
             }
         }
 
+        public NodeDocument TailEnd(NodeDocument clear) => _tails[clear];
+
         public void WireRefresh(NodeDocument clear, NodeDocument bench)
         {
             var (contents, publish, gun, installedPublish) = _refreshes[clear];
@@ -632,6 +852,7 @@ public sealed class WeaponSliceGraphTests
         }
 
         private readonly Dictionary<NodeDocument, (NodeDocument Contents, NodeDocument Publish, NodeDocument Gun, NodeDocument InstalledPublish)> _refreshes = [];
+        private readonly Dictionary<NodeDocument, NodeDocument> _tails = [];
 
         public NodeDocument Event(string name, string eventType, string component, int x, int y) =>
             Place(Node(name, "Event." + name, new Dictionary<string, string> { ["eventType"] = eventType, ["componentType"] = component },
@@ -737,14 +958,18 @@ public sealed class WeaponSliceGraphTests
         public void DataWire(NodeDocument from, string fromPin, NodeDocument to, string toPin) =>
             Wire(from, fromPin, to, toPin);
 
-        public GraphDocument Document() => new()
+        public GraphDocument Document(
+            string id = "c1000000-0000-4000-8000-0000000000c1",
+            string name = "WeaponBench",
+            string description = "Bench lists parts, shows whether a part fits the pistol, installs a direct fit, and returns that part to storage. The client only sends the action.",
+            GraphVariableDocument[]? variables = null) => new()
         {
-            Id = GraphId.FromString("c1000000-0000-4000-8000-0000000000c1"),
-            Name = "WeaponBench",
+            Id = GraphId.FromString(id),
+            Name = name,
             Kind = GraphKind.System,
             Side = GraphSide.Server,
-            Metadata = new GraphMetadata { Description = "Bench lists parts, shows whether a part fits the pistol, installs a direct fit, and returns that part to storage. The client only sends the action." },
-            Variables =
+            Metadata = new GraphMetadata { Description = description },
+            Variables = variables?.ToList() ??
             [
                 new GraphVariableDocument { Name = "Rows", TypeName = "List<PartRow>" },
                 new GraphVariableDocument { Name = "Rate", TypeName = "float32" },
@@ -767,7 +992,11 @@ public sealed class WeaponSliceGraphTests
                     ("11aa11aa-11aa-41aa-81aa-11aa11aa11b4", "BoltAccepts", "string", ""),
                     ("11aa11aa-11aa-41aa-81aa-11aa11aa11b5", "FeedAccepts", "string", ""),
                     ("11aa11aa-11aa-41aa-81aa-11aa11aa11b6", "OpticAccepts", "string", ""),
-                    ("11aa11aa-11aa-41aa-81aa-11aa11aa11b7", "MuzzleAccepts", "string", "")),
+                    ("11aa11aa-11aa-41aa-81aa-11aa11aa11b7", "MuzzleAccepts", "string", ""),
+                    ("11aa11aa-11aa-41aa-81aa-11aa11aa11b8", "Heat", "float32", "0"),
+                    ("11aa11aa-11aa-41aa-81aa-11aa11aa11b9", "Fouling", "float32", "0"),
+                    ("11aa11aa-11aa-41aa-81aa-11aa11aa11ba", "Wear", "float32", "0"),
+                    ("11aa11aa-11aa-41aa-81aa-11aa11aa11bb", "Calibration", "float32", "1")),
                 Schema("22bb22bb-22bb-42bb-82bb-22bb22bb22bb", "WeaponPart", true,
                     ("22bb22bb-22bb-42bb-82bb-22bb22bb22b1", "Prototype", "string", ""),
                     ("22bb22bb-22bb-42bb-82bb-22bb22bb22b2", "Slot", "string", "barrel"),
@@ -1003,6 +1232,65 @@ public sealed class WeaponSliceGraphTests
 
         public NodeDocument Add(string name, int x, string type) =>
             Place(Node(name, "math.add", null, Data("A", type, true), Data("B", type, true), Data("Result", type, false)), x, Y(300));
+
+        public NodeDocument Mul(string name, int x) =>
+            Place(Node(name, "math.multiply", null, Data("A", "float32", true), Data("B", "float32", true), Data("Result", "float32", false)), x, Y(300));
+
+        public NodeDocument Sub(string name, int x) =>
+            Place(Node(name, "math.subtract", null, Data("A", "float32", true), Data("B", "float32", true), Data("Result", "float32", false)), x, Y(300));
+
+        public NodeDocument Less(string name, int x) =>
+            Place(Node(name, "cmp.lessthan", null, Data("A", "float32", true), Data("B", "float32", true), Data("Result", "bool", false)), x, Y(300));
+
+        public NodeDocument JoinStat(string name, int x, NodeDocument left, string leftPin, NodeDocument assembly, string field, string label)
+        {
+            var sep = Literal(name + "Sep", "string", " · ", x);
+            var value = Field(name + "Field", "WeaponAssembly", field, "float32", x + 220);
+            var line = Call("Text.WithNumber", name + "Line", x + 440, ("Label", "string", label), ("Number", "float64", null), ("Text", "string", null));
+            var withSep = Add(name + "Sepd", x + 660, "string");
+            var joined = Add(name + "Joined", x + 880, "string");
+            DataWire(left, leftPin, withSep, "A");
+            DataWire(sep, "Value", withSep, "B");
+            DataWire(withSep, "Result", joined, "A");
+            DataWire(line, "Text", joined, "B");
+            DataWire(assembly, "Component", value, "Component");
+            DataWire(value, "Value", line, "Number");
+            return joined;
+        }
+
+        public NodeDocument Tune(string name, string action, string field, string value, string message, int row, NodeDocument actionNode, NodeDocument owner)
+        {
+            UseRow(row);
+            var isAction = Equal("Is" + name, action, 680);
+            var gate = Branch(name + "?", 900);
+            var held = Call("Entity.GetHeldItem", name + "Gun", 1120, ("Holder", "EntityUid", null), ("Container", "string", "gun"), ("Item", "int64", null));
+            var has = NotZero(name + "HasGun", 1340);
+            var gunGate = Branch(name + "Gun?", 1560);
+            var noGun = Call("Bui.Set", name + "NoGun", 1780, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", "Put the pistol in the gun slot"), ("Success", "bool", null));
+            var assembly = Component(name + "Assembly", "WeaponAssembly", 2000, "int64");
+            var asmGate = Branch(name + "Assembly?", 2220);
+            var set = Set(name + "Set", "WeaponAssembly", field, 2440, value, "float32");
+            var done = Call("Bui.Set", name + "Done", 2660, ("Owner", "EntityUid", null), ("Name", "string", "Reason"), ("Value", "string", message), ("Success", "bool", null));
+            var refresh = Refresh(name, 2880);
+            Exec(gate, "True", gunGate);
+            Exec(gunGate, "False", noGun);
+            Exec(gunGate, "True", asmGate);
+            Exec(asmGate, "True", set);
+            Exec(set, done);
+            Exec(done, refresh);
+            DataWire(actionNode, "Value", isAction, "A");
+            DataWire(isAction, "Result", gate, "Condition");
+            DataWire(owner, "Entity", held, "Holder");
+            DataWire(owner, "Entity", noGun, "Owner");
+            DataWire(owner, "Entity", done, "Owner");
+            DataWire(held, "Item", has, "A");
+            DataWire(has, "Result", gunGate, "Condition");
+            DataWire(held, "Item", assembly, "Entity");
+            DataWire(assembly, "Found", asmGate, "Condition");
+            DataWire(assembly, "Component", set, "Target");
+            WireRefresh(refresh, owner);
+            return gate;
+        }
 
         private NodeDocument Reason(string name, int x, NodeDocument label, string suffix)
         {
