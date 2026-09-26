@@ -55,6 +55,9 @@ public abstract class SharedAstraGraphSystem : EntitySystem
 
         IVmHostServices? services = _entMan != null ? new RobustVmHostServices(_entMan) : null;
         _host = new AstraGraphHost(components: componentStore, hostServices: services);
+        _host.BeginDoAfterBar = (entity, seconds) =>
+            _net is { IsServer: true } ? GameplayBindings.BeginDoAfterBar(entity, seconds) : null;
+        _host.ReadDoAfterBar = GameplayBindings.ReadDoAfterBar;
         EnsureSchemaSource();
         Activation = new SharedActivationCoordinator(_host);
         _eventAdapter = new RobustEventBusSubscriptionAdapter(_host.EventRouter);

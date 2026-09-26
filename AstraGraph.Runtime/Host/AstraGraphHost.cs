@@ -77,15 +77,36 @@ public sealed class AstraGraphHost
             registers[index] = yield.Arguments[index];
         }
 
-        _latent.Add(new LatentEntry(
+        var delay = yield.DelaySeconds > 0 ? yield.DelaySeconds : 1;
+        var entry = new LatentEntry(
             graphId,
             program,
             function,
             registers,
             yield.NextInstructionPointer,
-            yield.DelaySeconds > 0 ? yield.DelaySeconds : 1,
+            delay,
             context,
-            new Dictionary<string, AstraValue>(variables, StringComparer.Ordinal)));
+            new Dictionary<string, AstraValue>(variables, StringComparer.Ordinal))
+        {
+            BarToken = StartBar(yield.Kind, context, delay)
+        };
+        _latent.Add(entry);
+    }
+
+    private int? StartBar(ContinuationKind kind, AstraEventInvocationContext? context, double seconds)
+    {
+        if (kind != ContinuationKind.DoAfter || BeginDoAfterBar == null || context == null)
+        {
+            return null;
+        }
+
+        if (context.Entity.Type is not (AstraValueType.EntityUid or AstraValueType.Int64))
+        {
+            return null;
+        }
+
+        var entity = context.Entity.AsEntityUid();
+        return entity == 0 ? null : BeginDoAfterBar(entity, seconds);
     }
 
     public BytecodeProgram? GetProgram(GraphId graphId) =>
@@ -118,6 +139,17 @@ public sealed class AstraGraphHost
 
     public int PendingLatent => _latent.Count;
 
+    /// <summary>
+    /// Starts the engine progress bar for a do-after on the player.
+    /// Returns a token, or null when the bar is unavailable and the timer should run.
+    /// </summary>
+    public Func<int, double, int?>? BeginDoAfterBar { get; set; }
+
+    /// <summary>
+    /// 0 while the bar is running, 1 when it finishes, 2 when it is cancelled.
+    /// </summary>
+    public Func<int, int>? ReadDoAfterBar { get; set; }
+
     public void Update(double currentTimeSeconds, int currentTick)
     {
         CurrentTick = currentTick;
@@ -134,14 +166,28 @@ public sealed class AstraGraphHost
         for (var index = _latent.Count - 1; index >= 0; index--)
         {
             var entry = _latent[index];
-            if (entry.ReadyAt == 0)
+            if (entry.BarToken is int token && ReadDoAfterBar != null)
             {
-                entry.ReadyAt = currentTimeSeconds + entry.DelaySeconds;
+                switch (ReadDoAfterBar(token))
+                {
+                    case 0:
+                        continue;
+                    case 2:
+                        _latent.RemoveAt(index);
+                        continue;
+                }
             }
-
-            if (currentTimeSeconds < entry.ReadyAt)
+            else
             {
-                continue;
+                if (entry.ReadyAt == 0)
+                {
+                    entry.ReadyAt = currentTimeSeconds + entry.DelaySeconds;
+                }
+
+                if (currentTimeSeconds < entry.ReadyAt)
+                {
+                    continue;
+                }
             }
 
             HostServices.PushVariables();
@@ -190,6 +236,7 @@ public sealed class AstraGraphHost
                 entry.InstructionPointer = again.NextInstructionPointer;
                 entry.DelaySeconds = again.DelaySeconds > 0 ? again.DelaySeconds : 1;
                 entry.ReadyAt = 0;
+                entry.BarToken = StartBar(again.Kind, entry.Context, entry.DelaySeconds);
                 entry.Variables = nextVariables ?? [];
                 continue;
             }
@@ -215,6 +262,7 @@ public sealed class AstraGraphHost
         public int InstructionPointer { get; set; } = instructionPointer;
         public double DelaySeconds { get; set; } = delaySeconds;
         public double ReadyAt { get; set; }
+        public int? BarToken { get; set; }
         public AstraEventInvocationContext? Context { get; } = context;
         public Dictionary<string, AstraValue> Variables { get; set; } = variables;
     }

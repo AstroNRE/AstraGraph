@@ -13,12 +13,20 @@ using Robust.Shared.Map;
 namespace AstraGraph.Robust.Shared;
 
 /// <summary>
-/// Gameplay-profile operations a graph may call. DoAfter lives in Content, so the
-/// graph node Flow.DoAfter is the supported latent form on this engine commit.
+/// Gameplay-profile operations a graph may call. Flow.DoAfter yields in the VM.
+/// When Content is present, the host draws that wait as the engine progress bar.
 /// </summary>
 public static class GameplayBindings
 {
     private static IEntityManager? _entities;
+    private static readonly Dictionary<int, (EntityUid User, int Index)> _bars = new();
+    private static int _nextBar;
+    private static bool _doAfterLookedUp;
+    private static object? _doAfterSystem;
+    private static MethodInfo? _tryStart;
+    private static ConstructorInfo? _doAfterArgs;
+    private static Type? _awaitedEvent;
+    private static Type? _doAfterComponent;
 
     public static void Bind(IEntityManager entities) => _entities = entities;
 
@@ -174,7 +182,7 @@ public static class GameplayBindings
 
         if (wrote && string.Equals(name, "Reason", StringComparison.Ordinal))
         {
-            Popup(owner, value, "Small");
+            Popup(UiActor(owner) ?? owner, value, "Small");
         }
 
         return wrote;
@@ -278,6 +286,229 @@ public static class GameplayBindings
 
     private static bool IsEntityUid(Type type) =>
         type == typeof(EntityUid) || Nullable.GetUnderlyingType(type) == typeof(EntityUid);
+
+    /// <summary>
+    /// Shows the engine progress bar above the player who has this entity's UI open.
+    /// The token is polled with <see cref="ReadDoAfterBar"/>.
+    /// </summary>
+    public static int? BeginDoAfterBar(int owner, double seconds)
+    {
+        if (_entities == null || owner == 0 || seconds <= 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            EnsureDoAfter();
+            if (_tryStart == null || _doAfterArgs == null || _awaitedEvent == null)
+            {
+                return null;
+            }
+
+            var userId = UiActor(owner) ?? owner;
+            var user = new EntityUid(userId);
+            if (!Entities.EntityExists(user))
+            {
+                return null;
+            }
+
+            var evt = Activator.CreateInstance(_awaitedEvent);
+            var args = _doAfterArgs.Invoke([Entities, user, (float)seconds, evt, null, null, null]);
+            if (args == null)
+            {
+                return null;
+            }
+
+            var argsType = args.GetType();
+            argsType.GetField("BreakOnMove")?.SetValue(args, true);
+            argsType.GetField("NeedHand")?.SetValue(args, false);
+            argsType.GetField("RequireCanInteract")?.SetValue(args, false);
+            argsType.GetField("BlockDuplicate")?.SetValue(args, false);
+            argsType.GetField("CancelDuplicate")?.SetValue(args, false);
+            argsType.GetField("Hidden")?.SetValue(args, false);
+
+            var call = new object?[] { args, null, null };
+            if (_tryStart.Invoke(_doAfterSystem, call) is not true || call[1] == null)
+            {
+                Logger.GetSawmill("astra").Warning($"Do-after bar did not start for entity {userId}.");
+                return null;
+            }
+
+            var index = Convert.ToInt32(call[1].GetType().GetProperty("Index")?.GetValue(call[1]));
+            var token = ++_nextBar;
+            _bars[token] = (user, index);
+            return token;
+        }
+        catch (Exception ex)
+        {
+            Logger.GetSawmill("astra").Warning($"Do-after bar failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>0 running, 1 finished, 2 cancelled.</summary>
+    public static int ReadDoAfterBar(int token)
+    {
+        if (!_bars.TryGetValue(token, out var bar))
+        {
+            return 2;
+        }
+
+        var state = PollDoAfter(bar.User, bar.Index);
+        if (state != 0)
+        {
+            _bars.Remove(token);
+        }
+
+        return state;
+    }
+
+    private static int? UiActor(int owner)
+    {
+        var ui = UserInterface(owner);
+        if (ui == null)
+        {
+            return null;
+        }
+
+        foreach (var actors in ui.Actors.Values)
+        {
+            foreach (var actor in actors)
+            {
+                if (Entities.EntityExists(actor))
+                {
+                    return (int)actor;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static void EnsureDoAfter()
+    {
+        if (_doAfterLookedUp)
+        {
+            return;
+        }
+
+        _doAfterLookedUp = true;
+        _doAfterSystem = FindLiveSystem("SharedDoAfterSystem");
+        _awaitedEvent = FindNamedType("AwaitedDoAfterEvent");
+        _doAfterComponent = FindNamedType("DoAfterComponent");
+        var argsType = FindNamedType("DoAfterArgs");
+        if (_doAfterSystem == null || _awaitedEvent == null || argsType == null)
+        {
+            return;
+        }
+
+        foreach (var method in _doAfterSystem.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public))
+        {
+            if (!method.Name.Equals("TryStartDoAfter", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var parameters = method.GetParameters();
+            if (parameters.Length == 3 && parameters[1].IsOut)
+            {
+                _tryStart = method;
+                break;
+            }
+        }
+
+        foreach (var ctor in argsType.GetConstructors())
+        {
+            var parameters = ctor.GetParameters();
+            if (parameters.Length == 7 && parameters[2].ParameterType == typeof(float))
+            {
+                _doAfterArgs = ctor;
+                break;
+            }
+        }
+    }
+
+    private static int PollDoAfter(EntityUid user, int index)
+    {
+        var component = DoAfterState(user);
+        var doAfters = component?.GetType().GetField("DoAfters")?.GetValue(component) as IDictionary;
+        if (doAfters == null)
+        {
+            return 2;
+        }
+
+        foreach (DictionaryEntry entry in doAfters)
+        {
+            if (entry.Value == null || Convert.ToInt32(entry.Key) != index)
+            {
+                continue;
+            }
+
+            var cancelled = entry.Value.GetType().GetField("CancelledTime")?.GetValue(entry.Value);
+            if (cancelled != null)
+            {
+                return 2;
+            }
+
+            return entry.Value.GetType().GetField("Completed")?.GetValue(entry.Value) is true ? 1 : 0;
+        }
+
+        return 2;
+    }
+
+    private static object? DoAfterState(EntityUid user)
+    {
+        if (_doAfterComponent != null && Entities.TryGetComponent(user, _doAfterComponent, out var component))
+        {
+            return component;
+        }
+
+        foreach (var component in Entities.GetComponents(user))
+        {
+            if (component.GetType().Name == "DoAfterComponent")
+            {
+                return component;
+            }
+        }
+
+        return null;
+    }
+
+    private static Type? FindNamedType(string name)
+    {
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            if (assembly.IsDynamic)
+            {
+                continue;
+            }
+
+            Type[] types;
+            try
+            {
+                types = assembly.GetExportedTypes();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                types = ex.Types.Where(type => type != null).Cast<Type>().ToArray();
+            }
+            catch (Exception)
+            {
+                continue;
+            }
+
+            foreach (var type in types)
+            {
+                if (type.Name == name && !type.IsAbstract)
+                {
+                    return type;
+                }
+            }
+        }
+
+        return null;
+    }
 
     private static UserInterfaceComponent? UserInterface(int owner)
     {
