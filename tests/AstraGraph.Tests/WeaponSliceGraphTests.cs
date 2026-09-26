@@ -45,7 +45,8 @@ public sealed class WeaponSliceGraphTests
         {
             ["Barrel"] = "WeaponBarrelHeavy",
             ["FireRate"] = "2",
-            ["ProjectileSpeed"] = "55"
+            ["ProjectileSpeed"] = "55",
+            ["Heat"] = "40"
         }, "WeaponAstraPistol", out _), Is.True);
 
         var services = new DefaultVmHostServices();
@@ -127,44 +128,22 @@ public sealed class WeaponSliceGraphTests
         var assembly = graph.Component("Assembly", "WeaponAssembly", 360);
         var gate = graph.Branch("HasAssembly", 680);
         var rate = graph.Field("ReadRate", "WeaponAssembly", "FireRate", "float32", 1000);
-        var heat = graph.Field("ReadHeat", "WeaponAssembly", "Heat", "float32", 1220);
-        var factor = graph.Literal("HeatFactor", "float32", "0.05", 1440);
-        var penalty = graph.Mul("Penalty", 1660);
-        var slowed = graph.Sub("Slowed", 1880);
-        var one = graph.Literal("Minimum", "float32", "1", 2100);
-        var below = graph.Less("BelowMin", 2320);
-        var floorGate = graph.Branch("Floor?", 2540);
-        var useOne = graph.Assign("UseOne", "FireRate", 2760, "float32");
-        var useSlow = graph.Assign("UseSlow", "FireRate", 2760, "float32");
-        var speed = graph.Field("ReadSpeed", "WeaponAssembly", "ProjectileSpeed", "float32", 2980);
-        var writeHot = graph.Assign("WriteSpeedHot", "ProjectileSpeed", 3200, "float32");
-        var writeCool = graph.Assign("WriteSpeed", "ProjectileSpeed", 3200, "float32");
+        var useRate = graph.Assign("UseRate", "FireRate", 1220, "float32");
+        var speed = graph.Field("ReadSpeed", "WeaponAssembly", "ProjectileSpeed", "float32", 1440);
+        var useSpeed = graph.Assign("UseSpeed", "ProjectileSpeed", 1660, "float32");
         graph.Exec(refresh, gate);
-        graph.Exec(gate, "True", floorGate);
-        graph.Exec(floorGate, "True", useOne);
-        graph.Exec(useOne, writeHot);
-        graph.Exec(floorGate, "False", useSlow);
-        graph.Exec(useSlow, writeCool);
+        graph.Exec(gate, "True", useRate);
+        graph.Exec(useRate, useSpeed);
         graph.DataWire(refresh, "Entity", assembly, "Entity");
         graph.DataWire(assembly, "Found", gate, "Condition");
         graph.DataWire(assembly, "Component", rate, "Component");
-        graph.DataWire(assembly, "Component", heat, "Component");
         graph.DataWire(assembly, "Component", speed, "Component");
-        graph.DataWire(heat, "Value", penalty, "A");
-        graph.DataWire(factor, "Value", penalty, "B");
-        graph.DataWire(rate, "Value", slowed, "A");
-        graph.DataWire(penalty, "Result", slowed, "B");
-        graph.DataWire(slowed, "Result", below, "A");
-        graph.DataWire(one, "Value", below, "B");
-        graph.DataWire(below, "Result", floorGate, "Condition");
-        graph.DataWire(one, "Value", useOne, "Value");
-        graph.DataWire(slowed, "Result", useSlow, "Value");
-        graph.DataWire(speed, "Value", writeHot, "Value");
-        graph.DataWire(speed, "Value", writeCool, "Value");
+        graph.DataWire(rate, "Value", useRate, "Value");
+        graph.DataWire(speed, "Value", useSpeed, "Value");
         return WriteGraph(graph.Document(
             "a1000000-0000-4000-8000-0000000000a1",
             "WeaponProfile",
-            "When a gun refreshes, copy the assembly profile onto the shot and slow the cycle as heat rises.",
+            "When a gun refreshes, copy the assembly profile onto the shot.",
             [
                 new GraphVariableDocument { Name = "FireRate", TypeName = "float32" },
                 new GraphVariableDocument { Name = "ProjectileSpeed", TypeName = "float32" }
@@ -200,53 +179,38 @@ public sealed class WeaponSliceGraphTests
         var wearSum = graph.Add("WearSum", 3200, "float32");
         var setWear = graph.Set("SetWear", "WeaponAssembly", "Wear", 3420, null, "float32");
         var rate = graph.Field("Rate", "WeaponAssembly", "FireRate", "float32", 3640);
-        var factor = graph.Literal("HeatFactor", "float32", "0.05", 3860);
-        var penalty = graph.Mul("Penalty", 4080);
-        var slowed = graph.Sub("Slowed", 4300);
-        var one = graph.Literal("Minimum", "float32", "1", 4520);
-        var below = graph.Less("BelowMin", 4740);
-        var floorGate = graph.Branch("Floor?", 4960);
-        NodeDocument Tail(string name, NodeDocument chosen, string pin)
-        {
-            var writeRate = graph.Call("Component.SetField", name + "WriteRate", 5180, ("Entity", "EntityUid", null), ("Component", "string", "GunComponent"), ("Field", "string", "FireRate"), ("Value", "float64", null), ("Success", "bool", null));
-            var writeModified = graph.Call("Component.SetField", name + "WriteModified", 5400, ("Entity", "EntityUid", null), ("Component", "string", "GunComponent"), ("Field", "string", "FireRateModified"), ("Value", "float64", null), ("Success", "bool", null));
-            var rateText = graph.Call("Text.WithNumber", name + "RateText", 5620, ("Label", "string", "Fire rate"), ("Number", "float64", null), ("Text", "string", null));
-            var heatText = graph.JoinStat(name + "Heat", 5840, rateText, "Text", assembly, "Heat", "Heat");
-            var foulingText = graph.JoinStat(name + "Fouling", 6840, heatText, "Result", assembly, "Fouling", "Fouling");
-            var wearText = graph.JoinStat(name + "Wear", 7840, foulingText, "Result", assembly, "Wear", "Wear");
-            var calibrationText = graph.JoinStat(name + "Calibration", 8840, wearText, "Result", assembly, "Calibration", "Calibration");
-            var describe = graph.Call("Meta.SetDescription", name + "Describe", 9840, ("Entity", "EntityUid", null), ("Text", "string", null), ("Success", "bool", null));
-            var refreshGun = graph.Call("System.Invoke", name + "Refresh", 10060, ("System", "string", "SharedGunSystem"), ("Method", "string", "RefreshModifiers"), ("Entity", "EntityUid", null), ("Success", "bool", null));
-            graph.Exec(writeRate, writeModified);
-            graph.Exec(writeModified, describe);
-            graph.Exec(describe, refreshGun);
-            graph.DataWire(shot, "Entity", writeRate, "Entity");
-            graph.DataWire(chosen, pin, writeRate, "Value");
-            graph.DataWire(shot, "Entity", writeModified, "Entity");
-            graph.DataWire(chosen, pin, writeModified, "Value");
-            graph.DataWire(chosen, pin, rateText, "Number");
-            graph.DataWire(calibrationText, "Result", describe, "Text");
-            graph.DataWire(shot, "Entity", describe, "Entity");
-            graph.DataWire(shot, "Entity", refreshGun, "Entity");
-            return writeRate;
-        }
-
-        var hot = Tail("Hot", one, "Value");
-        var cool = Tail("Cool", slowed, "Result");
+        var writeRate = graph.Call("Component.SetField", "WriteRate", 3860, ("Entity", "EntityUid", null), ("Component", "string", "GunComponent"), ("Field", "string", "FireRate"), ("Value", "float64", null), ("Success", "bool", null));
+        var writeModified = graph.Call("Component.SetField", "WriteModified", 4080, ("Entity", "EntityUid", null), ("Component", "string", "GunComponent"), ("Field", "string", "FireRateModified"), ("Value", "float64", null), ("Success", "bool", null));
+        var rateText = graph.Call("Text.WithNumber", "RateText", 4300, ("Label", "string", "Fire rate"), ("Number", "float64", null), ("Text", "string", null));
+        var heatText = graph.JoinStat("HeatText", 4520, rateText, "Text", assembly, "Heat", "Heat");
+        var foulingText = graph.JoinStat("FoulingText", 5520, heatText, "Result", assembly, "Fouling", "Fouling");
+        var wearText = graph.JoinStat("WearText", 6520, foulingText, "Result", assembly, "Wear", "Wear");
+        var calibrationText = graph.JoinStat("CalibrationText", 7520, wearText, "Result", assembly, "Calibration", "Calibration");
+        var describe = graph.Call("Meta.SetDescription", "Describe", 8520, ("Entity", "EntityUid", null), ("Text", "string", null), ("Success", "bool", null));
+        var refreshGun = graph.Call("System.Invoke", "Refresh", 8740, ("System", "string", "SharedGunSystem"), ("Method", "string", "RefreshModifiers"), ("Entity", "EntityUid", null), ("Success", "bool", null));
         graph.Exec(shot, gate);
         graph.Exec(gate, "True", storeHeat);
         graph.Exec(storeHeat, setHeat);
         graph.Exec(setHeat, setFouling);
         graph.Exec(setFouling, setWear);
-        graph.Exec(setWear, floorGate);
-        graph.Exec(floorGate, "True", hot);
-        graph.Exec(floorGate, "False", cool);
+        graph.Exec(setWear, writeRate);
+        graph.Exec(writeRate, writeModified);
+        graph.Exec(writeModified, describe);
+        graph.Exec(describe, refreshGun);
         graph.DataWire(shot, "Entity", assembly, "Entity");
         graph.DataWire(assembly, "Found", gate, "Condition");
         graph.DataWire(assembly, "Component", heat, "Component");
         graph.DataWire(assembly, "Component", fouling, "Component");
         graph.DataWire(assembly, "Component", wear, "Component");
         graph.DataWire(assembly, "Component", rate, "Component");
+        graph.DataWire(shot, "Entity", writeRate, "Entity");
+        graph.DataWire(rate, "Value", writeRate, "Value");
+        graph.DataWire(shot, "Entity", writeModified, "Entity");
+        graph.DataWire(rate, "Value", writeModified, "Value");
+        graph.DataWire(rate, "Value", rateText, "Number");
+        graph.DataWire(calibrationText, "Result", describe, "Text");
+        graph.DataWire(shot, "Entity", describe, "Entity");
+        graph.DataWire(shot, "Entity", refreshGun, "Entity");
         graph.DataWire(assembly, "Component", setHeat, "Target");
         graph.DataWire(heat, "Value", heatSum, "A");
         graph.DataWire(heatStep, "Value", heatSum, "B");
@@ -260,17 +224,10 @@ public sealed class WeaponSliceGraphTests
         graph.DataWire(wear, "Value", wearSum, "A");
         graph.DataWire(wearStep, "Value", wearSum, "B");
         graph.DataWire(wearSum, "Result", setWear, "Value");
-        graph.DataWire(storedHeat, "Value", penalty, "A");
-        graph.DataWire(factor, "Value", penalty, "B");
-        graph.DataWire(rate, "Value", slowed, "A");
-        graph.DataWire(penalty, "Result", slowed, "B");
-        graph.DataWire(slowed, "Result", below, "A");
-        graph.DataWire(one, "Value", below, "B");
-        graph.DataWire(below, "Result", floorGate, "Condition");
         return WriteGraph(graph.Document(
             "e1000000-0000-4000-8000-0000000000e1",
             "WeaponCondition",
-            "Each shot adds heat, fouling, and wear, then the next cycle uses the hotter profile.",
+            "Each shot adds heat, fouling, and wear. The gun keeps the part fire rate.",
             [new GraphVariableDocument { Name = "HeatNow", TypeName = "float32" }]), "WeaponCondition.agraph");
     }
 
