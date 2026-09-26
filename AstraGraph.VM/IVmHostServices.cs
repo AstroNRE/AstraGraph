@@ -57,6 +57,18 @@ public interface IVmHostServices
     void PopVariables()
     {
     }
+
+    /// <summary>
+    /// Copies the variables of the graph that is running now, so a yielded call can restore them later.
+    /// </summary>
+    Dictionary<string, AstraValue> SnapshotVariables() => new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Replaces the current variables with a snapshot taken at a yield.
+    /// </summary>
+    void ReplaceVariables(IReadOnlyDictionary<string, AstraValue> values)
+    {
+    }
 }
 
 /// <summary>
@@ -112,6 +124,18 @@ public sealed class DefaultVmHostServices : IVmHostServices
         }
 
         foreach (var pair in _savedVariables.Pop())
+        {
+            _variables[pair.Key] = pair.Value;
+        }
+    }
+
+    public Dictionary<string, AstraValue> SnapshotVariables() =>
+        new(_variables, StringComparer.Ordinal);
+
+    public void ReplaceVariables(IReadOnlyDictionary<string, AstraValue> values)
+    {
+        _variables.Clear();
+        foreach (var pair in values)
         {
             _variables[pair.Key] = pair.Value;
         }

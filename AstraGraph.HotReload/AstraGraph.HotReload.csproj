@@ -9,6 +9,7 @@
     <ProjectReference Include="..\AstraGraph.Core\AstraGraph.Core.csproj" />
     <ProjectReference Include="..\AstraGraph.State\AstraGraph.State.csproj" />
     <ProjectReference Include="..\AstraGraph.Runtime\AstraGraph.Runtime.csproj" />
+    <ProjectReference Include="..\AstraGraph.VM\AstraGraph.VM.csproj" />
     <ProjectReference Include="..\AstraGraph.Persistence\AstraGraph.Persistence.csproj" />
   </ItemGroup>
 

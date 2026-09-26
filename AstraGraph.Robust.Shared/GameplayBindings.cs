@@ -55,6 +55,7 @@ public static class GameplayBindings
         Register(catalog, nameof(UiRows), "Ui.Rows");
         Register(catalog, nameof(BuiField), "Bui.Field");
         Register(catalog, nameof(BuiSet), "Bui.Set", deterministic: false);
+        Register(catalog, nameof(Popup), "Popup.Entity", deterministic: false);
         Register(catalog, nameof(Invoke), "System.Invoke", deterministic: false);
         Register(catalog, nameof(SetComponentField), "Component.SetField", deterministic: false);
         Register(catalog, nameof(SetDescription), "Meta.SetDescription", deterministic: false);
@@ -171,8 +172,112 @@ public static class GameplayBindings
             wrote = true;
         }
 
+        if (wrote && string.Equals(name, "Reason", StringComparison.Ordinal))
+        {
+            Popup(owner, value, "Small");
+        }
+
         return wrote;
     }
+
+    /// <summary>
+    /// Floats a message above an entity. An empty recipient shows it to everyone who can see that entity.
+    /// Kind is a popup size name: Small, Medium, Large, and the Caution forms of each.
+    /// </summary>
+    public static bool Popup(int entity, string? text, string? kind = "Small", int recipient = 0)
+    {
+        if (entity == 0 || string.IsNullOrEmpty(text))
+        {
+            return false;
+        }
+
+        var uid = new EntityUid(entity);
+        if (!Entities.EntityExists(uid))
+        {
+            return false;
+        }
+
+        var system = FindLiveSystem("SharedPopupSystem");
+        if (system == null)
+        {
+            return false;
+        }
+
+        var withRecipient = recipient != 0;
+        var method = FindPopupEntityMethod(system.GetType(), withRecipient);
+        if (method == null)
+        {
+            return false;
+        }
+
+        var style = PopupKind(method, kind);
+        try
+        {
+            if (withRecipient)
+            {
+                var who = new EntityUid(recipient);
+                var recipientType = method.GetParameters()[2].ParameterType;
+                object recipientArg = Nullable.GetUnderlyingType(recipientType) != null ? (EntityUid?)who : who;
+                method.Invoke(system, [text, uid, recipientArg, style]);
+            }
+            else
+            {
+                method.Invoke(system, [text, uid, style]);
+            }
+
+            return true;
+        }
+        catch (TargetInvocationException ex)
+        {
+            Logger.GetSawmill("astra").Error($"Popup.Entity failed: {ex.InnerException ?? ex}");
+            return false;
+        }
+    }
+
+    public static MethodInfo? FindPopupEntityMethod(Type type, bool recipient)
+    {
+        foreach (var method in type.GetMethods(BindingFlags.Instance | BindingFlags.Public))
+        {
+            if (!method.Name.Equals("PopupEntity", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var parameters = method.GetParameters();
+            if (!recipient &&
+                parameters.Length == 3 &&
+                parameters[0].ParameterType == typeof(string) &&
+                parameters[1].ParameterType == typeof(EntityUid) &&
+                parameters[2].ParameterType.IsEnum)
+            {
+                return method;
+            }
+
+            if (recipient &&
+                parameters.Length == 4 &&
+                parameters[0].ParameterType == typeof(string) &&
+                parameters[1].ParameterType == typeof(EntityUid) &&
+                IsEntityUid(parameters[2].ParameterType) &&
+                parameters[3].ParameterType.IsEnum)
+            {
+                return method;
+            }
+        }
+
+        return null;
+    }
+
+    public static object PopupKind(MethodInfo method, string? kind)
+    {
+        var enumType = method.GetParameters()[^1].ParameterType;
+        var name = string.IsNullOrWhiteSpace(kind) ? "Small" : kind.Trim();
+        return Enum.TryParse(enumType, name, ignoreCase: true, out var value) && value != null
+            ? value
+            : Enum.Parse(enumType, "Small");
+    }
+
+    private static bool IsEntityUid(Type type) =>
+        type == typeof(EntityUid) || Nullable.GetUnderlyingType(type) == typeof(EntityUid);
 
     private static UserInterfaceComponent? UserInterface(int owner)
     {

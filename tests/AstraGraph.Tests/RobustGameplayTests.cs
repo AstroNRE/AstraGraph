@@ -99,6 +99,47 @@ public sealed class RobustGameplayTests
         Assert.That(Call(catalog, "Meta.SetDescription", spawned, "Fire rate: 2.0").AsBool(), Is.True);
         Assert.That(entities.GetComponent<MetaDataComponent>(new EntityUid(spawned)).EntityDescription, Is.EqualTo("Fire rate: 2.0"));
         Assert.That(Call(catalog, "Component.SetField", spawned, "MissingComponent", "FireRate", 2d).AsBool(), Is.False);
+        Assert.That(Call(catalog, "Popup.Entity", spawned, "Installed.", "Small", 0).AsBool(), Is.False);
+        Assert.That(Call(catalog, "Popup.Entity", 0, "Installed.", "Small", 0).AsBool(), Is.False);
+    }
+
+    [Test]
+    public void Popup_SelectsTheEntityOverloadAndDefaultsAnUnknownKind()
+    {
+        var everyone = GameplayBindings.FindPopupEntityMethod(typeof(PopupHost), recipient: false);
+        var onePlayer = GameplayBindings.FindPopupEntityMethod(typeof(PopupHost), recipient: true);
+        Assert.That(everyone, Is.Not.Null);
+        Assert.That(everyone!.GetParameters(), Has.Length.EqualTo(3));
+        Assert.That(onePlayer, Is.Not.Null);
+        Assert.That(onePlayer!.GetParameters()[2].ParameterType, Is.EqualTo(typeof(EntityUid?)));
+        Assert.That(GameplayBindings.PopupKind(everyone, "MediumCaution").ToString(), Is.EqualTo("MediumCaution"));
+        Assert.That(GameplayBindings.PopupKind(everyone, "missing").ToString(), Is.EqualTo("Small"));
+    }
+
+    private enum HostPopup : byte
+    {
+        Small,
+        MediumCaution
+    }
+
+    private sealed class PopupHost
+    {
+        public int Calls { get; private set; }
+
+        public void PopupEntity(string? message, EntityUid uid, HostPopup type)
+        {
+            Calls++;
+        }
+
+        public void PopupEntity(string? message, EntityUid uid, EntityUid? recipient, HostPopup type)
+        {
+            Calls++;
+        }
+
+        public void PopupEntity(string? message, string? other, EntityUid uid, EntityUid? recipient, HostPopup type)
+        {
+            Calls++;
+        }
     }
 
     private static AstraValue Call(BindingCatalog catalog, string name, params object[] args)

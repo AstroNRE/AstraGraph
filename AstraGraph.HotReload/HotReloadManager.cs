@@ -6,6 +6,7 @@ using AstraGraph.Core;
 using AstraGraph.Core.Events;
 using AstraGraph.Runtime;
 using AstraGraph.Runtime.Integration;
+using AstraGraph.VM;
 using AstraGraph.Runtime.Network;
 
 namespace AstraGraph.HotReload;
@@ -442,10 +443,17 @@ public sealed class HotReloadManager
         _host.HostServices.ClearVariables();
         var context = new AstraEventInvocationContext(entityValue, component ?? entity, eventObject);
         _host.HostServices.PushEventContext(context);
+        ContinuationState? yielded = null;
+        Dictionary<string, AstraValue>? yieldedVariables = null;
         try
         {
-            _host.Vm.Execute(program, entry, hostServices: _host.HostServices, debugHook: _host.Debugger);
-            if (eventObject != null)
+            var result = _host.Vm.Execute(program, entry, hostServices: _host.HostServices, debugHook: _host.Debugger);
+            if (result.IsYielded && result.YieldState != null)
+            {
+                yieldedVariables = _host.HostServices.SnapshotVariables();
+                yielded = result.YieldState;
+            }
+            else if (eventObject != null)
             {
                 CopyVariablesToEvent(eventObject);
             }
@@ -454,6 +462,11 @@ public sealed class HotReloadManager
         {
             _host.HostServices.PopEventContext();
             _host.HostServices.PopVariables();
+        }
+
+        if (yielded != null)
+        {
+            _host.ScheduleLatent(subscription.GraphId, program, entry, yielded, context, yieldedVariables ?? []);
         }
 
         _host.NoteEntryExecuted();

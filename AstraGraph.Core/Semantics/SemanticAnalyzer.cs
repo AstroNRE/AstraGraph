@@ -737,7 +737,8 @@ public sealed class SemanticAnalyzer
         private static bool IsSystemCall(string nodeType) =>
             nodeType.Equals("System.Invoke", StringComparison.OrdinalIgnoreCase) ||
             nodeType.Equals("Component.SetField", StringComparison.OrdinalIgnoreCase) ||
-            nodeType.Equals("Meta.SetDescription", StringComparison.OrdinalIgnoreCase);
+            nodeType.Equals("Meta.SetDescription", StringComparison.OrdinalIgnoreCase) ||
+            nodeType.Equals("Popup.Entity", StringComparison.OrdinalIgnoreCase);
 
         private static bool IsBuiQuery(string nodeType) =>
             nodeType.Equals("Ui.Rows", StringComparison.OrdinalIgnoreCase) ||
