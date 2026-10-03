@@ -4,5 +4,6 @@
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>Content.AstraGraph.Shared</AssemblyName>
     <RootNamespace>Content.AstraGraph</RootNamespace>
+    <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
   </PropertyGroup>
 </Project>

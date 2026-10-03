@@ -70,12 +70,9 @@ public sealed class ClientAstraGraphSystem : EntitySystem
             _staged.Remove(graphId);
     }
 
-    public void OpenStudio(Uri uri)
+    public void OpenStudio(string address)
     {
-        if (uri.Scheme is not ("https" or "http"))
-            return;
-
-        _uriOpener.OpenUri(uri);
+        _uriOpener.OpenUri(address);
     }
 
     private void OnManifest(AstraManifestResponse message)

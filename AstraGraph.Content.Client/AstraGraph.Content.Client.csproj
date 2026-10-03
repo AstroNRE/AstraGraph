@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>Content.AstraGraph.Client</AssemblyName>
     <RootNamespace>Content.AstraGraph</RootNamespace>
+    <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\AstraGraph.Content.Shared\AstraGraph.Content.Shared.csproj" />
