@@ -29,6 +29,10 @@ public sealed class ServerAstraPackageSystem : EntitySystem
         if (!AstraPackageCodec.TryEncode(package, out var encoded))
             return false;
 
+        if (!_packages.ContainsKey(package.Identity.GraphId) &&
+            _packages.Count >= AstraNetworkProtocol.MaxManifestEntries)
+            return false;
+
         _packages[package.Identity.GraphId] = new PublishedPackage(
             package.Identity,
             encoded,
@@ -58,6 +62,10 @@ public sealed class ServerAstraPackageSystem : EntitySystem
 
     private void OnPackageRequest(AstraPackageRequest message, EntitySessionEventArgs args)
     {
+        if (message.GraphIds == null ||
+            message.GraphIds.Count > AstraNetworkProtocol.MaxPackageRequestEntries)
+            return;
+
         foreach (var graphId in message.GraphIds)
         {
             if (!_packages.TryGetValue(graphId, out var package))
@@ -73,6 +81,9 @@ public sealed class ServerAstraPackageSystem : EntitySystem
 
     private void OnClientReady(AstraClientReady message, EntitySessionEventArgs args)
     {
+        if (message.Revisions == null || message.Revisions.Count > AstraNetworkProtocol.MaxReadyRevisions)
+            return;
+
         // Readiness is deliberately a network boundary only. Activation remains tick-authoritative.
     }
 

@@ -4,7 +4,9 @@
 
 using Content.AstraGraph.Network;
 using Content.AstraGraph.Portable;
+using Robust.Client;
 using Robust.Client.UserInterface;
+using Robust.Shared.Enums;
 using Robust.Shared.GameObjects;
 using Robust.Shared.IoC;
 using Robust.Shared.Timing;
@@ -18,6 +20,7 @@ namespace Content.AstraGraph.Robust.Client;
 public sealed class ClientAstraGraphSystem : EntitySystem
 {
     [Dependency] private readonly IGameTiming _timing = default!;
+    [Dependency] private readonly IBaseClient _baseClient = default!;
     [Dependency] private readonly IUriOpener _uriOpener = default!;
 
     private readonly Dictionary<Guid, AstraPackage> _active = new();
@@ -31,7 +34,13 @@ public sealed class ClientAstraGraphSystem : EntitySystem
         base.Initialize();
         SubscribeNetworkEvent<AstraManifestResponse>(OnManifest);
         SubscribeNetworkEvent<AstraPackageResponse>(OnPackage);
-        RaiseNetworkEvent(new AstraManifestRequest());
+        _baseClient.RunLevelChanged += OnRunLevelChanged;
+    }
+
+    public override void Shutdown()
+    {
+        _baseClient.RunLevelChanged -= OnRunLevelChanged;
+        base.Shutdown();
     }
 
     public bool TryStagePackage(ReadOnlySpan<byte> encoded, ulong expectedHash = 0)
@@ -75,15 +84,33 @@ public sealed class ClientAstraGraphSystem : EntitySystem
         _uriOpener.OpenUri(address);
     }
 
+    private void OnRunLevelChanged(object? sender, RunLevelChangedEventArgs args)
+    {
+        if (args.NewLevel != ClientRunLevel.Connected)
+            return;
+
+        // A reconnect may target another server, so no package state is trusted across sessions.
+        _active.Clear();
+        _staged.Clear();
+        _expected.Clear();
+        RaiseNetworkEvent(new AstraManifestRequest());
+    }
+
     private void OnManifest(AstraManifestResponse message)
     {
-        if (message.ProtocolVersion != AstraNetworkProtocol.Version)
+        if (message.ProtocolVersion != AstraNetworkProtocol.Version ||
+            message.Entries == null ||
+            message.Entries.Count > AstraNetworkProtocol.MaxManifestEntries)
             return;
 
         _expected.Clear();
         var missing = new List<Guid>();
         foreach (var entry in message.Entries)
         {
+            if (entry.EncodedLength < AstraPackageCodec.HeaderSize ||
+                entry.EncodedLength > AstraNetworkProtocol.MaxEncodedPackageBytes)
+                return;
+
             if (_active.TryGetValue(entry.GraphId, out var active) &&
                 active.Identity.RevisionId == entry.RevisionId)
                 continue;
@@ -103,6 +130,9 @@ public sealed class ClientAstraGraphSystem : EntitySystem
 
     private void OnPackage(AstraPackageResponse message)
     {
+        if (message.Encoded == null || message.Encoded.Length > AstraNetworkProtocol.MaxEncodedPackageBytes)
+            return;
+
         if (!_expected.TryGetValue(message.GraphId, out var expected) ||
             expected.RevisionId != message.RevisionId ||
             expected.ContentHash != message.ContentHash ||
@@ -132,6 +162,9 @@ public sealed class ClientAstraGraphSystem : EntitySystem
     {
         var revisions = _staged.Values.Select(package => package.Identity.RevisionId).ToList();
         revisions.AddRange(_active.Values.Select(package => package.Identity.RevisionId));
+        if (revisions.Count > AstraNetworkProtocol.MaxReadyRevisions)
+            return;
+
         RaiseNetworkEvent(new AstraClientReady(revisions));
     }
 }
