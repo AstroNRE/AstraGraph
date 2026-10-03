@@ -329,13 +329,13 @@ public static class GameplayBindings
             argsType.GetField("Hidden")?.SetValue(args, false);
 
             var call = new object?[] { args, null, null };
-            if (_tryStart.Invoke(_doAfterSystem, call) is not true || call[1] == null)
+            if (_tryStart.Invoke(_doAfterSystem, call) is not true || call[1] is not { } startedDoAfter)
             {
                 Logger.GetSawmill("astra").Warning($"Do-after bar did not start for entity {userId}.");
                 return null;
             }
 
-            var index = Convert.ToInt32(call[1].GetType().GetProperty("Index")?.GetValue(call[1]));
+            var index = Convert.ToInt32(startedDoAfter.GetType().GetProperty("Index")?.GetValue(startedDoAfter));
             var token = ++_nextBar;
             _bars[token] = (user, index);
             return token;
@@ -459,9 +459,9 @@ public static class GameplayBindings
 
     private static object? DoAfterState(EntityUid user)
     {
-        if (_doAfterComponent != null && Entities.TryGetComponent(user, _doAfterComponent, out var component))
+        if (_doAfterComponent != null && Entities.TryGetComponent(user, _doAfterComponent, out var resolvedComponent))
         {
-            return component;
+            return resolvedComponent;
         }
 
         foreach (var component in Entities.GetComponents(user))
