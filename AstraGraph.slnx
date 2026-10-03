@@ -1,5 +1,9 @@
 <Solution>
   <Project Path="AstraGraph.Binding/AstraGraph.Binding.csproj" />
+  <Project Path="AstraGraph.Content.Client/AstraGraph.Content.Client.csproj" />
+  <Project Path="AstraGraph.Content.Network/AstraGraph.Content.Network.csproj" />
+  <Project Path="AstraGraph.Content.Server/AstraGraph.Content.Server.csproj" />
+  <Project Path="AstraGraph.Content.Shared/AstraGraph.Content.Shared.csproj" />
   <Project Path="AstraGraph.Core/AstraGraph.Core.csproj" />
   <Project Path="AstraGraph.HotReload/AstraGraph.HotReload.csproj" />
   <Project Path="AstraGraph.Persistence/AstraGraph.Persistence.csproj" />
@@ -19,6 +23,7 @@
   <Project Path="AstraGraph.Robust.Client/AstraGraph.Robust.Client.csproj" />
   <Project Path="samples/ContentIntegration/AstraGraph.ContentIntegration.csproj" />
   <Folder Name="/tests/">
+    <Project Path="tests/AstraGraph.Portable.Tests/AstraGraph.Portable.Tests.csproj" />
     <Project Path="tests/AstraGraph.Tests/AstraGraph.Tests.csproj" />
     <Project Path="tests/AstraGraph.Benchmarks/AstraGraph.Benchmarks.csproj" />
   </Folder>

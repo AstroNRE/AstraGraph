@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks></TargetFrameworks>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Content.AstraGraph.Client</AssemblyName>
+    <RootNamespace>Content.AstraGraph</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AstraGraph.Content.Shared\AstraGraph.Content.Shared.csproj" />
+    <ProjectReference Include="..\AstraGraph.Content.Network\AstraGraph.Content.Network.csproj" />
+    <ProjectReference Include="$(RobustToolboxRoot)\Robust.Shared\Robust.Shared.csproj"
+                      Condition="'$(RobustToolboxRoot)' != '' and Exists('$(RobustToolboxRoot)\Robust.Shared\Robust.Shared.csproj')" />
+    <ProjectReference Include="$(RobustToolboxRoot)\Robust.Client\Robust.Client.csproj"
+                      Condition="'$(RobustToolboxRoot)' != '' and Exists('$(RobustToolboxRoot)\Robust.Client\Robust.Client.csproj')" />
+  </ItemGroup>
+</Project>
