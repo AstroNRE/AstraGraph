@@ -1,10 +1,10 @@
-using AstraGraph.Binding;
-using AstraGraph.Core;
-using AstraGraph.State;
-using AstraGraph.VM;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.State;
+using Content.AstraGraph.VM;
 using Robust.Shared.GameObjects;
 
-namespace AstraGraph.Robust.Shared;
+namespace Content.AstraGraph.Robust.Shared;
 
 /// <summary>
 /// VM services backed by the live entity manager and the gameplay binding catalog.

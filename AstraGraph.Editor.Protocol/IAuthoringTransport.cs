@@ -1,6 +1,6 @@
 using System.Net.WebSockets;
 
-namespace AstraGraph.Editor.Protocol;
+namespace Content.AstraGraph.Editor.Protocol;
 
 /// <summary>
 /// State of an authoring transport connection.

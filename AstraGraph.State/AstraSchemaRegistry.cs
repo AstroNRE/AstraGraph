@@ -1,7 +1,7 @@
 using System.Globalization;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.State;
+namespace Content.AstraGraph.State;
 
 /// <summary>
 /// Schemas discovered before prototype load. Lookup is by stable id and by the SS14 component name.

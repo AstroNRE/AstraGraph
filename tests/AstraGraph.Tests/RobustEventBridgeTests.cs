@@ -1,12 +1,12 @@
-using AstraGraph.Core;
-using AstraGraph.Core.Events;
-using AstraGraph.Runtime;
-using AstraGraph.Runtime.Events;
-using AstraGraph.State;
-using AstraGraph.VM;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Core.Events;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.Runtime.Events;
+using Content.AstraGraph.State;
+using Content.AstraGraph.VM;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 public struct TestDamageEvent
 {

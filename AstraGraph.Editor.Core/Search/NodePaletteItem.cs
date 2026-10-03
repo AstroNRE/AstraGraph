@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using AstraGraph.Binding;
-using AstraGraph.Core;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Editor.Core.Search;
+namespace Content.AstraGraph.Editor.Core.Search;
 
 public sealed record VisualPinDefinition(
     string Name,

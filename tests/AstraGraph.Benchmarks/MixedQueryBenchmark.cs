@@ -1,9 +1,9 @@
-using AstraGraph.Core;
-using AstraGraph.Runtime;
-using AstraGraph.State;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.State;
 using BenchmarkDotNet.Attributes;
 
-namespace AstraGraph.Benchmarks;
+namespace Content.AstraGraph.Benchmarks;
 
 public class NativeHealthBenchmark
 {

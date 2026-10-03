@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace AstraGraph.UI.Runtime;
+namespace Content.AstraGraph.UI.Runtime;
 
 /// <summary>
 /// Compact typed encoding for BUI state values. Untyped legacy strings stay on the old channel.

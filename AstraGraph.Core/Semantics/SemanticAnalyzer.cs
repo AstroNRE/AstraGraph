@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 /// <summary>
 /// Compiles a raw GraphDocument into a fully typed AstProgram with comprehensive semantic validation.

@@ -2,12 +2,12 @@
 using System.Net.Http.Json;
 using System.Net.WebSockets;
 using System.Text.Json;
-using AstraGraph.Core;
-using AstraGraph.Editor.Protocol;
-using AstraGraph.Studio.DevHost;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Editor.Protocol;
+using Content.AstraGraph.Studio.DevHost;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public class StudioDevHostTests

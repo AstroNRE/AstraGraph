@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace AstraGraph.Editor.Core;
+namespace Content.AstraGraph.Editor.Core;
 
 public readonly record struct CanvasPoint(float X, float Y)
 {

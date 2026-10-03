@@ -1,4 +1,4 @@
-namespace AstraGraph.UI.Catalog;
+namespace Content.AstraGraph.UI.Catalog;
 
 public sealed record UiAsset(string Kind, string Path, string? Label = null);
 

@@ -1,4 +1,4 @@
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 /// <summary>
 /// Authoring form of a graph-defined component or struct. Names are display data.

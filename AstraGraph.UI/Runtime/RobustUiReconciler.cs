@@ -1,8 +1,8 @@
 using System.Diagnostics;
-using AstraGraph.UI.Catalog;
-using AstraGraph.UI.Compiler;
+using Content.AstraGraph.UI.Catalog;
+using Content.AstraGraph.UI.Compiler;
 
-namespace AstraGraph.UI.Runtime;
+namespace Content.AstraGraph.UI.Runtime;
 
 public sealed class ReconcileResult
 {

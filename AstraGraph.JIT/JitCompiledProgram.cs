@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Concurrent;
 using System.Reflection;
-using AstraGraph.Core;
-using AstraGraph.VM;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.VM;
 
-namespace AstraGraph.JIT;
+namespace Content.AstraGraph.JIT;
 
 public delegate AstraValue JitFunctionInvoker(
     AstraValue[]? initialRegisters,

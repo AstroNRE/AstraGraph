@@ -1,17 +1,17 @@
-using AstraGraph.Core;
-using AstraGraph.HotReload;
-using AstraGraph.Persistence;
-using AstraGraph.Persistence.Discovery;
-using AstraGraph.Persistence.State;
-using AstraGraph.Runtime;
-using AstraGraph.State;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.HotReload;
+using Content.AstraGraph.Persistence;
+using Content.AstraGraph.Persistence.Discovery;
+using Content.AstraGraph.Persistence.State;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.State;
 using NUnit.Framework;
 
 #if NET10_0_OR_GREATER
-using AstraGraph.Robust.Server;
+using Content.AstraGraph.Robust.Server;
 #endif
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class TransactionalHotReloadTests

@@ -1,7 +1,7 @@
 using System.Net.WebSockets;
 using System.Text.Json;
 
-namespace AstraGraph.Editor.Protocol;
+namespace Content.AstraGraph.Editor.Protocol;
 
 /// <summary>
 /// Transport for direct (non-loopback) connections to a remote Astra Authoring server.

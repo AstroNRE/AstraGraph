@@ -1,10 +1,10 @@
 using System.Reflection;
-using AstraGraph.Core;
-using AstraGraph.Core.Events;
-using AstraGraph.Runtime;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Core.Events;
+using Content.AstraGraph.Runtime;
 using Robust.Shared.GameObjects;
 
-namespace AstraGraph.Robust.Shared;
+namespace Content.AstraGraph.Robust.Shared;
 
 /// <summary>
 /// Delegate for handlers receiving event arguments by reference, allowing in-place mutations.

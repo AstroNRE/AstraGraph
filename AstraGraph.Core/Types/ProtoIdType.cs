@@ -1,4 +1,4 @@
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 /// <summary>
 /// Prototype id carried as text. The engine binding decides which prototype kind it names.

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AstraGraph.Binding</RootNamespace>
+    <RootNamespace>Content.AstraGraph.Binding</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

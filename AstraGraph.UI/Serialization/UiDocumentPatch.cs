@@ -1,6 +1,6 @@
-using AstraGraph.UI.Model;
+using Content.AstraGraph.UI.Model;
 
-namespace AstraGraph.UI.Serialization;
+namespace Content.AstraGraph.UI.Serialization;
 
 public sealed record UiPatchOperation(
     string Kind,

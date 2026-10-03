@@ -1,6 +1,6 @@
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Runtime;
+namespace Content.AstraGraph.Runtime;
 
 public enum AstraGraphPhase
 {

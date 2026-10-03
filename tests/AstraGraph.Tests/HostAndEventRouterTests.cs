@@ -1,8 +1,8 @@
-using AstraGraph.Core;
-using AstraGraph.Runtime;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Runtime;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 public sealed class SampleInteractEvent
 {

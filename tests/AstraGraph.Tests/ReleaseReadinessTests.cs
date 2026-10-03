@@ -1,15 +1,15 @@
-using AstraGraph.Binding;
-using AstraGraph.Core;
-using AstraGraph.Editor.Bridge;
-using AstraGraph.HotReload;
-using AstraGraph.Persistence;
-using AstraGraph.Runtime;
-using AstraGraph.Runtime.Integration;
-using AstraGraph.Runtime.Security;
-using AstraGraph.VM;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Editor.Bridge;
+using Content.AstraGraph.HotReload;
+using Content.AstraGraph.Persistence;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.Runtime.Integration;
+using Content.AstraGraph.Runtime.Security;
+using Content.AstraGraph.VM;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class ReleaseReadinessTests
@@ -158,7 +158,7 @@ public sealed class ReleaseReadinessTests
     [Test]
     public void CacheKey_ChangesWhenEngineApiVersionChanges()
     {
-        var left = new AstraGraph.Persistence.Cache.CompilationCacheKey("s", "c", "r", "b", "Server", EngineApiVersion: "1");
+        var left = new Content.AstraGraph.Persistence.Cache.CompilationCacheKey("s", "c", "r", "b", "Server", EngineApiVersion: "1");
         var right = left with { EngineApiVersion = "2" };
         var profile = left with { CompatibilityProfile = "other", RobustCommit = "abc", SchemaSetHash = "Hp:int" };
         Assert.That(left.ComputeKeyString(), Is.Not.EqualTo(right.ComputeKeyString()));
@@ -186,8 +186,8 @@ public sealed class ReleaseReadinessTests
         var dir = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
         while (dir != null)
         {
-            var dist = Path.Combine(dir.FullName, "AstraGraph.StudioWeb", "dist");
-            var prototype = Path.Combine(dir.FullName, "AstraGraph.StudioWeb", "wwwroot");
+            var dist = Path.Combine(dir.FullName, "Content.AstraGraph.StudioWeb", "dist");
+            var prototype = Path.Combine(dir.FullName, "Content.AstraGraph.StudioWeb", "wwwroot");
             var candidate = File.Exists(Path.Combine(dist, "index.html")) ? dist : prototype;
             if (Directory.Exists(candidate))
             {
@@ -196,6 +196,6 @@ public sealed class ReleaseReadinessTests
             dir = dir.Parent;
         }
 
-        throw new DirectoryNotFoundException("AstraGraph.StudioWeb/dist was not found.");
+        throw new DirectoryNotFoundException("Content.AstraGraph.StudioWeb/dist was not found.");
     }
 }

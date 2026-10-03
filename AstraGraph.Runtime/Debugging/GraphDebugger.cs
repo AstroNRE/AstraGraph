@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using AstraGraph.Core;
-using AstraGraph.VM;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.VM;
 
-namespace AstraGraph.Runtime.Debugging;
+namespace Content.AstraGraph.Runtime.Debugging;
 
 public enum BreakpointMode
 {

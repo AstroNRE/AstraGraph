@@ -1,7 +1,7 @@
 using System.Text.Json;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.UI.Html;
+namespace Content.AstraGraph.UI.Html;
 
 /// <summary>
 /// Turns a list of structs into the JSON a bound item list renders,

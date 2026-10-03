@@ -1,8 +1,8 @@
-using AstraGraph.Core;
-using AstraGraph.State;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.State;
 using BenchmarkDotNet.Attributes;
 
-namespace AstraGraph.Benchmarks;
+namespace Content.AstraGraph.Benchmarks;
 
 public class NativeComponentBenchmark
 {

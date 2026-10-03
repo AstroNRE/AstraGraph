@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 /// <summary>
 /// Defines the architectural role of a graph.

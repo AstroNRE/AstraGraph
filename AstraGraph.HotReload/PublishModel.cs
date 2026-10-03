@@ -1,7 +1,7 @@
-using AstraGraph.Core;
-using AstraGraph.Core.Events;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Core.Events;
 
-namespace AstraGraph.HotReload;
+namespace Content.AstraGraph.HotReload;
 
 /// <summary>
 /// Immutable snapshot record capturing a published graph revision across Code, Schema, and Subscriptions.

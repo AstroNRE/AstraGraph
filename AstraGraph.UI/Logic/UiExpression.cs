@@ -1,4 +1,4 @@
-namespace AstraGraph.UI.Logic;
+namespace Content.AstraGraph.UI.Logic;
 
 /// <summary>
 /// Small binding expressions: a state name, a literal, or string concatenation with +.

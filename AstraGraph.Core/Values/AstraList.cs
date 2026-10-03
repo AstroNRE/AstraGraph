@@ -1,4 +1,4 @@
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 /// <summary>
 /// Mutable list carried through the VM. Elements may be structs.

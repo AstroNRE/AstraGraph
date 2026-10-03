@@ -1,4 +1,4 @@
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 /// <summary>
 /// Abstract base record for all types in the statically-typed AstraGraph language.

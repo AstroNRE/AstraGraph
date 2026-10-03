@@ -1,10 +1,10 @@
 using System.Text.Json;
-using AstraGraph.Core;
-using AstraGraph.State;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.State;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Serialization.Manager;
 
-namespace AstraGraph.Robust.Shared;
+namespace Content.AstraGraph.Robust.Shared;
 
 /// <summary>
 /// Registers graph-defined component proxies before Robust freezes component net ids,

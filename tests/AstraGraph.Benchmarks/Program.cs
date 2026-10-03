@@ -1,6 +1,6 @@
 using BenchmarkDotNet.Running;
 
-namespace AstraGraph.Benchmarks;
+namespace Content.AstraGraph.Benchmarks;
 
 public static class Program
 {

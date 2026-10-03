@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
-using AstraGraph.Core;
-using AstraGraph.Runtime.Network;
-using AstraGraph.State;
-using AstraGraph.VM;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Runtime.Network;
+using Content.AstraGraph.State;
+using Content.AstraGraph.VM;
 
-namespace AstraGraph.Runtime;
+namespace Content.AstraGraph.Runtime;
 
 /// <summary>
 /// Native host coordinating the execution of AstraGraph systems, event routing,

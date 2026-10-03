@@ -1,4 +1,4 @@
-namespace AstraGraph.Editor.Bridge;
+namespace Content.AstraGraph.Editor.Bridge;
 
 /// <summary>
 /// Serves Astra Studio files from a directory on the loopback bridge.

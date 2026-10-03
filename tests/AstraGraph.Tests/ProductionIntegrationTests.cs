@@ -1,24 +1,24 @@
-using AstraGraph.Binding;
-using AstraGraph.Core;
-using AstraGraph.HotReload;
-using AstraGraph.Persistence;
-using AstraGraph.Runtime;
-using AstraGraph.Runtime.Network;
-using AstraGraph.State;
-using AstraGraph.UI.Runtime;
-using AstraGraph.VM;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.HotReload;
+using Content.AstraGraph.Persistence;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.Runtime.Network;
+using Content.AstraGraph.State;
+using Content.AstraGraph.UI.Runtime;
+using Content.AstraGraph.VM;
 using NUnit.Framework;
 
 #if NET10_0_OR_GREATER
-using AstraGraph.Robust.Client;
-using AstraGraph.Robust.Shared;
+using Content.AstraGraph.Robust.Client;
+using Content.AstraGraph.Robust.Shared;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Network;
 using Robust.Shared.Timing;
 using Robust.UnitTesting.Server;
 #endif
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class ProductionIntegrationTests
@@ -141,7 +141,7 @@ public sealed class ProductionIntegrationTests
         var symbol = SymbolId.New();
         var document = Entry(graphId);
 
-        var first = new AstraGraph.Robust.Server.ServerAstraGraphSystem();
+        var first = new Content.AstraGraph.Robust.Server.ServerAstraGraphSystem();
         first.UseStorage(layout);
         first.ExecuteBootstrap();
         var published = first.HotReloadManager.Publish(document, author: "dev", message: "initial");
@@ -149,7 +149,7 @@ public sealed class ProductionIntegrationTests
         first.Host.State.SetVariable(graphId, symbol, "Score", AstraValue.FromInt64(4), isPersistent: true);
         first.SavePersistentState();
 
-        var restarted = new AstraGraph.Robust.Server.ServerAstraGraphSystem();
+        var restarted = new Content.AstraGraph.Robust.Server.ServerAstraGraphSystem();
         restarted.UseStorage(layout);
         restarted.ExecuteBootstrap();
         var restored = restarted.Host.GetProgram(graphId);

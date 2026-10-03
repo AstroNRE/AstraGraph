@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.WebSockets;
 using System.Text;
 
-namespace AstraGraph.Editor.Bridge;
+namespace Content.AstraGraph.Editor.Bridge;
 
 /// <summary>
 /// State of the loopback HTTP server.

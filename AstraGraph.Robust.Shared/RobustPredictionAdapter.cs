@@ -1,8 +1,8 @@
-using AstraGraph.Core;
-using AstraGraph.Runtime.Network;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Runtime.Network;
 using Robust.Shared.Timing;
 
-namespace AstraGraph.Robust.Shared;
+namespace Content.AstraGraph.Robust.Shared;
 
 /// <summary>
 /// Drives <see cref="PredictionReconciler"/> from Robust's prediction tick.

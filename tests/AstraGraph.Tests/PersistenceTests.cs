@@ -3,16 +3,16 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Text;
-using AstraGraph.Core;
-using AstraGraph.Persistence;
-using AstraGraph.Persistence.Audit;
-using AstraGraph.Persistence.Cache;
-using AstraGraph.Persistence.Discovery;
-using AstraGraph.Persistence.State;
-using AstraGraph.State;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Persistence;
+using Content.AstraGraph.Persistence.Audit;
+using Content.AstraGraph.Persistence.Cache;
+using Content.AstraGraph.Persistence.Discovery;
+using Content.AstraGraph.Persistence.State;
+using Content.AstraGraph.State;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class PersistenceTests

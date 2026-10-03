@@ -1,7 +1,7 @@
 using System;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Persistence.Discovery;
+namespace Content.AstraGraph.Persistence.Discovery;
 
 /// <summary>
 /// Origin source of a discovered graph document.
@@ -9,7 +9,7 @@ namespace AstraGraph.Persistence.Discovery;
 public enum GraphOrigin
 {
     /// <summary>
-    /// Bundled with the game project in Resources/AstraGraph.
+    /// Bundled with the game project in Resources/Content.AstraGraph.
     /// </summary>
     ProjectResource,
 

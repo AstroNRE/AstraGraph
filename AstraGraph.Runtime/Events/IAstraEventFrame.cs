@@ -1,6 +1,6 @@
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Runtime.Events;
+namespace Content.AstraGraph.Runtime.Events;
 
 /// <summary>
 /// Mutable frame abstraction representing an in-flight engine event.

@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.State;
+namespace Content.AstraGraph.State;
 
 /// <summary>
 /// Central runtime state store holding all variable states for graph programs and systems.

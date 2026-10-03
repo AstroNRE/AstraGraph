@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace AstraGraph.Editor.Bridge;
+namespace Content.AstraGraph.Editor.Bridge;
 
 /// <summary>
 /// Web asset provider that serves assets from assembly embedded resources and dynamic in-memory registrations.
@@ -18,7 +18,7 @@ public sealed class EmbeddedWebAssetProvider : IWebAssetProvider
 
     public EmbeddedWebAssetProvider(
         Assembly? assembly = null,
-        string resourcePrefix = "AstraGraph.Editor.Bridge.Assets",
+        string resourcePrefix = "Content.AstraGraph.Editor.Bridge.Assets",
         bool spaFallback = true)
     {
         _assembly = assembly ?? typeof(EmbeddedWebAssetProvider).Assembly;
@@ -65,7 +65,7 @@ public sealed class EmbeddedWebAssetProvider : IWebAssetProvider
 
     private WebAsset? TryLoadFromEmbeddedResource(string normalizedPath)
     {
-        // Convert normalized path "/css/studio.css" -> "AstraGraph.Editor.Bridge.Assets.css.studio.css"
+        // Convert normalized path "/css/studio.css" -> "Content.AstraGraph.Editor.Bridge.Assets.css.studio.css"
         string subPath = normalizedPath.TrimStart('/').Replace('/', '.').Replace('\\', '.');
         string fullResourceName = $"{_resourcePrefix}.{subPath}";
 
@@ -173,8 +173,8 @@ public sealed class EmbeddedWebAssetProvider : IWebAssetProvider
         var cursor = new DirectoryInfo(AppContext.BaseDirectory);
         for (var depth = 0; depth < 8 && cursor != null; depth++)
         {
-            var dist = Path.Combine(cursor.FullName, "AstraGraph.StudioWeb", "dist", "index.html");
-            var prototype = Path.Combine(cursor.FullName, "AstraGraph.StudioWeb", "wwwroot", "index.html");
+            var dist = Path.Combine(cursor.FullName, "Content.AstraGraph.StudioWeb", "dist", "index.html");
+            var prototype = Path.Combine(cursor.FullName, "Content.AstraGraph.StudioWeb", "wwwroot", "index.html");
             var candidate = File.Exists(dist) ? dist : prototype;
             if (File.Exists(candidate))
             {

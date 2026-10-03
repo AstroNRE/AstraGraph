@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AstraGraph.Editor.Protocol</RootNamespace>
+    <RootNamespace>Content.AstraGraph.Editor.Protocol</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,4 +1,4 @@
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 /// <summary>
 /// One struct value. Field identity is the schema id plus the field id.

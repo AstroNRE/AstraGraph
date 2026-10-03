@@ -1,10 +1,10 @@
 using System.Globalization;
 using System.Xml.Linq;
-using AstraGraph.Core;
-using AstraGraph.UI.Catalog;
-using AstraGraph.UI.Model;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.UI.Catalog;
+using Content.AstraGraph.UI.Model;
 
-namespace AstraGraph.UI.Serialization;
+namespace Content.AstraGraph.UI.Serialization;
 
 public sealed class UiXamlResult
 {

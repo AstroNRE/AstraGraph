@@ -2,7 +2,7 @@ using System.Collections;
 using System.Globalization;
 using System.Reflection;
 
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 /// <summary>
 /// Converts CLR values that cross the native boundary into Astra values.

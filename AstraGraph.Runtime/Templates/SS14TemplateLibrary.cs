@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Runtime.Templates;
+namespace Content.AstraGraph.Runtime.Templates;
 
 /// <summary>
 /// Pre-built canonical visual graph templates replicating standard Space Station 14 gameplay systems.

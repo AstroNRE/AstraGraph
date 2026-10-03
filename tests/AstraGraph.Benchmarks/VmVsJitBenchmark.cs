@@ -1,9 +1,9 @@
-using AstraGraph.Core;
-using AstraGraph.JIT;
-using AstraGraph.VM;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.JIT;
+using Content.AstraGraph.VM;
 using BenchmarkDotNet.Attributes;
 
-namespace AstraGraph.Benchmarks;
+namespace Content.AstraGraph.Benchmarks;
 
 [MemoryDiagnoser]
 public class VmVsJitBenchmark

@@ -1,16 +1,16 @@
 #if NET10_0_OR_GREATER
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using AstraGraph.Binding;
-using AstraGraph.Core;
-using AstraGraph.Robust.Shared;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Robust.Shared;
 using NUnit.Framework;
 using Robust.Shared.Containers;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Prototypes;
 using Robust.UnitTesting.Server;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class RobustGameplayTests

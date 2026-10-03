@@ -4,7 +4,7 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 
-namespace AstraGraph.Persistence.Audit;
+namespace Content.AstraGraph.Persistence.Audit;
 
 /// <summary>
 /// Thread-safe append-only audit logger writing structured JSONL entries to the Audit directory.

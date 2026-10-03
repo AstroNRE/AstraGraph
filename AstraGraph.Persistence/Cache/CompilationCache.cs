@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Text;
 
-namespace AstraGraph.Persistence.Cache;
+namespace Content.AstraGraph.Persistence.Cache;
 
 /// <summary>
 /// On-disk cache for compiled bytecode and execution artifacts.

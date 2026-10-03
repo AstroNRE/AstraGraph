@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Text;
 
-namespace AstraGraph.Persistence;
+namespace Content.AstraGraph.Persistence;
 
 /// <summary>
 /// Provides atomic, crash-proof file operations ensuring that disk writes are resilient

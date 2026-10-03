@@ -1,7 +1,7 @@
-using AstraGraph.Binding;
-using AstraGraph.Core;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Editor.Core;
+namespace Content.AstraGraph.Editor.Core;
 
 /// <summary>
 /// Turns a catalog binding into a graph node whose pins match the C# signature.

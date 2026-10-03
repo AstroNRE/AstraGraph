@@ -1,12 +1,12 @@
-using AstraGraph.Core;
-using AstraGraph.Persistence;
-using AstraGraph.Persistence.State;
-using AstraGraph.Runtime.Network;
-using AstraGraph.State;
-using AstraGraph.VM;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Persistence;
+using Content.AstraGraph.Persistence.State;
+using Content.AstraGraph.Runtime.Network;
+using Content.AstraGraph.State;
+using Content.AstraGraph.VM;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class PersistentObjectIdTests

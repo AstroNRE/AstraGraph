@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
-using AstraGraph.Core;
-using AstraGraph.Runtime.Network;
-using AstraGraph.Runtime.Templates;
-using AstraGraph.State;
-using AstraGraph.VM;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Runtime.Network;
+using Content.AstraGraph.Runtime.Templates;
+using Content.AstraGraph.State;
+using Content.AstraGraph.VM;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests.Parity;
+namespace Content.AstraGraph.Tests.Parity;
 
 #region C# Reference Implementations
 

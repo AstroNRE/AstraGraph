@@ -1,9 +1,9 @@
-using AstraGraph.Core;
-using AstraGraph.UI.Model;
-using AstraGraph.UI.Runtime;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.UI.Model;
+using Content.AstraGraph.UI.Runtime;
 using Robust.Client.UserInterface.CustomControls;
 
-namespace AstraGraph.Robust.Client;
+namespace Content.AstraGraph.Robust.Client;
 
 /// <summary>
 /// Opens the compiled UI in a real Robust window when the client UI manager exists.

@@ -1,7 +1,7 @@
 using System.Reflection;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Binding;
+namespace Content.AstraGraph.Binding;
 
 public sealed record NativeParameterDescriptor(
     string Name,

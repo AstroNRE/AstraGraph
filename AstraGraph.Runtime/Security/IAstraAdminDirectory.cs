@@ -1,4 +1,4 @@
-namespace AstraGraph.Runtime.Security;
+namespace Content.AstraGraph.Runtime.Security;
 
 /// <summary>
 /// Content-side lookup over the fork's admin manager.

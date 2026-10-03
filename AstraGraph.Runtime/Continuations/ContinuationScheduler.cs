@@ -1,7 +1,7 @@
-using AstraGraph.Core;
-using AstraGraph.VM;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.VM;
 
-namespace AstraGraph.Runtime;
+namespace Content.AstraGraph.Runtime;
 
 /// <summary>
 /// Tick-based scheduler driving non-blocking latent continuations (Delay, DoAfter, WaitUntil).

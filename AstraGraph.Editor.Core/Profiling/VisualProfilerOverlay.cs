@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using AstraGraph.Core;
-using AstraGraph.Runtime.Profiling;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Runtime.Profiling;
 
-namespace AstraGraph.Editor.Core.Profiling;
+namespace Content.AstraGraph.Editor.Core.Profiling;
 
 public enum HeatLevel
 {

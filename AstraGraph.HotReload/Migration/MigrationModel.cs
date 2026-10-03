@@ -1,7 +1,7 @@
-using AstraGraph.Core;
-using AstraGraph.State;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.State;
 
-namespace AstraGraph.HotReload;
+namespace Content.AstraGraph.HotReload;
 
 public enum FieldMigrationAction
 {

@@ -2,7 +2,7 @@ using System;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace AstraGraph.Persistence.Cache;
+namespace Content.AstraGraph.Persistence.Cache;
 
 /// <summary>
 /// Immutable specification of the cache validation key.

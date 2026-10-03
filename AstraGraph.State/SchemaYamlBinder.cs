@@ -1,7 +1,7 @@
 using System.Globalization;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.State;
+namespace Content.AstraGraph.State;
 
 public sealed record SchemaBindResult(bool Success, AstraValue[] Values, IReadOnlyList<Diagnostic> Diagnostics)
 {

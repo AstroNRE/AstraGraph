@@ -1,4 +1,4 @@
-namespace AstraGraph.Robust.Client;
+namespace Content.AstraGraph.Robust.Client;
 
 public static class ClientRegistration
 {

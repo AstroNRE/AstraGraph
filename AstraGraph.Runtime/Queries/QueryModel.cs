@@ -1,6 +1,6 @@
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Runtime;
+namespace Content.AstraGraph.Runtime;
 
 /// <summary>
 /// Specification for an ECS query that combines native CLR components and dynamic Astra schemas.

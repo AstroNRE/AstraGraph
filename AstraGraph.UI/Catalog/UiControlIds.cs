@@ -1,6 +1,6 @@
-using AstraGraph.UI.Model;
+using Content.AstraGraph.UI.Model;
 
-namespace AstraGraph.UI.Catalog;
+namespace Content.AstraGraph.UI.Catalog;
 
 /// <summary>
 /// Stable control type ids. Native Robust controls use their CLR full name.
@@ -21,7 +21,7 @@ public static class UiControlIds
     public const string GridContainer = Prefix + "GridContainer";
     public const string LayoutContainer = Prefix + "LayoutContainer";
     public const string ItemList = Prefix + "ItemList";
-    public const string Custom = "AstraGraph.UI.Custom";
+    public const string Custom = "Content.AstraGraph.UI.Custom";
 
     public static string FromLegacy(UiElementType type) => type switch
     {

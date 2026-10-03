@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace AstraGraph.UI.Catalog;
+namespace Content.AstraGraph.UI.Catalog;
 
 /// <summary>
 /// Converts authored property values onto the CLR type a control property expects.

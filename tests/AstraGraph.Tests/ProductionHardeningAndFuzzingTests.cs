@@ -5,16 +5,16 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using AstraGraph.Binding;
-using AstraGraph.Core;
-using AstraGraph.JIT;
-using AstraGraph.Persistence;
-using AstraGraph.Runtime.Security;
-using AstraGraph.Tests.Fuzzing;
-using AstraGraph.VM;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.JIT;
+using Content.AstraGraph.Persistence;
+using Content.AstraGraph.Runtime.Security;
+using Content.AstraGraph.Tests.Fuzzing;
+using Content.AstraGraph.VM;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class ProductionHardeningAndFuzzingTests

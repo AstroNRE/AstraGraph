@@ -1,8 +1,8 @@
-using AstraGraph.Core;
-using AstraGraph.UI.Compiler;
-using AstraGraph.UI.Model;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.UI.Compiler;
+using Content.AstraGraph.UI.Model;
 
-namespace AstraGraph.UI.Runtime;
+namespace Content.AstraGraph.UI.Runtime;
 
 /// <summary>
 /// Live preview session. The same hot-reload path runs for a headless factory and for native Robust controls.

@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace AstraGraph.UI.Catalog;
+namespace Content.AstraGraph.UI.Catalog;
 
 /// <summary>
 /// Process-wide UI catalog. Builtin controls are always present; a fork indexes its assemblies into the same catalog.

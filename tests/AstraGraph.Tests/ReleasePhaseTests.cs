@@ -1,15 +1,15 @@
-using AstraGraph.Binding;
-using AstraGraph.Core;
-using AstraGraph.Editor.Protocol;
-using AstraGraph.HotReload;
-using AstraGraph.Persistence;
-using AstraGraph.Persistence.Discovery;
-using AstraGraph.Runtime;
-using AstraGraph.Runtime.Integration;
-using AstraGraph.Runtime.Security;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Editor.Protocol;
+using Content.AstraGraph.HotReload;
+using Content.AstraGraph.Persistence;
+using Content.AstraGraph.Persistence.Discovery;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.Runtime.Integration;
+using Content.AstraGraph.Runtime.Security;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class ReleasePhaseTests

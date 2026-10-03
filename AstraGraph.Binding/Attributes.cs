@@ -1,4 +1,4 @@
-namespace AstraGraph.Binding;
+namespace Content.AstraGraph.Binding;
 
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Property | AttributeTargets.Class | AttributeTargets.Struct)]
 public sealed class AstraCallableAttribute : Attribute { }

@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace AstraGraph.Runtime.Integration;
+namespace Content.AstraGraph.Runtime.Integration;
 
 public sealed class EngineCompatibilityException : Exception
 {

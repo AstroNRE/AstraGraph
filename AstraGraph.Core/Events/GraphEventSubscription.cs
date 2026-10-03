@@ -1,4 +1,4 @@
-namespace AstraGraph.Core.Events;
+namespace Content.AstraGraph.Core.Events;
 
 /// <summary>
 /// Source origin of an AstraGraph event subscription.

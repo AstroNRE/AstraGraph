@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace AstraGraph.UI.Model;
+namespace Content.AstraGraph.UI.Model;
 
 /// <summary>
 /// Supported visual element types for Astra UI in SS14 / RobustToolbox.

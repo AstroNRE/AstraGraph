@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Editor.Core;
+namespace Content.AstraGraph.Editor.Core;
 
 public sealed record ConnectionValidationResult(
     bool IsValid,

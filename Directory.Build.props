@@ -4,6 +4,8 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Content.$(MSBuildProjectName)</AssemblyName>
+    <RootNamespace>Content.$(MSBuildProjectName)</RootNamespace>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <NoWarn>$(NoWarn);CA1720;CA1711;CA1305;CA1716;CA1310</NoWarn>

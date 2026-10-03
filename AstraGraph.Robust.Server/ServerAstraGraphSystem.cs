@@ -1,18 +1,18 @@
-using AstraGraph.Core;
-using AstraGraph.UI.Catalog;
-using AstraGraph.HotReload;
-using AstraGraph.Persistence;
-using AstraGraph.Persistence.Discovery;
-using AstraGraph.Persistence.State;
-using AstraGraph.Robust.Shared;
-using AstraGraph.Runtime;
-using AstraGraph.Runtime.Debugging;
-using AstraGraph.Runtime.Integration;
-using AstraGraph.Runtime.Profiling;
-using AstraGraph.Runtime.Security;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.UI.Catalog;
+using Content.AstraGraph.HotReload;
+using Content.AstraGraph.Persistence;
+using Content.AstraGraph.Persistence.Discovery;
+using Content.AstraGraph.Persistence.State;
+using Content.AstraGraph.Robust.Shared;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.Runtime.Debugging;
+using Content.AstraGraph.Runtime.Integration;
+using Content.AstraGraph.Runtime.Profiling;
+using Content.AstraGraph.Runtime.Security;
 using Robust.Shared.IoC;
 
-namespace AstraGraph.Robust.Server;
+namespace Content.AstraGraph.Robust.Server;
 
 /// <summary>
 /// Server-side RobustToolbox EntitySystem managing persistent storage, hot reload transactions,
@@ -165,7 +165,7 @@ public sealed class ServerAstraGraphSystem : SharedAstraGraphSystem
         AstraSchemaRuntime.Registry?.RegisterSchema(schema);
     }
 
-    private void OnSubscriptionsCommitted(IReadOnlyList<AstraGraph.Core.Events.GraphEventSubscription> subscriptions)
+    private void OnSubscriptionsCommitted(IReadOnlyList<Content.AstraGraph.Core.Events.GraphEventSubscription> subscriptions)
     {
         if (EventAdapter == null)
         {

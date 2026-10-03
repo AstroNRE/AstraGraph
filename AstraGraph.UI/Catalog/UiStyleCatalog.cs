@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace AstraGraph.UI.Catalog;
+namespace Content.AstraGraph.UI.Catalog;
 
 /// <summary>
 /// Reads style class names from a Robust stylesheet. The fork owns the stylesheet; Studio only lists the classes.

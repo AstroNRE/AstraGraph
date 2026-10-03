@@ -1,10 +1,10 @@
-using AstraGraph.Core;
-using AstraGraph.Runtime;
-using AstraGraph.Runtime.Debugging;
-using AstraGraph.VM;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.Runtime.Debugging;
+using Content.AstraGraph.VM;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class LatentAndDebuggingTests

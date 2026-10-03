@@ -1,7 +1,7 @@
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class AstAndDiagnosticsTests

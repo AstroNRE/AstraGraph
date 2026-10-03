@@ -1,8 +1,8 @@
-using AstraGraph.Editor.Bridge;
-using AstraGraph.Editor.InGame;
+using Content.AstraGraph.Editor.Bridge;
+using Content.AstraGraph.Editor.InGame;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 [Category("Bridge.W3")]

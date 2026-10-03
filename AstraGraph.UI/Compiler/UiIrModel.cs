@@ -1,7 +1,7 @@
-using AstraGraph.Core;
-using AstraGraph.UI.Model;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.UI.Model;
 
-namespace AstraGraph.UI.Compiler;
+namespace Content.AstraGraph.UI.Compiler;
 
 /// <summary>
 /// Abstract base instruction for the Astra UI intermediate representation.

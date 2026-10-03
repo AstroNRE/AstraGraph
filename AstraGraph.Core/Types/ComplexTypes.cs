@@ -1,9 +1,9 @@
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 public sealed record EnumMember(string Name, int Value);
 
 /// <summary>
-/// User-defined enumeration type in AstraGraph.
+/// User-defined enumeration type in Content.AstraGraph.
 /// </summary>
 public sealed record EnumType(
     SymbolId Id,

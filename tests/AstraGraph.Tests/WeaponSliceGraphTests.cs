@@ -1,11 +1,11 @@
 using System.Reflection;
-using AstraGraph.Core;
-using AstraGraph.Runtime;
-using AstraGraph.State;
-using AstraGraph.VM;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.State;
+using Content.AstraGraph.VM;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class WeaponSliceGraphTests

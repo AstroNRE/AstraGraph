@@ -1,12 +1,12 @@
 using System.Numerics;
-using AstraGraph.UI.Catalog;
-using AstraGraph.UI.Model;
-using AstraGraph.UI.Runtime;
+using Content.AstraGraph.UI.Catalog;
+using Content.AstraGraph.UI.Model;
+using Content.AstraGraph.UI.Runtime;
 using Robust.Client.UserInterface;
 using Robust.Client.UserInterface.Controls;
 using Robust.Shared.IoC;
 
-namespace AstraGraph.Robust.Client;
+namespace Content.AstraGraph.Robust.Client;
 
 /// <summary>
 /// Wrapper adapting native RobustToolbox Control instances to AstraGraph's IRobustUiControl.

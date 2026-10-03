@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace AstraGraph.Editor.Core;
+namespace Content.AstraGraph.Editor.Core;
 
 public readonly record struct BezierCurve(
     CanvasPoint Start,

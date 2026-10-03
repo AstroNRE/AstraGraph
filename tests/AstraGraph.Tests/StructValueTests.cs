@@ -1,12 +1,12 @@
 using System.Text;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 using NUnit.Framework;
-using AstraGraph.Persistence;
-using AstraGraph.Persistence.State;
-using AstraGraph.State;
-using AstraGraph.VM;
+using Content.AstraGraph.Persistence;
+using Content.AstraGraph.Persistence.State;
+using Content.AstraGraph.State;
+using Content.AstraGraph.VM;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class StructValueTests

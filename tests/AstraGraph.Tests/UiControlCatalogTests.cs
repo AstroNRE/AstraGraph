@@ -1,14 +1,14 @@
-using AstraGraph.Binding;
-using AstraGraph.Core;
-using AstraGraph.UI.Catalog;
-using AstraGraph.UI.Compiler;
-using AstraGraph.UI.Diff;
-using AstraGraph.UI.Model;
-using AstraGraph.UI.Runtime;
-using AstraGraph.UI.Serialization;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.UI.Catalog;
+using Content.AstraGraph.UI.Compiler;
+using Content.AstraGraph.UI.Diff;
+using Content.AstraGraph.UI.Model;
+using Content.AstraGraph.UI.Runtime;
+using Content.AstraGraph.UI.Serialization;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class UiControlCatalogTests

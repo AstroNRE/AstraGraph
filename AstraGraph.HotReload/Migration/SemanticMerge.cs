@@ -1,6 +1,6 @@
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.HotReload;
+namespace Content.AstraGraph.HotReload;
 
 public sealed record MergeResult(GraphDocument? Document, IReadOnlyList<string> Conflicts);
 

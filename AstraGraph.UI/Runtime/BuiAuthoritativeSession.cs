@@ -1,7 +1,7 @@
-using AstraGraph.UI.Catalog;
-using AstraGraph.UI.Model;
+using Content.AstraGraph.UI.Catalog;
+using Content.AstraGraph.UI.Model;
 
-namespace AstraGraph.UI.Runtime;
+namespace Content.AstraGraph.UI.Runtime;
 
 public sealed record BuiSessionContext(string? User, string? Entity, string? BuiKey, string? BoundEntity);
 

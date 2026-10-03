@@ -1,9 +1,9 @@
-using AstraGraph.Binding;
-using AstraGraph.Core;
-using AstraGraph.Runtime.Security;
-using AstraGraph.State;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Runtime.Security;
+using Content.AstraGraph.State;
 
-namespace AstraGraph.Runtime;
+namespace Content.AstraGraph.Runtime;
 
 public interface IAstraRuntime
 {

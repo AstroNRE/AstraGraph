@@ -1,10 +1,10 @@
-using AstraGraph.Core;
-using AstraGraph.UI.Catalog;
-using AstraGraph.UI.Html;
-using AstraGraph.UI.Model;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.UI.Catalog;
+using Content.AstraGraph.UI.Html;
+using Content.AstraGraph.UI.Model;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class UiHtmlPageTests

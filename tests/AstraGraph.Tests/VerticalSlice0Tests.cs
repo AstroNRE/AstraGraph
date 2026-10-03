@@ -2,17 +2,17 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using AstraGraph.Core;
-using AstraGraph.HotReload;
-using AstraGraph.Persistence;
-using AstraGraph.Persistence.Discovery;
-using AstraGraph.Persistence.State;
-using AstraGraph.Runtime;
-using AstraGraph.State;
-using AstraGraph.VM;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.HotReload;
+using Content.AstraGraph.Persistence;
+using Content.AstraGraph.Persistence.Discovery;
+using Content.AstraGraph.Persistence.State;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.State;
+using Content.AstraGraph.VM;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 /// <summary>
 /// End-to-end acceptance test for Vertical Slice 0: "Doll -> Mothroach".

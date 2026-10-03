@@ -1,7 +1,7 @@
-using AstraGraph.Editor.Protocol;
-using AstraGraph.Runtime.Security;
+using Content.AstraGraph.Editor.Protocol;
+using Content.AstraGraph.Runtime.Security;
 
-namespace AstraGraph.Robust.Server;
+namespace Content.AstraGraph.Robust.Server;
 
 public sealed record AuthoringLaunchToken(
     string Token,

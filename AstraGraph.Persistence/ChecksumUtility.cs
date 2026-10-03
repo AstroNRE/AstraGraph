@@ -1,6 +1,6 @@
 using System;
 
-namespace AstraGraph.Persistence;
+namespace Content.AstraGraph.Persistence;
 
 /// <summary>
 /// Fast IEEE 802.3 CRC32 checksum calculator with precomputed lookup table.

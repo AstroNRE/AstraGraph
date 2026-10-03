@@ -1,22 +1,22 @@
 using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 using System.Reflection;
-using AstraGraph.Binding;
-using AstraGraph.Core;
-using AstraGraph.Editor.Core;
-using AstraGraph.Editor.Core.Search;
-using AstraGraph.HotReload;
-using AstraGraph.UI.Catalog;
-using AstraGraph.UI.Compiler;
-using AstraGraph.UI.Model;
-using AstraGraph.UI.Runtime;
-using AstraGraph.UI.Serialization;
-using AstraGraph.Persistence.Audit;
-using AstraGraph.Runtime.Debugging;
-using AstraGraph.Runtime.Profiling;
-using AstraGraph.Runtime.Security;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Editor.Core;
+using Content.AstraGraph.Editor.Core.Search;
+using Content.AstraGraph.HotReload;
+using Content.AstraGraph.UI.Catalog;
+using Content.AstraGraph.UI.Compiler;
+using Content.AstraGraph.UI.Model;
+using Content.AstraGraph.UI.Runtime;
+using Content.AstraGraph.UI.Serialization;
+using Content.AstraGraph.Persistence.Audit;
+using Content.AstraGraph.Runtime.Debugging;
+using Content.AstraGraph.Runtime.Profiling;
+using Content.AstraGraph.Runtime.Security;
 
-namespace AstraGraph.Editor.Protocol;
+namespace Content.AstraGraph.Editor.Protocol;
 
 public interface IAuthoringSessionHost
 {
@@ -1527,7 +1527,7 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
 
     public ProfilerSnapshotDto CaptureProfiler(GraphId graphId, bool reset)
     {
-        var metric = _profiler?.GetMetrics(graphId) ?? new AstraGraph.Runtime.Profiling.GraphPerformanceMetric(0, 0, 0, 0, 0, 0);
+        var metric = _profiler?.GetMetrics(graphId) ?? new Content.AstraGraph.Runtime.Profiling.GraphPerformanceMetric(0, 0, 0, 0, 0, 0);
         var hottest = _profiler?.GetHottestNodes(8)
             .Select(item => new ProfilerNodeDto(item.Key.ToString(), item.Value, _profiler.NodeMicroseconds(item.Key)))
             .ToArray() ?? [];
@@ -1542,7 +1542,7 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             metric.BudgetViolations,
             metric.AllocatedBytes,
             _hotReloadManager?.Host.PendingReplicationBytes() ?? 0,
-            AstraGraph.Runtime.MixedQueryEngine.Iterations,
+            Content.AstraGraph.Runtime.MixedQueryEngine.Iterations,
             _profiler?.RecentSamples(graphId) ?? []);
         if (reset) _profiler?.Reset();
         return snapshot;
@@ -1788,7 +1788,7 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             if (function == null) return new SandboxRunDto("Verify", bytecode.SemanticHash, "No function to run", true);
             var started = System.Diagnostics.Stopwatch.GetTimestamp();
             var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
-            var executed = new AstraGraph.VM.AstraVm().Execute(bytecode, function, onNodeElapsed: (node, microseconds) =>
+            var executed = new Content.AstraGraph.VM.AstraVm().Execute(bytecode, function, onNodeElapsed: (node, microseconds) =>
             {
                 _profiler?.RecordNodeTime(node, microseconds);
                 if (_profilerWatch.Values.Contains(document.Id))
@@ -1802,13 +1802,13 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
             {
                 _profiler?.RecordElapsed(document.Id, elapsed);
                 _profiler?.RecordAllocation(document.Id, allocated);
-                if (executed.Status == AstraGraph.VM.VmExecutionStatus.ExceededBudget)
+                if (executed.Status == Content.AstraGraph.VM.VmExecutionStatus.ExceededBudget)
                 {
                     _profiler?.RecordBudgetViolation(document.Id);
                 }
             }
 
-            var failed = executed.Status is AstraGraph.VM.VmExecutionStatus.Faulted or AstraGraph.VM.VmExecutionStatus.ExceededBudget;
+            var failed = executed.Status is Content.AstraGraph.VM.VmExecutionStatus.Faulted or Content.AstraGraph.VM.VmExecutionStatus.ExceededBudget;
             return new SandboxRunDto("Verify", bytecode.SemanticHash, executed.Exception?.Message ?? executed.ReturnValue.ToString(), failed);
         }
         catch (Exception ex)
@@ -2146,7 +2146,7 @@ public sealed class AuthoringServerSession : IAuthoringMessageHandler
 
     private static IRobustUiControlFactory UiFactory()
     {
-        var native = Type.GetType("AstraGraph.Robust.Client.RobustUiControlFactory, AstraGraph.Robust.Client");
+        var native = Type.GetType("Content.AstraGraph.Robust.Client.RobustUiControlFactory, Content.AstraGraph.Robust.Client");
         if (native != null && Activator.CreateInstance(native) is IRobustUiControlFactory factory)
         {
             var available = native.GetMethod("IsNativeUiAvailable")?.Invoke(null, null);

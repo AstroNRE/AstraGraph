@@ -1,6 +1,6 @@
 using System.Collections;
 
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 /// <summary>
 /// Thread-safe diagnostic accumulator for compiling and validating AstraGraph programs.

@@ -2,19 +2,19 @@ using System;
 using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
-using AstraGraph.Binding;
-using AstraGraph.Core;
-using AstraGraph.Editor.Protocol;
-using AstraGraph.HotReload;
-using AstraGraph.Persistence;
-using AstraGraph.Persistence.Audit;
-using AstraGraph.Runtime;
-using AstraGraph.Runtime.Debugging;
-using AstraGraph.Runtime.Profiling;
-using AstraGraph.Runtime.Security;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Editor.Protocol;
+using Content.AstraGraph.HotReload;
+using Content.AstraGraph.Persistence;
+using Content.AstraGraph.Persistence.Audit;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.Runtime.Debugging;
+using Content.AstraGraph.Runtime.Profiling;
+using Content.AstraGraph.Runtime.Security;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 public class ProtocolCatalogSample
 {

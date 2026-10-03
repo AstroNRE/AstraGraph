@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using AstraGraph.Core;
-using AstraGraph.State;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.State;
 
-namespace AstraGraph.Runtime.Network;
+namespace Content.AstraGraph.Runtime.Network;
 
 /// <summary>
 /// Orchestrates network synchronization of active graphs, schema tables, and bytecode packages

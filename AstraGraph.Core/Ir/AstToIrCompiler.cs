@@ -1,4 +1,4 @@
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 /// <summary>
 /// Compiles a typed AstProgram into flat, basic-block-based Astra IR.

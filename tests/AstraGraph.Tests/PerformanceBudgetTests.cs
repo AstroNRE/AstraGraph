@@ -1,14 +1,14 @@
 using System.Diagnostics;
 using System.Reflection;
-using AstraGraph.Binding;
-using AstraGraph.Core;
-using AstraGraph.JIT;
-using AstraGraph.Runtime;
-using AstraGraph.State;
-using AstraGraph.VM;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.JIT;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.State;
+using Content.AstraGraph.VM;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 public class PerformanceBudgetFixtureTarget
 {

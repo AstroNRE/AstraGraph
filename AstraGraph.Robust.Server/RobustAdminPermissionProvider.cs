@@ -1,9 +1,9 @@
 using System.Collections.Concurrent;
-using AstraGraph.Binding;
-using AstraGraph.Runtime.Security;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Runtime.Security;
 using Robust.Shared.Player;
 
-namespace AstraGraph.Robust.Server;
+namespace Content.AstraGraph.Robust.Server;
 
 /// <summary>
 /// Connects AstraGraph's RBAC security model to RobustToolbox's session management

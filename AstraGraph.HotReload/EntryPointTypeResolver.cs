@@ -1,8 +1,8 @@
 using System.Reflection;
-using AstraGraph.Binding;
-using AstraGraph.Core;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.HotReload;
+namespace Content.AstraGraph.HotReload;
 
 public interface IEntryPointTypeResolver
 {

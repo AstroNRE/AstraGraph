@@ -1,19 +1,19 @@
-using AstraGraph.Binding;
-using AstraGraph.Core;
-using AstraGraph.HotReload;
-using AstraGraph.Runtime;
-using AstraGraph.Runtime.Security;
-using AstraGraph.State;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.HotReload;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.Runtime.Security;
+using Content.AstraGraph.State;
 using NUnit.Framework;
 
 #if NET10_0_OR_GREATER
-using AstraGraph.Robust.Client;
-using AstraGraph.Robust.Server;
-using AstraGraph.Robust.Shared;
+using Content.AstraGraph.Robust.Client;
+using Content.AstraGraph.Robust.Server;
+using Content.AstraGraph.Robust.Shared;
 using Robust.Client.UserInterface.Controls;
 #endif
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 public struct TestRefValueEvent
 {
@@ -108,11 +108,11 @@ public sealed class RobustIntegrationTests
         // 1. Create a Button control
         var buttonWrapper = factory.CreateControl(
             "btn_test",
-            AstraGraph.UI.Model.UiElementType.Button,
+            Content.AstraGraph.UI.Model.UiElementType.Button,
             "SubmitButton",
             100,
             30,
-            AstraGraph.UI.Model.UiOrientation.Horizontal);
+            Content.AstraGraph.UI.Model.UiOrientation.Horizontal);
 
         Assert.That(buttonWrapper, Is.Not.Null);
 
@@ -132,11 +132,11 @@ public sealed class RobustIntegrationTests
         // 2. Create a LineEdit control
         var inputWrapper = factory.CreateControl(
             "input_test",
-            AstraGraph.UI.Model.UiElementType.LineEdit,
+            Content.AstraGraph.UI.Model.UiElementType.LineEdit,
             "SearchInput",
             200,
             24,
-            AstraGraph.UI.Model.UiOrientation.Horizontal);
+            Content.AstraGraph.UI.Model.UiOrientation.Horizontal);
 
         Assert.That(inputWrapper, Is.Not.Null);
         inputWrapper.Text = "Query string";

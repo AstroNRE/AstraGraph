@@ -1,17 +1,17 @@
-using AstraGraph.Binding;
-using AstraGraph.Core;
-using AstraGraph.HotReload;
-using AstraGraph.Persistence;
-using AstraGraph.Persistence.Discovery;
-using AstraGraph.Runtime;
-using AstraGraph.State;
-using AstraGraph.Tests.Probes;
-using AstraGraph.VM;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.HotReload;
+using Content.AstraGraph.Persistence;
+using Content.AstraGraph.Persistence.Discovery;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.State;
+using Content.AstraGraph.Tests.Probes;
+using Content.AstraGraph.VM;
 using NUnit.Framework;
 
 #pragma warning disable CA1822
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class GraphDefinedComponentTests

@@ -1,8 +1,8 @@
 using System;
-using AstraGraph.Binding;
-using AstraGraph.Core;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Runtime.Security;
+namespace Content.AstraGraph.Runtime.Security;
 
 /// <summary>
 /// Fine-grained Role-Based Access Control (RBAC) permissions for AstraGraph users and administrators.

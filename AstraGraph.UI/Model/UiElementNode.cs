@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Text.Json.Serialization;
-using AstraGraph.UI.Catalog;
+using Content.AstraGraph.UI.Catalog;
 
-namespace AstraGraph.UI.Model;
+namespace Content.AstraGraph.UI.Model;
 
 /// <summary>
 /// One node in an Astra UI view tree.

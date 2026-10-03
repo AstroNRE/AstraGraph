@@ -1,12 +1,12 @@
 using System.Collections.Generic;
 using System.Linq;
-using AstraGraph.Core;
-using AstraGraph.Editor.Core;
-using AstraGraph.Editor.Core.Search;
-using AstraGraph.Editor.UI;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Editor.Core;
+using Content.AstraGraph.Editor.Core.Search;
+using Content.AstraGraph.Editor.UI;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class CanvasInteractionControllerTests

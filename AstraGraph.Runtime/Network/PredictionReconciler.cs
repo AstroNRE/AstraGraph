@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using AstraGraph.Core;
-using AstraGraph.State;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.State;
 
-namespace AstraGraph.Runtime.Network;
+namespace Content.AstraGraph.Runtime.Network;
 
 /// <summary>
 /// Result of reconciling client prediction against an authoritative server state tick.

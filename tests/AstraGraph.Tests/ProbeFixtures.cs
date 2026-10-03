@@ -1,4 +1,4 @@
-namespace AstraGraph.Tests.Probes;
+namespace Content.AstraGraph.Tests.Probes;
 
 public sealed class UserProbe
 {

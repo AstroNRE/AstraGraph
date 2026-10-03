@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using AstraGraph.Core;
-using AstraGraph.Editor.Core;
-using AstraGraph.Editor.Core.Debugging;
-using AstraGraph.Editor.Core.Profiling;
-using AstraGraph.Editor.Core.Search;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Editor.Core;
+using Content.AstraGraph.Editor.Core.Debugging;
+using Content.AstraGraph.Editor.Core.Profiling;
+using Content.AstraGraph.Editor.Core.Search;
 
-namespace AstraGraph.Editor.UI;
+namespace Content.AstraGraph.Editor.UI;
 
 public enum InteractionState
 {

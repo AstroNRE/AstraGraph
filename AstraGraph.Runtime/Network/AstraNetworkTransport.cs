@@ -1,6 +1,6 @@
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Runtime.Network;
+namespace Content.AstraGraph.Runtime.Network;
 
 /// <summary>
 /// Byte transport between Astra sync peers. Robust content sends these frames through its network manager.

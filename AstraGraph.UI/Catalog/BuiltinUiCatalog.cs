@@ -1,4 +1,4 @@
-namespace AstraGraph.UI.Catalog;
+namespace Content.AstraGraph.UI.Catalog;
 
 /// <summary>
 /// Well-known Robust controls so Studio and the compiler work before a fork indexes its assemblies.

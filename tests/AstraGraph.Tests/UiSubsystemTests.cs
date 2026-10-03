@@ -1,10 +1,10 @@
-using AstraGraph.Core;
-using AstraGraph.UI.Compiler;
-using AstraGraph.UI.Model;
-using AstraGraph.UI.Runtime;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.UI.Compiler;
+using Content.AstraGraph.UI.Model;
+using Content.AstraGraph.UI.Runtime;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class UiSubsystemTests

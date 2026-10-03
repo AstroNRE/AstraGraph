@@ -1,12 +1,12 @@
-using AstraGraph.Editor.Bridge;
-using AstraGraph.Editor.InGame;
-using AstraGraph.Editor.Protocol;
-using AstraGraph.Robust.Shared;
-using AstraGraph.UI.Runtime;
+using Content.AstraGraph.Editor.Bridge;
+using Content.AstraGraph.Editor.InGame;
+using Content.AstraGraph.Editor.Protocol;
+using Content.AstraGraph.Robust.Shared;
+using Content.AstraGraph.UI.Runtime;
 using Robust.Shared.GameObjects;
 using Robust.Shared.IoC;
 
-namespace AstraGraph.Robust.Client;
+namespace Content.AstraGraph.Robust.Client;
 
 /// <summary>
 /// Client-side RobustToolbox EntitySystem managing UI graph reconciliation,
@@ -112,7 +112,7 @@ public sealed class ClientAstraGraphSystem : SharedAstraGraphSystem
     /// <summary>
     /// Previews a UI document in the live Robust window when the client is running, otherwise headless.
     /// </summary>
-    public string PreviewUi(AstraGraph.UI.Model.UiDocument document)
+    public string PreviewUi(Content.AstraGraph.UI.Model.UiDocument document)
     {
         _preview ??= new RobustUiPreviewHost(_controlFactory);
         _preview.Update(document, out _);

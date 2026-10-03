@@ -1,9 +1,9 @@
 using System.Linq.Expressions;
 using System.Numerics;
 using System.Reflection;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Binding;
+namespace Content.AstraGraph.Binding;
 
 /// <summary>
 /// Compiles MethodInfo into ultra-fast pre-bound delegates (Func&lt;AstraValue[], AstraValue&gt;)

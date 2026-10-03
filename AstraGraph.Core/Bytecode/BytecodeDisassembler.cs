@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 /// <summary>
 /// Generates human-readable disassembly listings from Astra bytecode programs.

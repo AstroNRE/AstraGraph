@@ -1,7 +1,7 @@
 using System.Reflection;
 using System.Reflection.Emit;
-using AstraGraph.Core;
-using AstraGraph.State;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.State;
 using Robust.Shared.GameObjects;
 using Robust.Shared.IoC;
 using Robust.Shared.Serialization;
@@ -13,7 +13,7 @@ using Robust.Shared.Serialization.Markdown.Validation;
 using Robust.Shared.Serialization.Markdown.Value;
 using Robust.Shared.Serialization.TypeSerializers.Interfaces;
 
-namespace AstraGraph.Robust.Shared;
+namespace Content.AstraGraph.Robust.Shared;
 
 /// <summary>
 /// Robust component shell for a graph-defined schema. Gameplay values stay in the dynamic store.
@@ -224,7 +224,7 @@ public static class AstraSchemaComponentBridge
 
         var typeName = schemaName + "Component";
         var builder = Module.DefineType(
-            "AstraGraph.Generated." + typeName,
+            "Content.AstraGraph.Generated." + typeName,
             TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.Class,
             typeof(AstraSchemaComponentProxy));
         var constructor = builder.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
@@ -245,7 +245,7 @@ public static class AstraSchemaComponentBridge
 
     private static ModuleBuilder CreateModule()
     {
-        var assembly = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("AstraGraph.SchemaProxies"), AssemblyBuilderAccess.Run);
+        var assembly = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("Content.AstraGraph.SchemaProxies"), AssemblyBuilderAccess.Run);
         return assembly.DefineDynamicModule("schemas");
     }
 }

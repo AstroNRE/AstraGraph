@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace AstraGraph.UI.Runtime;
+namespace Content.AstraGraph.UI.Runtime;
 
 public sealed record VariableChangedEventArgs(string Name, object? OldValue, object? NewValue);
 

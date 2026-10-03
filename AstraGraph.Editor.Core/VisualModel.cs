@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Editor.Core;
+namespace Content.AstraGraph.Editor.Core;
 
 public sealed class VisualPin
 {

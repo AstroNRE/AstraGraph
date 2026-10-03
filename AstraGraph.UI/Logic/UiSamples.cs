@@ -1,8 +1,8 @@
-using AstraGraph.Core;
-using AstraGraph.UI.Catalog;
-using AstraGraph.UI.Model;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.UI.Catalog;
+using Content.AstraGraph.UI.Model;
 
-namespace AstraGraph.UI.Logic;
+namespace Content.AstraGraph.UI.Logic;
 
 /// <summary>
 /// The three demonstration documents from the UI builder plan: Mothroach, vehicle parts, and surgery.

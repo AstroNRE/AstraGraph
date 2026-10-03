@@ -1,8 +1,8 @@
 using System.Text;
-using AstraGraph.Editor.Bridge;
+using Content.AstraGraph.Editor.Bridge;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class EmbeddedAssetProviderTests

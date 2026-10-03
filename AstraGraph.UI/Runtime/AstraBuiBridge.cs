@@ -1,6 +1,6 @@
-using AstraGraph.UI.Compiler;
+using Content.AstraGraph.UI.Compiler;
 
-namespace AstraGraph.UI.Runtime;
+namespace Content.AstraGraph.UI.Runtime;
 
 public sealed record BuiMessage(string Action, object? Payload);
 

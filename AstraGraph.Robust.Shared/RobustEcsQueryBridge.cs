@@ -1,8 +1,8 @@
-using AstraGraph.Core;
-using AstraGraph.Runtime;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Runtime;
 using Robust.Shared.GameObjects;
 
-namespace AstraGraph.Robust.Shared;
+namespace Content.AstraGraph.Robust.Shared;
 
 /// <summary>
 /// Connects AstraGraph's MixedQueryEngine directly to RobustToolbox's IEntityManager,

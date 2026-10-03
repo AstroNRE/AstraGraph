@@ -1,4 +1,4 @@
-namespace AstraGraph.Robust.Server;
+namespace Content.AstraGraph.Robust.Server;
 
 public static class ServerRegistration
 {

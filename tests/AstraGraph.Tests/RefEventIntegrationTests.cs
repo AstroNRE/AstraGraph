@@ -1,13 +1,13 @@
 #if NET10_0_OR_GREATER
-using AstraGraph.Core;
-using AstraGraph.HotReload;
-using AstraGraph.Robust.Shared;
-using AstraGraph.Runtime;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.HotReload;
+using Content.AstraGraph.Robust.Shared;
+using Content.AstraGraph.Runtime;
 using NUnit.Framework;
 using Robust.Shared.GameObjects;
 using Robust.UnitTesting.Server;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class RefEventIntegrationTests

@@ -1,7 +1,7 @@
 using System.Net.WebSockets;
 using System.Text.Json;
 
-namespace AstraGraph.Editor.Protocol;
+namespace Content.AstraGraph.Editor.Protocol;
 
 /// <summary>
 /// Server-side WebSocket proxy: accepts a raw WebSocket connection,

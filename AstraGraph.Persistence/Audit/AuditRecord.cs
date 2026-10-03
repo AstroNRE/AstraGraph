@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace AstraGraph.Persistence.Audit;
+namespace Content.AstraGraph.Persistence.Audit;
 
 /// <summary>
 /// Immutable audit entry representing an operation performed on graphs, revisions, or storage.

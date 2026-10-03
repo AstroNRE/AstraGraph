@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Runtime.Network;
+namespace Content.AstraGraph.Runtime.Network;
 
 /// <summary>
 /// Coordinates synchronized atomic revision activation across server and client at an exact tick boundary.

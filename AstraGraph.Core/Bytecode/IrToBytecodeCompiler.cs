@@ -1,4 +1,4 @@
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 /// <summary>
 /// Compiles an IrProgram with basic block CFG into linear BytecodeProgram for VM execution.

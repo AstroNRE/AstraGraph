@@ -1,7 +1,7 @@
-using AstraGraph.Core;
-using AstraGraph.UI.Model;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.UI.Model;
 
-namespace AstraGraph.UI.Logic;
+namespace Content.AstraGraph.UI.Logic;
 
 /// <summary>
 /// One published UI revision. The view, both graphs, and the contract move together.

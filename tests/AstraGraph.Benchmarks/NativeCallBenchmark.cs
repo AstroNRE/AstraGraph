@@ -1,9 +1,9 @@
 using System.Reflection;
-using AstraGraph.Binding;
-using AstraGraph.Core;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
 using BenchmarkDotNet.Attributes;
 
-namespace AstraGraph.Benchmarks;
+namespace Content.AstraGraph.Benchmarks;
 
 public class SampleTarget
 {

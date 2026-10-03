@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Runtime.Network;
+namespace Content.AstraGraph.Runtime.Network;
 
 /// <summary>
 /// Enforces client prediction rules ensuring that predicted graphs only execute

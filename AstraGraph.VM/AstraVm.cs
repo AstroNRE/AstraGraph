@@ -1,6 +1,6 @@
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.VM;
+namespace Content.AstraGraph.VM;
 
 /// <summary>
 /// Fast portable stackless virtual machine executing Astra bytecode.

@@ -1,6 +1,6 @@
-using AstraGraph.UI.Model;
+using Content.AstraGraph.UI.Model;
 
-namespace AstraGraph.UI.Diff;
+namespace Content.AstraGraph.UI.Diff;
 
 public sealed record UiDiffEntry(string Kind, string Detail);
 

@@ -1,8 +1,8 @@
-using AstraGraph.Core;
-using AstraGraph.Runtime.Security;
-using AstraGraph.UI.Serialization;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Runtime.Security;
+using Content.AstraGraph.UI.Serialization;
 
-namespace AstraGraph.Editor.Protocol;
+namespace Content.AstraGraph.Editor.Protocol;
 
 /// <summary>
 /// Base class for all strongly-typed authoring messages transported over WebSocket.

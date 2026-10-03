@@ -1,7 +1,7 @@
-using AstraGraph.Core;
-using AstraGraph.Runtime.Security;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Runtime.Security;
 
-namespace AstraGraph.Editor.Protocol;
+namespace Content.AstraGraph.Editor.Protocol;
 
 public sealed class AuthoringClientSession
 {

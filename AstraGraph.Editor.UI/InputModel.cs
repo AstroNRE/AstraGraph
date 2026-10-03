@@ -1,4 +1,4 @@
-namespace AstraGraph.Editor.UI;
+namespace Content.AstraGraph.Editor.UI;
 
 public enum MouseButton
 {

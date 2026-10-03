@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using AstraGraph.Editor.Core;
+using Content.AstraGraph.Editor.Core;
 
-namespace AstraGraph.Editor.UI;
+namespace Content.AstraGraph.Editor.UI;
 
 public readonly record struct CanvasColor(byte R, byte G, byte B, byte A = 255)
 {

@@ -1,9 +1,9 @@
 using System.Globalization;
-using AstraGraph.Core;
-using AstraGraph.State;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.State;
 using Robust.Shared.GameObjects;
 
-namespace AstraGraph.Robust.Shared;
+namespace Content.AstraGraph.Robust.Shared;
 
 /// <summary>
 /// Writes primitive schema fields back onto the Robust component shell.

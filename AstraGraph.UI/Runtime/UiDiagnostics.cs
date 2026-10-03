@@ -1,7 +1,7 @@
 using System.Diagnostics;
-using AstraGraph.UI.Model;
+using Content.AstraGraph.UI.Model;
 
-namespace AstraGraph.UI.Runtime;
+namespace Content.AstraGraph.UI.Runtime;
 
 public sealed record UiBindingWatch(string ElementId, string Property, string StateVariable, object? Value);
 

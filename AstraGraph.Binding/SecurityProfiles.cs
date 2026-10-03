@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace AstraGraph.Binding;
+namespace Content.AstraGraph.Binding;
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum SecurityProfile

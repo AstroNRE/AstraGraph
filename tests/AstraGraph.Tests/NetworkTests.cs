@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using AstraGraph.Core;
-using AstraGraph.Runtime;
-using AstraGraph.Runtime.Network;
-using AstraGraph.State;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.Runtime.Network;
+using Content.AstraGraph.State;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class NetworkTests

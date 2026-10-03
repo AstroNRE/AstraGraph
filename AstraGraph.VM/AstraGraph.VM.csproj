@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AstraGraph.VM</RootNamespace>
+    <RootNamespace>Content.AstraGraph.VM</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

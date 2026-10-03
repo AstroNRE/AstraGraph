@@ -1,6 +1,6 @@
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Runtime;
+namespace Content.AstraGraph.Runtime;
 
 /// <summary>
 /// One isolated graph failure. Repeated faults open a circuit and stop that graph until reset.

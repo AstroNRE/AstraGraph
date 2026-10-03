@@ -1,4 +1,4 @@
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 /// <summary>
 /// Abstract base class for all nodes in the typed Abstract Syntax Tree (AST).

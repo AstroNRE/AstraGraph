@@ -1,6 +1,6 @@
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.VM;
+namespace Content.AstraGraph.VM;
 
 /// <summary>
 /// Bridge interface for host environment services during VM execution (variables, native methods, ECS).

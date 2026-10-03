@@ -1,10 +1,10 @@
-using AstraGraph.Binding;
-using AstraGraph.Core;
-using AstraGraph.Runtime;
-using AstraGraph.Runtime.Security;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.Runtime.Security;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class AdminPermissionResolverTests

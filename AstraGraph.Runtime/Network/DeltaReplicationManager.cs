@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using AstraGraph.Core;
-using AstraGraph.State;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.State;
 
-namespace AstraGraph.Runtime.Network;
+namespace Content.AstraGraph.Runtime.Network;
 
 public sealed record FieldDeltaValue(FieldId FieldId, int SlotIndex, AstraValue Value);
 

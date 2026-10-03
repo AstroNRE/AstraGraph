@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
 using System.Reflection;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Binding;
+namespace Content.AstraGraph.Binding;
 
 /// <summary>
 /// Central registry of all native CLR types, methods, and properties indexed for AstraGraph authoring and execution.

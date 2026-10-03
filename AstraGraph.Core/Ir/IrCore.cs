@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 [JsonConverter(typeof(JsonStringEnumConverter<IrOpCode>))]
 public enum IrOpCode

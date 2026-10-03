@@ -1,8 +1,8 @@
 using System.Reflection;
-using AstraGraph.Persistence;
-using AstraGraph.Runtime.Security;
+using Content.AstraGraph.Persistence;
+using Content.AstraGraph.Runtime.Security;
 
-namespace AstraGraph.HotReload;
+namespace Content.AstraGraph.HotReload;
 
 /// <summary>
 /// Immutable settings a consumer fork supplies before the server host is created.

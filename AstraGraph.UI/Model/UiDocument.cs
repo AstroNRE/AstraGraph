@@ -1,6 +1,6 @@
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.UI.Model;
+namespace Content.AstraGraph.UI.Model;
 
 /// <summary>
 /// Top-level declarative Astra UI Document representing an in-game window or interface.

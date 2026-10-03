@@ -2,15 +2,15 @@ using System.Collections;
 using System.Globalization;
 using System.Reflection;
 using Robust.Shared.Log;
-using AstraGraph.Binding;
-using AstraGraph.Core;
-using AstraGraph.Robust.Client;
-using AstraGraph.UI.Html;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Robust.Client;
+using Content.AstraGraph.UI.Html;
 using Robust.Shared.Containers;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Map;
 
-namespace AstraGraph.Robust.Shared;
+namespace Content.AstraGraph.Robust.Shared;
 
 /// <summary>
 /// Gameplay-profile operations a graph may call. Flow.DoAfter yields in the VM.

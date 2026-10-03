@@ -1,9 +1,9 @@
-using AstraGraph.Core;
-using AstraGraph.Runtime;
-using AstraGraph.State;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.State;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 public sealed class NativeTransformComponent
 {

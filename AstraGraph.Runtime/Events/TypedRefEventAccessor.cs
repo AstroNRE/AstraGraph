@@ -1,8 +1,8 @@
 using System.Reflection;
 using System.Reflection.Emit;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Runtime.Events;
+namespace Content.AstraGraph.Runtime.Events;
 
 /// <summary>
 /// Delegate for reading a field or property from a ref event argument without boxing.

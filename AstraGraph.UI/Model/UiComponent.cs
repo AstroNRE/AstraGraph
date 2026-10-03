@@ -1,4 +1,4 @@
-namespace AstraGraph.UI.Model;
+namespace Content.AstraGraph.UI.Model;
 
 /// <summary>
 /// A reusable piece of a UI tree. Instances receive new element ids.

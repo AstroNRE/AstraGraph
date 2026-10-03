@@ -1,7 +1,7 @@
-using AstraGraph.Core;
-using AstraGraph.Editor.Bridge;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Editor.Bridge;
 
-namespace AstraGraph.Editor.InGame;
+namespace Content.AstraGraph.Editor.InGame;
 
 /// <summary>
 /// In-game runtime status of the Astra Local Bridge, shown in developer toolbar / admin menu.

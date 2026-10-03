@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 /// <summary>
 /// Packed 16-byte bytecode instruction executed by Astra VM.

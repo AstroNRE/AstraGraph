@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Web;
 
-namespace AstraGraph.Editor.Bridge;
+namespace Content.AstraGraph.Editor.Bridge;
 
 /// <summary>
 /// Deep-link context for opening Astra Studio at a specific location.

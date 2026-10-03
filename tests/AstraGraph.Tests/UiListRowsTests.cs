@@ -1,9 +1,9 @@
-using AstraGraph.Core;
-using AstraGraph.UI.Html;
-using AstraGraph.VM;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.UI.Html;
+using Content.AstraGraph.VM;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class UiListRowsTests

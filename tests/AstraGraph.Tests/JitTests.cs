@@ -1,11 +1,11 @@
 using System;
 using System.Runtime.CompilerServices;
-using AstraGraph.Core;
-using AstraGraph.JIT;
-using AstraGraph.VM;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.JIT;
+using Content.AstraGraph.VM;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class JitTests

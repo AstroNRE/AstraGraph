@@ -1,7 +1,7 @@
-using AstraGraph.HotReload;
-using AstraGraph.Persistence;
-using AstraGraph.Runtime;
-using AstraGraph.Runtime.Security;
+using Content.AstraGraph.HotReload;
+using Content.AstraGraph.Persistence;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.Runtime.Security;
 
 namespace Content.Integration;
 

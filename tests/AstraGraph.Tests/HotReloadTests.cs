@@ -1,9 +1,9 @@
-using AstraGraph.Core;
-using AstraGraph.HotReload;
-using AstraGraph.Runtime;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.HotReload;
+using Content.AstraGraph.Runtime;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class HotReloadTests

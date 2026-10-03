@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.State;
+namespace Content.AstraGraph.State;
 
 /// <summary>
 /// High-performance dynamic component store for schema-based Astra components on entities.

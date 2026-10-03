@@ -1,7 +1,7 @@
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 using Robust.Shared.GameObjects;
 
-namespace AstraGraph.Robust.Shared;
+namespace Content.AstraGraph.Robust.Shared;
 
 /// <summary>
 /// Converts between the engine-neutral entity id and Robust EntityUid.

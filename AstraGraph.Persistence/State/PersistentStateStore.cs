@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 using System.Text;
-using AstraGraph.Core;
-using AstraGraph.State;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.State;
 
-namespace AstraGraph.Persistence.State;
+namespace Content.AstraGraph.Persistence.State;
 
 /// <summary>
 /// Manages binary persistence of opt-in runtime state snapshots.

@@ -1,8 +1,8 @@
 using System.Text;
-using AstraGraph.Core;
-using AstraGraph.Persistence;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Persistence;
 
-namespace AstraGraph.HotReload;
+namespace Content.AstraGraph.HotReload;
 
 /// <summary>
 /// Writes published graphs and revision records under the live and history directories.

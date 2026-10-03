@@ -1,4 +1,4 @@
-namespace AstraGraph.UI.Catalog;
+namespace Content.AstraGraph.UI.Catalog;
 
 /// <summary>
 /// How Studio should edit a control property. The kind is derived from the CLR type.

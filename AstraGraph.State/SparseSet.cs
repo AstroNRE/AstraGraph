@@ -1,4 +1,4 @@
-namespace AstraGraph.State;
+namespace Content.AstraGraph.State;
 
 /// <summary>
 /// High-performance sparse-set data structure providing O(1) presence checks,

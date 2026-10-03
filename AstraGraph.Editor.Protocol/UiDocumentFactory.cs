@@ -1,9 +1,9 @@
-using AstraGraph.Core;
-using AstraGraph.UI.Catalog;
-using AstraGraph.UI.Html;
-using AstraGraph.UI.Model;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.UI.Catalog;
+using Content.AstraGraph.UI.Html;
+using Content.AstraGraph.UI.Model;
 
-namespace AstraGraph.Editor.Protocol;
+namespace Content.AstraGraph.Editor.Protocol;
 
 /// <summary>
 /// Builds a <see cref="UiDocument"/> from the authoring DTO. Studio and the game client share this path.

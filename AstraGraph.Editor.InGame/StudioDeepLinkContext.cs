@@ -1,6 +1,6 @@
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Editor.InGame;
+namespace Content.AstraGraph.Editor.InGame;
 
 /// <summary>
 /// The action that Studio should perform when opened via deep link.

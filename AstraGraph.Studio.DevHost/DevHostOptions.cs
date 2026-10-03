@@ -1,4 +1,4 @@
-namespace AstraGraph.Studio.DevHost;
+namespace Content.AstraGraph.Studio.DevHost;
 
 public sealed record DevHostOptions
 {

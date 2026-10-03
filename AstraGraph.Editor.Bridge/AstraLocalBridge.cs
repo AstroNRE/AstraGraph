@@ -2,9 +2,9 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.WebSockets;
 using System.Text.Json;
-using AstraGraph.Editor.Protocol;
+using Content.AstraGraph.Editor.Protocol;
 
-namespace AstraGraph.Editor.Bridge;
+namespace Content.AstraGraph.Editor.Bridge;
 
 /// <summary>
 /// Status of the Astra Local Bridge for in-game status display.

@@ -1,9 +1,9 @@
 using System.Security.Cryptography;
-using AstraGraph.Binding;
-using AstraGraph.Editor.Bridge;
-using AstraGraph.Runtime.Security;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Editor.Bridge;
+using Content.AstraGraph.Runtime.Security;
 
-namespace AstraGraph.Studio.DevHost;
+namespace Content.AstraGraph.Studio.DevHost;
 
 /// <summary>
 /// Maps development role names onto the existing Astra permission flags.

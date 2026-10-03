@@ -1,4 +1,4 @@
-namespace AstraGraph.UI.Model;
+namespace Content.AstraGraph.UI.Model;
 
 /// <summary>
 /// Defines a reactive data binding between a UI control property and a state variable.

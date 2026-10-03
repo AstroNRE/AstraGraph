@@ -1,4 +1,4 @@
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 public enum EntityKind
 {
@@ -7,7 +7,7 @@ public enum EntityKind
 }
 
 /// <summary>
-/// First-class Entity identifiers in AstraGraph.
+/// First-class Entity identifiers in Content.AstraGraph.
 /// </summary>
 public sealed record EntityType(EntityKind Kind, string Name) : AstraType
 {

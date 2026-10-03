@@ -1,7 +1,7 @@
-using AstraGraph.UI.Catalog;
-using AstraGraph.UI.Model;
+using Content.AstraGraph.UI.Catalog;
+using Content.AstraGraph.UI.Model;
 
-namespace AstraGraph.UI.Logic;
+namespace Content.AstraGraph.UI.Logic;
 
 /// <summary>
 /// Graph nodes generated from the control catalog. One descriptor per property and event, not a handwritten node per control.

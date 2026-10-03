@@ -1,4 +1,4 @@
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 public enum PrimitiveKind
 {
@@ -19,7 +19,7 @@ public enum PrimitiveKind
 }
 
 /// <summary>
-/// Built-in primitive types in AstraGraph.
+/// Built-in primitive types in Content.AstraGraph.
 /// </summary>
 public sealed record PrimitiveType(PrimitiveKind Kind, string Name, bool ValueType) : AstraType
 {

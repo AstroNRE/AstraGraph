@@ -1,6 +1,6 @@
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.State;
+namespace Content.AstraGraph.State;
 
 /// <summary>
 /// Reads and writes graph-defined components in the dynamic store.

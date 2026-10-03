@@ -1,8 +1,8 @@
-using AstraGraph.Core;
-using AstraGraph.UI.Model;
-using AstraGraph.UI.Runtime;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.UI.Model;
+using Content.AstraGraph.UI.Runtime;
 
-namespace AstraGraph.UI.Logic;
+namespace Content.AstraGraph.UI.Logic;
 
 public sealed record UiLogicTrace(string Kind, string Detail);
 

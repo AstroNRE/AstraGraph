@@ -1,7 +1,7 @@
 #if NET10_0_OR_GREATER
-using AstraGraph.Core;
-using AstraGraph.Robust.Shared;
-using AstraGraph.State;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Robust.Shared;
+using Content.AstraGraph.State;
 using NUnit.Framework;
 using Robust.Shared.GameObjects;
 using Robust.Shared.IoC;
@@ -10,7 +10,7 @@ using Robust.Shared.Prototypes;
 using Robust.Shared.Serialization.Manager;
 using Robust.UnitTesting.Server;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class RobustSchemaPrototypeTests

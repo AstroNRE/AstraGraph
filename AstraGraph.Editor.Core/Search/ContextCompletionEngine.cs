@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Editor.Core.Search;
+namespace Content.AstraGraph.Editor.Core.Search;
 
 public sealed record ContextCompletionSuggestion(
     NodePaletteItem Item,

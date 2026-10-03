@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AstraGraph.Editor.InGame</RootNamespace>
+    <RootNamespace>Content.AstraGraph.Editor.InGame</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

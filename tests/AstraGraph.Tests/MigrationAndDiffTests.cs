@@ -1,9 +1,9 @@
-using AstraGraph.Core;
-using AstraGraph.HotReload;
-using AstraGraph.State;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.HotReload;
+using Content.AstraGraph.State;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class MigrationAndDiffTests

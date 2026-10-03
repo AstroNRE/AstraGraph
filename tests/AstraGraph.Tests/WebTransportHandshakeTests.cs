@@ -1,11 +1,11 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using AstraGraph.Editor.Bridge;
-using AstraGraph.Editor.Protocol;
+using Content.AstraGraph.Editor.Bridge;
+using Content.AstraGraph.Editor.Protocol;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class WebTransportHandshakeTests

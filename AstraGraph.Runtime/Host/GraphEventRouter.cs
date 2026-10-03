@@ -1,9 +1,9 @@
 using System.Reflection;
-using AstraGraph.Core;
-using AstraGraph.Core.Events;
-using AstraGraph.Runtime.Events;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Core.Events;
+using Content.AstraGraph.Runtime.Events;
 
-namespace AstraGraph.Runtime;
+namespace Content.AstraGraph.Runtime;
 
 public delegate void RefEventDispatcher<TEvent>(ref TEvent ev);
 public delegate void RefComponentEventDispatcher<TComp, TEvent>(object? uid, TComp? comp, ref TEvent ev);

@@ -1,13 +1,13 @@
 using System;
 using System.Linq;
-using AstraGraph.Binding;
-using AstraGraph.Core;
-using AstraGraph.Runtime.Debugging;
-using AstraGraph.Runtime.Profiling;
-using AstraGraph.Runtime.Security;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Runtime.Debugging;
+using Content.AstraGraph.Runtime.Profiling;
+using Content.AstraGraph.Runtime.Security;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class DiagnosticsSecurityTests

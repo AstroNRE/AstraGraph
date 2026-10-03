@@ -1,12 +1,12 @@
 using System.Numerics;
 using System.Reflection;
-using AstraGraph.Binding;
-using AstraGraph.Core;
-using AstraGraph.HotReload;
-using AstraGraph.VM;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.HotReload;
+using Content.AstraGraph.VM;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 public static class SampleMathService
 {

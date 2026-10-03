@@ -1,15 +1,15 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
-using AstraGraph.Binding;
-using AstraGraph.Core;
-using AstraGraph.Core.Events;
-using AstraGraph.Runtime;
-using AstraGraph.Runtime.Integration;
-using AstraGraph.VM;
-using AstraGraph.Runtime.Network;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Core.Events;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.Runtime.Integration;
+using Content.AstraGraph.VM;
+using Content.AstraGraph.Runtime.Network;
 
-namespace AstraGraph.HotReload;
+namespace Content.AstraGraph.HotReload;
 
 /// <summary>
 /// Orchestrates safe, atomic, transactional hot reload of gameplay graphs at tick boundaries

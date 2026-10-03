@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using AstraGraph.Core;
-using AstraGraph.Runtime.Debugging;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Runtime.Debugging;
 
-namespace AstraGraph.Editor.Core.Debugging;
+namespace Content.AstraGraph.Editor.Core.Debugging;
 
 public sealed record DebugWatchItem(string Name, string Expression, string Value);
 

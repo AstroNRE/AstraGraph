@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Tests.Fuzzing;
+namespace Content.AstraGraph.Tests.Fuzzing;
 
 /// <summary>
 /// Mutation-based and generative fuzzer for stress-testing AstraGraph JSON deserializers,

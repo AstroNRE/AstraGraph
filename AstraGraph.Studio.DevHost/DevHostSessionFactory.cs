@@ -1,15 +1,15 @@
 using System.Reflection;
-using AstraGraph.Binding;
-using AstraGraph.Core;
-using AstraGraph.Editor.Protocol;
-using AstraGraph.HotReload;
-using AstraGraph.Persistence;
-using AstraGraph.Persistence.Discovery;
-using AstraGraph.Runtime;
-using AstraGraph.Runtime.Profiling;
-using AstraGraph.Runtime.Security;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Editor.Protocol;
+using Content.AstraGraph.HotReload;
+using Content.AstraGraph.Persistence;
+using Content.AstraGraph.Persistence.Discovery;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.Runtime.Profiling;
+using Content.AstraGraph.Runtime.Security;
 
-namespace AstraGraph.Studio.DevHost;
+namespace Content.AstraGraph.Studio.DevHost;
 
 public sealed class StandaloneDevSession
 {

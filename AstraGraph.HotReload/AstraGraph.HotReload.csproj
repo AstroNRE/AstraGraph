@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AstraGraph.HotReload</RootNamespace>
+    <RootNamespace>Content.AstraGraph.HotReload</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

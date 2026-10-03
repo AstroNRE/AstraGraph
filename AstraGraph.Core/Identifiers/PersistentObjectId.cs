@@ -1,4 +1,4 @@
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 /// <summary>
 /// Gameplay identity that survives a restart. It is not an <see cref="EntityType"/> entity id.

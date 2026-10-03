@@ -1,15 +1,15 @@
-using AstraGraph.Binding;
-using AstraGraph.Robust.Client;
-using AstraGraph.Runtime;
-using AstraGraph.Runtime.Network;
-using AstraGraph.State;
-using AstraGraph.VM;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Robust.Client;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.Runtime.Network;
+using Content.AstraGraph.State;
+using Content.AstraGraph.VM;
 using Robust.Shared.GameObjects;
 using Robust.Shared.IoC;
 using Robust.Shared.Network;
 using Robust.Shared.Timing;
 
-namespace AstraGraph.Robust.Shared;
+namespace Content.AstraGraph.Robust.Shared;
 
 /// <summary>
 /// Native RobustToolbox EntitySystem acting as the shared host for AstraGraph visual gameplay systems.

@@ -1,7 +1,7 @@
 using Robust.Shared.GameObjects;
 using Robust.Shared.Serialization;
 
-namespace AstraGraph.Robust.Client;
+namespace Content.AstraGraph.Robust.Client;
 
 [Serializable, NetSerializable]
 public sealed class AstraBuiState : BoundUserInterfaceState

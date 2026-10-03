@@ -4,24 +4,24 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using AstraGraph.Core;
-using AstraGraph.Core.Events;
-using AstraGraph.Editor.Bridge;
-using AstraGraph.Editor.InGame;
-using AstraGraph.Editor.Protocol;
-using AstraGraph.HotReload;
-using AstraGraph.Persistence;
-using AstraGraph.Persistence.Discovery;
-using AstraGraph.Runtime;
-using AstraGraph.Runtime.Debugging;
-using AstraGraph.Runtime.Network;
-using AstraGraph.Runtime.Profiling;
-using AstraGraph.Runtime.Security;
-using AstraGraph.State;
-using AstraGraph.VM;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Core.Events;
+using Content.AstraGraph.Editor.Bridge;
+using Content.AstraGraph.Editor.InGame;
+using Content.AstraGraph.Editor.Protocol;
+using Content.AstraGraph.HotReload;
+using Content.AstraGraph.Persistence;
+using Content.AstraGraph.Persistence.Discovery;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.Runtime.Debugging;
+using Content.AstraGraph.Runtime.Network;
+using Content.AstraGraph.Runtime.Profiling;
+using Content.AstraGraph.Runtime.Security;
+using Content.AstraGraph.State;
+using Content.AstraGraph.VM;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 /// <summary>
 /// Final Comprehensive Acceptance Test for AstraGraph 1.0.
@@ -428,7 +428,7 @@ public sealed class AcceptanceTest10
         Assert.That(listResponse.Graphs.Count, Is.GreaterThan(0));
 
 #if NET10_0_OR_GREATER
-        var robustPerm = new AstraGraph.Robust.Server.RobustAdminPermissionProvider();
+        var robustPerm = new Content.AstraGraph.Robust.Server.RobustAdminPermissionProvider();
         Assert.That(robustPerm, Is.Not.Null);
 #endif
 

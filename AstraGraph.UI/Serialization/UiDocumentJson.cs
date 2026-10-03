@@ -1,10 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using AstraGraph.Core;
-using AstraGraph.UI.Catalog;
-using AstraGraph.UI.Model;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.UI.Catalog;
+using Content.AstraGraph.UI.Model;
 
-namespace AstraGraph.UI.Serialization;
+namespace Content.AstraGraph.UI.Serialization;
 
 /// <summary>
 /// Human-diffable document JSON. <see cref="UiDocument"/> is the source of truth, not XAML.

@@ -1,20 +1,20 @@
 using System.Net.Http;
 using System.Net.WebSockets;
 using System.Text.Json;
-using AstraGraph.Core;
-using AstraGraph.Editor.Bridge;
-using AstraGraph.Editor.Protocol;
-using AstraGraph.HotReload;
-using AstraGraph.Runtime;
-using AstraGraph.Runtime.Debugging;
-using AstraGraph.Runtime.Security;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Editor.Bridge;
+using Content.AstraGraph.Editor.Protocol;
+using Content.AstraGraph.HotReload;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.Runtime.Debugging;
+using Content.AstraGraph.Runtime.Security;
 using NUnit.Framework;
 
 #if NET10_0_OR_GREATER
-using AstraGraph.Robust.Server;
+using Content.AstraGraph.Robust.Server;
 #endif
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class AuthoringAndPermissionsTests

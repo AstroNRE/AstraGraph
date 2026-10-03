@@ -1,7 +1,7 @@
-using AstraGraph.UI.Runtime;
+using Content.AstraGraph.UI.Runtime;
 using Robust.Shared.GameObjects;
 
-namespace AstraGraph.Robust.Client;
+namespace Content.AstraGraph.Robust.Client;
 
 public static class AstraBuiRobustAdapter
 {

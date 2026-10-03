@@ -1,11 +1,11 @@
-using AstraGraph.Core;
-using AstraGraph.UI.Catalog;
-using AstraGraph.UI.Logic;
-using AstraGraph.UI.Model;
-using AstraGraph.UI.Runtime;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.UI.Catalog;
+using Content.AstraGraph.UI.Logic;
+using Content.AstraGraph.UI.Model;
+using Content.AstraGraph.UI.Runtime;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class UiReleaseTests
@@ -108,7 +108,7 @@ public sealed class UiReleaseTests
         });
         Assert.That(document.Root.Children[0].Text, Is.EqualTo("Создать"));
 
-        var compiled = AstraGraph.UI.Compiler.UiCompiler.Compile(document);
+        var compiled = Content.AstraGraph.UI.Compiler.UiCompiler.Compile(document);
         var reconciler = new RobustUiReconciler(new MockRobustUiControlFactory());
         var result = reconciler.Reconcile(compiled.Program!);
         Assert.That(result.ControlsById, Is.Not.Empty);

@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 public enum AstraValueType : byte
 {
@@ -17,7 +17,7 @@ public enum AstraValueType : byte
 }
 
 /// <summary>
-/// Compact, high-performance tagged union representing an unboxed runtime value in AstraGraph.
+/// Compact, high-performance tagged union representing an unboxed runtime value in Content.AstraGraph.
 /// Eliminates heap allocation for primitives, EntityUid, and Vector2.
 /// </summary>
 [StructLayout(LayoutKind.Explicit)]

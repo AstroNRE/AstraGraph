@@ -2,9 +2,9 @@ using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using AstraGraph.UI.Model;
+using Content.AstraGraph.UI.Model;
 
-namespace AstraGraph.UI.Html;
+namespace Content.AstraGraph.UI.Html;
 
 /// <summary>
 /// Renders an Astra UI document as one HTML page. The game shows that page in

@@ -1,11 +1,11 @@
-using AstraGraph.Core;
-using AstraGraph.Persistence.Cache;
-using AstraGraph.Persistence.Discovery;
-using AstraGraph.Persistence.State;
-using AstraGraph.Runtime;
-using AstraGraph.Runtime.Integration;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Persistence.Cache;
+using Content.AstraGraph.Persistence.Discovery;
+using Content.AstraGraph.Persistence.State;
+using Content.AstraGraph.Runtime;
+using Content.AstraGraph.Runtime.Integration;
 
-namespace AstraGraph.HotReload;
+namespace Content.AstraGraph.HotReload;
 
 /// <summary>
 /// Single startup pipeline: crash recovery, state restore, discovery, compile, activation.

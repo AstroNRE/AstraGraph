@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace AstraGraph.Persistence;
+namespace Content.AstraGraph.Persistence;
 
 /// <summary>
 /// Categorization of project-owned AstraGraph documents.

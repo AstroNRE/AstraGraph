@@ -2,13 +2,13 @@ using System.Net;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using AstraGraph.Core;
-using AstraGraph.Editor.Bridge;
-using AstraGraph.Editor.Protocol;
-using AstraGraph.HotReload;
-using AstraGraph.VM;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Editor.Bridge;
+using Content.AstraGraph.Editor.Protocol;
+using Content.AstraGraph.HotReload;
+using Content.AstraGraph.VM;
 
-namespace AstraGraph.Studio.DevHost;
+namespace Content.AstraGraph.Studio.DevHost;
 
 public sealed class AstraStudioDevServer : IAsyncDisposable
 {
@@ -324,6 +324,6 @@ public sealed class AstraStudioDevServer : IAsyncDisposable
         }
 
         return EmbeddedWebAssetProvider.FindStudioWebRoot()
-            ?? throw new InvalidOperationException("AstraGraph.StudioWeb/wwwroot was not found.");
+            ?? throw new InvalidOperationException("Content.AstraGraph.StudioWeb/wwwroot was not found.");
     }
 }

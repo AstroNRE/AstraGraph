@@ -1,9 +1,9 @@
-using AstraGraph.Runtime.Network;
+using Content.AstraGraph.Runtime.Network;
 using Lidgren.Network;
 using Robust.Shared.Network;
 using Robust.Shared.Serialization;
 
-namespace AstraGraph.Robust.Shared;
+namespace Content.AstraGraph.Robust.Shared;
 
 /// <summary>
 /// Carries Astra sync frames on Robust <see cref="INetManager"/>.

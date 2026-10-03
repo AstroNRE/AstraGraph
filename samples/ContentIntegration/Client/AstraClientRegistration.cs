@@ -1,5 +1,5 @@
-using AstraGraph.Editor.Protocol;
-using AstraGraph.Robust.Client;
+using Content.AstraGraph.Editor.Protocol;
+using Content.AstraGraph.Robust.Client;
 
 namespace Content.Integration;
 

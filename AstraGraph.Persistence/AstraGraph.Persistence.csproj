@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AstraGraph.Persistence</RootNamespace>
+    <RootNamespace>Content.AstraGraph.Persistence</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

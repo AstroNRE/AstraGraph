@@ -1,6 +1,6 @@
-using AstraGraph.UI.Catalog;
+using Content.AstraGraph.UI.Catalog;
 
-namespace AstraGraph.UI.Model;
+namespace Content.AstraGraph.UI.Model;
 
 /// <summary>
 /// Typed UI state variable. Rename changes <see cref="Name"/> and leaves <see cref="Id"/> stable.

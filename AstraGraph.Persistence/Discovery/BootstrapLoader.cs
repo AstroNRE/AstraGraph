@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using AstraGraph.Core;
-using AstraGraph.Persistence.Audit;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Persistence.Audit;
 
-namespace AstraGraph.Persistence.Discovery;
+namespace Content.AstraGraph.Persistence.Discovery;
 
 /// <summary>
 /// Discovers and resolves graph documents across Project Resources, Live, and Overrides tiers

@@ -1,11 +1,11 @@
 using System.Linq;
-using AstraGraph.Binding;
-using AstraGraph.Core;
-using AstraGraph.Editor.Core;
-using AstraGraph.Editor.Core.Search;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Editor.Core;
+using Content.AstraGraph.Editor.Core.Search;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 public class TargetEntitySample
 {

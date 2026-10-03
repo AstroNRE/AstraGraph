@@ -1,9 +1,9 @@
 using System.Net.WebSockets;
-using AstraGraph.Editor.Bridge;
-using AstraGraph.Editor.Protocol;
+using Content.AstraGraph.Editor.Bridge;
+using Content.AstraGraph.Editor.Protocol;
 using NUnit.Framework;
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 [Category("Bridge.W2")]
@@ -42,7 +42,7 @@ public sealed class TransportAndProxyTests
         var msg = new DraftCompileRequestMsg
         {
             SessionId = "sess-abc",
-            GraphId = new AstraGraph.Core.GraphId(Guid.NewGuid()),
+            GraphId = new Content.AstraGraph.Core.GraphId(Guid.NewGuid()),
             DraftJson = "{\"nodes\":[]}"
         };
 
@@ -228,9 +228,9 @@ public sealed class TransportAndProxyTests
     {
         var msg = new DraftCompileResponseMsg
         {
-            Status = AstraGraph.Editor.Protocol.AuthoringStatusCode.Success,
+            Status = Content.AstraGraph.Editor.Protocol.AuthoringStatusCode.Success,
             HasErrors = false,
-            Diagnostics = Array.Empty<AstraGraph.Core.Diagnostic>(),
+            Diagnostics = Array.Empty<Content.AstraGraph.Core.Diagnostic>(),
             BytecodeHash = "abc123"
         };
 

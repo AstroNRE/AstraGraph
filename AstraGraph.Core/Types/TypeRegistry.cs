@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 /// <summary>
 /// Central registry of known AstraGraph types, schemas, enums, and native bindings.

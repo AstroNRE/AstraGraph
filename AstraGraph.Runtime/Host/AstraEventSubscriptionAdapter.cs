@@ -1,9 +1,9 @@
 using System.Collections.Concurrent;
 using System.Reflection;
-using AstraGraph.Binding;
-using AstraGraph.Core;
+using Content.AstraGraph.Binding;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Runtime;
+namespace Content.AstraGraph.Runtime;
 
 /// <summary>
 /// Fast, zero-allocation dynamic event subscription adapter bridging RobustToolbox EventBus to active graph programs.

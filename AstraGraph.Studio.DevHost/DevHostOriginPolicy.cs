@@ -1,6 +1,6 @@
-using AstraGraph.Editor.Bridge;
+using Content.AstraGraph.Editor.Bridge;
 
-namespace AstraGraph.Studio.DevHost;
+namespace Content.AstraGraph.Studio.DevHost;
 
 /// <summary>
 /// Origin rules for Astra Studio DevHost. Local Bridge keeps <see cref="BridgeSecurityPolicy"/> unchanged.

@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using AstraGraph.Core;
-using AstraGraph.VM;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.VM;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
-namespace AstraGraph.JIT;
+namespace Content.AstraGraph.JIT;
 
 /// <summary>
 /// Compiles generated C# code using Roslyn in memory into a collectible AssemblyLoadContext.
@@ -94,7 +94,7 @@ public sealed class RoslynCompiler
         var loadContext = new AstraLoadContext(assemblyName);
         var assembly = loadContext.LoadFromStream(peStream);
 
-        var type = assembly.GetType($"AstraGraph.JIT.Generated.{className}")
+        var type = assembly.GetType($"Content.AstraGraph.JIT.Generated.{className}")
             ?? throw new InvalidOperationException($"Generated class {className} was not found in compiled assembly.");
 
         var instance = Activator.CreateInstance(type)

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 [JsonConverter(typeof(JsonStringEnumConverter<DiagnosticSeverity>))]
 public enum DiagnosticSeverity
@@ -11,7 +11,7 @@ public enum DiagnosticSeverity
 }
 
 /// <summary>
-/// Standard error and warning codes for AstraGraph.
+/// Standard error and warning codes for Content.AstraGraph.
 /// </summary>
 public static class DiagnosticCodes
 {

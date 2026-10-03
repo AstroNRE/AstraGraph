@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Runtime.Network;
+namespace Content.AstraGraph.Runtime.Network;
 
 /// <summary>
 /// Replication mode of schema fields across the network boundary.

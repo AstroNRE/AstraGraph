@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AstraGraph.Editor.Bridge</RootNamespace>
+    <RootNamespace>Content.AstraGraph.Editor.Bridge</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

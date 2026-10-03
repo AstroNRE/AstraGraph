@@ -1,6 +1,6 @@
-using AstraGraph.Runtime.Integration;
+using Content.AstraGraph.Runtime.Integration;
 
-namespace AstraGraph.Runtime;
+namespace Content.AstraGraph.Runtime;
 
 /// <summary>
 /// Places Astra graphs into a fixed engine phase. Graph-versus-graph order stays in <see cref="GraphScheduler"/>.

@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace AstraGraph.Core;
+namespace Content.AstraGraph.Core;
 
 /// <summary>
 /// Fast binary serializer for Astra bytecode streams.

@@ -1,7 +1,7 @@
 using System.Globalization;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.HotReload;
+namespace Content.AstraGraph.HotReload;
 
 /// <summary>
 /// Generates deterministic migration plans between schema revisions based on stable GUIDs.

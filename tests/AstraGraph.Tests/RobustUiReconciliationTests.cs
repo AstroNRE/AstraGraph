@@ -1,16 +1,16 @@
-using AstraGraph.Core;
-using AstraGraph.Editor.InGame;
-using AstraGraph.Editor.Protocol;
-using AstraGraph.UI.Compiler;
-using AstraGraph.UI.Model;
-using AstraGraph.UI.Runtime;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.Editor.InGame;
+using Content.AstraGraph.Editor.Protocol;
+using Content.AstraGraph.UI.Compiler;
+using Content.AstraGraph.UI.Model;
+using Content.AstraGraph.UI.Runtime;
 using NUnit.Framework;
 
 #if NET10_0_OR_GREATER
-using AstraGraph.Robust.Client;
+using Content.AstraGraph.Robust.Client;
 #endif
 
-namespace AstraGraph.Tests;
+namespace Content.AstraGraph.Tests;
 
 [TestFixture]
 public sealed class RobustUiReconciliationTests

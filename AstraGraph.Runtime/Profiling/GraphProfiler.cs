@@ -3,9 +3,9 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using AstraGraph.Core;
+using Content.AstraGraph.Core;
 
-namespace AstraGraph.Runtime.Profiling;
+namespace Content.AstraGraph.Runtime.Profiling;
 
 public sealed record GraphPerformanceMetric(
     long Invocations,

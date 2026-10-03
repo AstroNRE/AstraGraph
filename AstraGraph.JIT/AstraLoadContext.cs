@@ -1,7 +1,7 @@
 using System.Reflection;
 using System.Runtime.Loader;
 
-namespace AstraGraph.JIT;
+namespace Content.AstraGraph.JIT;
 
 /// <summary>
 /// Collectible AssemblyLoadContext enabling zero-leak unloading of dynamically compiled JIT assemblies.

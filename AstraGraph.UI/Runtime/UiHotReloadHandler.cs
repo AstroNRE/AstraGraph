@@ -1,7 +1,7 @@
-using AstraGraph.UI.Compiler;
-using AstraGraph.UI.Model;
+using Content.AstraGraph.UI.Compiler;
+using Content.AstraGraph.UI.Model;
 
-namespace AstraGraph.UI.Runtime;
+namespace Content.AstraGraph.UI.Runtime;
 
 public sealed class UiSession
 {

@@ -1,6 +1,6 @@
-using AstraGraph.Editor.Protocol;
+using Content.AstraGraph.Editor.Protocol;
 
-namespace AstraGraph.Studio.DevHost;
+namespace Content.AstraGraph.Studio.DevHost;
 
 /// <summary>
 /// Attached-mode bridge to a runtime that already exists.

@@ -1,9 +1,9 @@
-using AstraGraph.Core;
-using AstraGraph.UI.Catalog;
-using AstraGraph.UI.Logic;
-using AstraGraph.UI.Model;
+using Content.AstraGraph.Core;
+using Content.AstraGraph.UI.Catalog;
+using Content.AstraGraph.UI.Logic;
+using Content.AstraGraph.UI.Model;
 
-namespace AstraGraph.UI.Compiler;
+namespace Content.AstraGraph.UI.Compiler;
 
 /// <summary>
 /// Result of compiling a UiDocument into a UiIrProgram.
